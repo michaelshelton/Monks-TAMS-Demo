@@ -1,0 +1,79 @@
+# Docker Compose configuration for TAMS Frontend
+# This file defines how to run the frontend container with proper networking and volumes
+
+version: '3.8'
+
+services:
+  # Frontend service (production)
+  frontend:
+    # Build the image from the current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Use production stage from multi-stage Dockerfile
+      target: production
+    
+    # Container name
+    container_name: tams-frontend
+    
+    # Port mapping: host_port:container_port
+    # This maps port 3000 on your machine to port 80 in the container
+    ports:
+      - "3000:80"
+    
+    # Environment variables
+    environment:
+      - NODE_ENV=production
+      # Add any other environment variables your app needs
+      # - VITE_API_URL=http://localhost:8000
+    
+    # Restart policy
+    # This ensures the container restarts if it crashes
+    restart: unless-stopped
+    
+    # Health check
+    # This tells Docker how to check if the container is healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Networks (optional - for connecting to other services)
+    networks:
+      - tams-network
+
+  # Development service (optional)
+  # This runs the app in development mode with hot reloading
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: tams-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    profiles:
+      - dev
+
+# Define networks
+networks:
+  tams-network:
+    driver: bridge 
