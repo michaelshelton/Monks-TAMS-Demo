@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Container, Title, TextInput, Stack, Card, Text, Badge, Group, rem } from '@mantine/core';
 
 const dummyResults = [

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Container, Title, Card, Stack, Badge, Group, Text, rem } from '@mantine/core';
 
 const dummySegments = [

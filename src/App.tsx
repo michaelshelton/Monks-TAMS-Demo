@@ -1,5 +1,4 @@
-import React from 'react';
-import { MantineProvider, AppShell, Anchor, Container, createTheme, rem } from '@mantine/core';
+import { MantineProvider, AppShell, Anchor, createTheme, rem } from '@mantine/core';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Landing from './pages/Landing';
 import Flows from './pages/Flows';

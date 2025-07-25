@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Container, Title, Card, SimpleGrid, Text, Group, Badge, Box } from '@mantine/core';
 import { Line } from 'react-chartjs-2';
 import {

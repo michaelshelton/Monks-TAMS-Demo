@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Container, Title, Text, Card, Stack, Badge, Group, Slider, rem } from '@mantine/core';
 
 export default function FlowDetails() {

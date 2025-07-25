@@ -1,4 +1,3 @@
-import React from 'react';
 import { Container, Title, Card, Text, Badge, Group, Box, Button, Table, ActionIcon } from '@mantine/core';
 import { IconVideo, IconMusic, IconEye, IconClock, IconTag, IconDots } from '@tabler/icons-react';
 
