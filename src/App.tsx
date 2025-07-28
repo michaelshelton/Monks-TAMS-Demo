@@ -3,8 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react
 import Landing from './pages/Landing';
 import Flows from './pages/Flows';
 import FlowDetails from './pages/FlowDetails';
+import Sources from './pages/Sources';
+import Objects from './pages/Objects';
 import Segments from './pages/Segments';
 import Analytics from './pages/Analytics';
+import Service from './pages/Service';
 import Search from './pages/Search';
 import Upload from './pages/Upload';
 
@@ -16,12 +19,14 @@ const theme = createTheme({
 
 const navLinks = [
   { label: 'Home', to: '/' },
+  { label: 'Sources', to: '/sources' },
   { label: 'Flows', to: '/flows' },
-  { label: 'Flow Details', to: '/flow-details' },
   { label: 'Segments', to: '/segments' },
+  { label: 'Objects', to: '/objects' },
   { label: 'Analytics', to: '/analytics' },
   { label: 'Search', to: '/search' },
   { label: 'Upload', to: '/upload' },
+  { label: 'Admin', to: '/service' },
 ];
 
 function AppFooter() {
@@ -62,10 +67,13 @@ function AppLayout() {
       <AppShell.Main m="xl">
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/sources" element={<Sources />} />
           <Route path="/flows" element={<Flows />} />
-          <Route path="/flow-details" element={<FlowDetails />} />
+          <Route path="/flow-details/:flowId" element={<FlowDetails />} />
+          <Route path="/objects" element={<Objects />} />
           <Route path="/segments" element={<Segments />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/service" element={<Service />} />
           <Route path="/search" element={<Search />} />
           <Route path="/upload" element={<Upload />} />
         </Routes>
