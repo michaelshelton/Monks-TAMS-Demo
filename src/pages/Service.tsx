@@ -812,7 +812,7 @@ function CreateWebhookForm({ onSubmit, onCancel }: CreateWebhookFormProps) {
           label="Events"
           placeholder="Select events"
           data={availableEvents.map(event => ({ value: event, label: event }))}
-          value={formData.events[0]}
+          value={formData.events[0] || null}
           onChange={(value) => setFormData({ ...formData, events: value ? [value] : [] })}
         />
         <Select
@@ -874,7 +874,7 @@ function EditWebhookForm({ webhook, onSubmit, onCancel }: EditWebhookFormProps) 
         />
         <Select
           label="Status"
-          value={formData.status}
+          value={formData.status || null}
           onChange={(value) => setFormData({ ...formData, status: value as 'active' | 'inactive' | 'error' })}
           data={[
             { value: 'active', label: 'Active' },
