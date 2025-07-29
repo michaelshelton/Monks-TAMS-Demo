@@ -1,5 +1,5 @@
 
-import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid, ActionIcon, Tooltip } from '@mantine/core';
+import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid, ActionIcon, Tooltip, Progress, RingProgress, Paper } from '@mantine/core';
 import { 
   IconClock, 
   IconSearch, 
@@ -23,329 +23,353 @@ import {
   IconBroadcast,
   IconNetwork,
   IconShield,
-  IconBolt
+  IconBolt,
+  IconTarget,
+  IconTrendingUp,
+  IconAlertCircle
 } from '@tabler/icons-react';
 
-const features = [
+const liveStats = [
+  { label: 'Active Sources', value: '12', icon: <IconVideo size={20} />, color: 'blue' },
+  { label: 'Live Flows', value: '8', icon: <IconBroadcast size={20} />, color: 'green' },
+  { label: 'Segments Today', value: '1,247', icon: <IconTimeline size={20} />, color: 'orange' },
+  { label: 'Storage Used', value: '2.4TB', icon: <IconDatabase size={20} />, color: 'purple' }
+];
+
+const quickActions = [
   {
-    icon: <IconVideo size={32} />,
-    title: 'Sources Management',
-    description: 'Manage media inputs from cameras, microphones, and data feeds with comprehensive CRUD operations.',
-    color: 'blue',
-    link: '/sources'
-  },
-  {
+    title: 'Live Sources',
+    description: 'View real-time media inputs',
     icon: <IconBroadcast size={32} />,
-    title: 'Flow Management',
-    description: 'Process and manage media streams with detailed technical specifications and performance metrics.',
+    color: 'blue',
+    link: '/sources',
+    badge: '12 Active'
+  },
+  {
+    title: 'Media Flows',
+    description: 'Monitor processing streams',
+    icon: <IconBroadcast size={32} />,
     color: 'green',
-    link: '/flows'
+    link: '/flows',
+    badge: '8 Running'
   },
   {
-    icon: <IconTimeline size={32} />,
-    title: 'Segment Timeline',
-    description: 'Visual timeline view of media segments with time-based navigation and playback controls.',
+    title: 'Time Navigation',
+    description: 'Jump to any moment instantly',
+    icon: <IconTarget size={32} />,
     color: 'orange',
-    link: '/segments'
+    link: '/segments',
+    badge: 'Live Demo'
   },
   {
-    icon: <IconDatabase size={32} />,
-    title: 'Objects Browser',
-    description: 'Browse and manage persistent media objects with multi-format support and storage analytics.',
-    color: 'purple',
-    link: '/objects'
-  },
-  {
-    icon: <IconActivity size={32} />,
-    title: 'Analytics Dashboard',
-    description: 'Comprehensive analytics with performance metrics, usage patterns, and system health monitoring.',
+    title: 'Analytics',
+    description: 'Real-time performance metrics',
+    icon: <IconTrendingUp size={32} />,
     color: 'teal',
-    link: '/analytics'
-  },
-  {
-    icon: <IconSettings size={32} />,
-    title: 'Service Configuration',
-    description: 'System administration with webhook management, security settings, and API documentation.',
-    color: 'gray',
-    link: '/service'
+    link: '/analytics',
+    badge: 'Live Data'
   }
 ];
 
-const capabilities = [
+const demoHighlights = [
   {
-    icon: <IconFilter size={24} />,
-    title: 'Advanced Filtering',
-    description: 'URL-persistent filters with presets and multi-criteria search across all data types.'
-  },
-  {
-    icon: <IconWebhook size={24} />,
-    title: 'Event-Driven Architecture',
-    description: 'Real-time webhook notifications for seamless integration with external systems.'
-  },
-  {
-    icon: <IconActivity size={24} />,
-    title: 'Performance Monitoring',
-    description: 'Real-time metrics, quality scores, and uptime monitoring for production reliability.'
-  },
-  {
-    icon: <IconShield size={24} />,
-    title: 'Enterprise Security',
-    description: 'API key management, rate limiting, HTTPS enforcement, and comprehensive access controls.'
+    icon: <IconClock size={24} />,
+    title: 'Time-Addressable Access',
+    description: 'Access any moment in your media streams instantly - no more scrubbing through hours of content.'
   },
   {
     icon: <IconBolt size={24} />,
-    title: 'High Performance',
-    description: 'Optimized for real-time media processing with sub-second response times.'
+    title: 'Real-Time Processing',
+    description: 'Live media streams processed and indexed as they arrive, enabling instant search and retrieval.'
   },
   {
-    icon: <IconNetwork size={24} />,
-    title: 'Scalable Architecture',
-    description: 'Built on VAST Data Platform for petabyte-scale media storage and processing.'
+    icon: <IconSearch size={24} />,
+    title: 'Instant Search',
+    description: 'Find specific content across petabytes of media using semantic search and AI-powered indexing.'
+  },
+  {
+    icon: <IconDatabase size={24} />,
+    title: 'Petabyte Scale',
+    description: 'Built on VAST Data Platform for unlimited storage and lightning-fast access to any media moment.'
   }
-];
-
-const stats = [
-  { label: 'Media Sources', value: 'Unlimited', icon: <IconVideo size={20} /> },
-  { label: 'Flow Types', value: '5+ Formats', icon: <IconBroadcast size={20} /> },
-  { label: 'Storage Scale', value: 'Petabytes', icon: <IconDatabase size={20} /> },
-  { label: 'API Endpoints', value: '20+ Routes', icon: <IconServer size={20} /> }
 ];
 
 export default function Landing() {
   return (
     <Box>
-      {/* Hero Section */}
-      <Box py="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      {/* Hero Section - Demo Focus */}
+      <Box py="xl" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' }}>
         <Container size="xl" px="xl">
           <Stack align="center" gap="xl" py="xl">
-            <Badge size="lg" variant="light" color="white">
-              Time Addressable Media Storage
+            <Badge size="lg" variant="light" color="blue">
+              <IconBroadcast size={16} style={{ marginRight: 8 }} />
+              LIVE DEMO
             </Badge>
             <Title order={1} ta="center" maw={800} c="white">
-              Transform How You Store, Search, and Analyze Media
+              Time Addressable Media Storage
             </Title>
             <Text size="lg" ta="center" maw={700} c="white" opacity={0.9}>
-              Access any moment in your media streams instantly with AI-powered time-addressable storage. 
-              From live broadcasts to archived content, TAMS revolutionizes your media workflows.
+              Experience the future of media storage. Access any moment in your media streams instantly - 
+              no more scrubbing through hours of content to find what you need.
             </Text>
             <Group justify="center" gap="md">
-              <Button size="lg" rightSection={<IconArrowRight size={20} />} color="white" variant="filled">
-                Explore the Demo
+              <Button size="lg" rightSection={<IconArrowRight size={20} />} color="blue">
+                Start Interactive Demo
               </Button>
               <Button size="lg" variant="outline" color="white">
-                Learn More
+                Watch Demo Video
               </Button>
             </Group>
           </Stack>
         </Container>
       </Box>
 
-      {/* Stats Section */}
+      {/* Live Stats Dashboard */}
       <Container size="xl" px="xl" py="xl">
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xl">
-          {stats.map((stat, i) => (
-            <Card key={i} withBorder p="md" ta="center">
-              <Group justify="center" mb="xs">
-                {stat.icon}
-              </Group>
-              <Text size="xl" fw={700} mb="xs">
-                {stat.value}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {stat.label}
-              </Text>
-            </Card>
-          ))}
-        </SimpleGrid>
-      </Container>
-
-      {/* Features Section */}
-      <Container size="xl" px="xl" py="xl">
-        <Stack align="center" gap="xl">
-          <Box ta="center" maw={700}>
+        <Stack gap="xl">
+          <Box ta="center">
             <Title order={2} mb="md">
-              Comprehensive Media Management
+              Live System Status
             </Title>
             <Text size="lg" c="dimmed">
-              Nine major features designed for enterprise media workflows
+              Real-time metrics from our TAMS demo environment
             </Text>
           </Box>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl" w="100%">
-            {features.map((feature, i) => (
-              <Card key={i} withBorder p="xl" style={{ height: '100%' }}>
-                <Stack gap="md" h="100%">
-                  <Group gap="md">
-                    <Box style={{ color: `var(--mantine-color-${feature.color}-6)` }}>
-                      {feature.icon}
-                    </Box>
-                    <Title order={4} style={{ flex: 1 }}>
-                      {feature.title}
-                    </Title>
-                  </Group>
-                  <Text c="dimmed" style={{ flex: 1 }}>
-                    {feature.description}
-                  </Text>
-                  <Button 
-                    variant="light" 
-                    size="sm" 
-                    rightSection={<IconArrowRight size={16} />}
-                    component="a"
-                    href={feature.link}
-                  >
-                    Explore
-                  </Button>
-                </Stack>
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xl">
+            {liveStats.map((stat, i) => (
+              <Card key={i} withBorder p="md" ta="center">
+                <Group justify="center" mb="xs">
+                  <Box style={{ color: `var(--mantine-color-${stat.color}-6)` }}>
+                    {stat.icon}
+                  </Box>
+                </Group>
+                <Text size="xl" fw={700} mb="xs">
+                  {stat.value}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {stat.label}
+                </Text>
               </Card>
             ))}
           </SimpleGrid>
         </Stack>
       </Container>
 
-      {/* Capabilities Section */}
+      {/* Quick Actions - Demo Navigation */}
       <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
         <Container size="xl" px="xl">
-          <Stack align="center" gap="xl">
-            <Box ta="center" maw={700}>
+          <Stack gap="xl">
+            <Box ta="center">
               <Title order={2} mb="md">
-                Enterprise Capabilities
+                Interactive Demo Areas
               </Title>
               <Text size="lg" c="dimmed">
-                Built for production media environments with enterprise-grade features
+                Explore different aspects of TAMS functionality
               </Text>
             </Box>
-            <Grid>
-              {capabilities.map((capability, i) => (
-                <Grid.Col key={i} span={{ base: 12, sm: 6, lg: 4 }}>
-                  <Card withBorder p="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="xl">
+              {quickActions.map((action, i) => (
+                <Card key={i} withBorder p="xl" style={{ height: '100%' }}>
+                  <Stack gap="md" h="100%">
                     <Group gap="md">
-                      <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
-                        {capability.icon}
+                      <Box style={{ color: `var(--mantine-color-${action.color}-6)` }}>
+                        {action.icon}
                       </Box>
-                      <Box style={{ flex: 1 }}>
-                        <Text fw={500} mb="xs">
-                          {capability.title}
-                        </Text>
-                        <Text size="sm" c="dimmed">
-                          {capability.description}
-                        </Text>
-                      </Box>
+                      <Badge size="sm" variant="light" color={action.color}>
+                        {action.badge}
+                      </Badge>
                     </Group>
-                  </Card>
-                </Grid.Col>
+                    <Title order={4} style={{ flex: 1 }}>
+                      {action.title}
+                    </Title>
+                    <Text c="dimmed" size="sm" style={{ flex: 1 }}>
+                      {action.description}
+                    </Text>
+                    <Button 
+                      variant="light" 
+                      size="sm" 
+                      rightSection={<IconArrowRight size={16} />}
+                      component="a"
+                      href={action.link}
+                      color={action.color}
+                    >
+                      Explore
+                    </Button>
+                  </Stack>
+                </Card>
               ))}
-            </Grid>
+            </SimpleGrid>
           </Stack>
         </Container>
       </Box>
 
-      {/* Technology Stack */}
+      {/* Key Differentiators */}
       <Container size="xl" px="xl" py="xl">
-        <Stack align="center" gap="xl">
-          <Box ta="center" maw={700}>
+        <Stack gap="xl">
+          <Box ta="center">
             <Title order={2} mb="md">
-              Built on Modern Technology
+              Why TAMS is Revolutionary
             </Title>
             <Text size="lg" c="dimmed">
-              Leveraging cutting-edge technologies for optimal performance
+              Traditional media storage vs. Time Addressable Media Storage
             </Text>
           </Box>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
-            <Card withBorder p="md" ta="center">
-              <IconServer size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
-              <Text fw={500} mt="sm">VAST Data Platform</Text>
-              <Text size="sm" c="dimmed">High-performance storage</Text>
-            </Card>
-            <Card withBorder p="md" ta="center">
-              <IconNetwork size={32} style={{ color: 'var(--mantine-color-green-6)' }} />
-              <Text fw={500} mt="sm">FastAPI Backend</Text>
-              <Text size="sm" c="dimmed">RESTful API service</Text>
-            </Card>
-            <Card withBorder p="md" ta="center">
-                             <IconBolt size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
-              <Text fw={500} mt="sm">React Frontend</Text>
-              <Text size="sm" c="dimmed">Modern UI framework</Text>
-            </Card>
-            <Card withBorder p="md" ta="center">
-              <IconShield size={32} style={{ color: 'var(--mantine-color-purple-6)' }} />
-              <Text fw={500} mt="sm">Enterprise Security</Text>
-              <Text size="sm" c="dimmed">Production-ready</Text>
-            </Card>
-          </SimpleGrid>
+          <Grid>
+            {demoHighlights.map((highlight, i) => (
+              <Grid.Col key={i} span={{ base: 12, sm: 6, lg: 3 }}>
+                <Card withBorder p="md">
+                  <Group gap="md">
+                    <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
+                      {highlight.icon}
+                    </Box>
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={500} mb="xs">
+                        {highlight.title}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {highlight.description}
+                      </Text>
+                    </Box>
+                  </Group>
+                </Card>
+              </Grid.Col>
+            ))}
+          </Grid>
         </Stack>
       </Container>
 
-      {/* Use Cases */}
+      {/* Live Demo Section */}
       <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
         <Container size="xl" px="xl">
-          <Stack align="center" gap="xl">
-            <Box ta="center" maw={700}>
+          <Stack gap="xl">
+            <Box ta="center">
               <Title order={2} mb="md">
-                Perfect For
+                Try It Now
               </Title>
               <Text size="lg" c="dimmed">
-                Media organizations that demand reliability and performance
+                Experience the power of time-addressable media storage
               </Text>
             </Box>
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
-              <Card withBorder p="xl" ta="center">
-                <IconBroadcast size={48} style={{ color: 'var(--mantine-color-blue-6)' }} />
-                <Title order={3} mt="md" mb="sm">Broadcast Media</Title>
-                <Text c="dimmed">
-                  Live news, sports, and entertainment with real-time processing and instant access to any moment.
-                </Text>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
+              <Card withBorder p="xl">
+                <Stack gap="md">
+                  <Group gap="md">
+                    <IconTimeline size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
+                    <Box>
+                      <Title order={4}>Segment Timeline</Title>
+                      <Text size="sm" c="dimmed">Visual timeline navigation</Text>
+                    </Box>
+                  </Group>
+                  <Text>
+                    Navigate through media segments with our interactive timeline. 
+                    Jump to any moment instantly without scrubbing through content.
+                  </Text>
+                  <Button 
+                    variant="light" 
+                    rightSection={<IconArrowRight size={16} />}
+                    component="a"
+                    href="/segments"
+                  >
+                    Try Timeline Demo
+                  </Button>
+                </Stack>
               </Card>
-              <Card withBorder p="xl" ta="center">
-                <IconVideo size={48} style={{ color: 'var(--mantine-color-green-6)' }} />
-                <Title order={3} mt="md" mb="sm">Content Archives</Title>
-                <Text c="dimmed">
-                  Long-term storage and retrieval of media assets with intelligent search and metadata management.
-                </Text>
-              </Card>
-              <Card withBorder p="xl" ta="center">
-                <IconActivity size={48} style={{ color: 'var(--mantine-color-orange-6)' }} />
-                <Title order={3} mt="md" mb="sm">Production Workflows</Title>
-                <Text c="dimmed">
-                  Seamless integration with existing production systems and automated media processing pipelines.
-                </Text>
+              <Card withBorder p="xl">
+                <Stack gap="md">
+                  <Group gap="md">
+                    <IconSearch size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
+                    <Box>
+                      <Title order={4}>Advanced Search</Title>
+                      <Text size="sm" c="dimmed">Find content instantly</Text>
+                    </Box>
+                  </Group>
+                  <Text>
+                    Search across all your media using advanced filters, metadata, 
+                    and semantic search capabilities.
+                  </Text>
+                  <Button 
+                    variant="light" 
+                    rightSection={<IconArrowRight size={16} />}
+                    component="a"
+                    href="/search"
+                  >
+                    Try Search Demo
+                  </Button>
+                </Stack>
               </Card>
             </SimpleGrid>
           </Stack>
         </Container>
       </Box>
 
-      {/* CTA Section */}
-      <Box py="xl">
+      {/* Technology Demo */}
+      <Container size="xl" px="xl" py="xl">
+        <Stack gap="xl">
+          <Box ta="center">
+            <Title order={2} mb="md">
+              Powered by VAST Data Platform
+            </Title>
+            <Text size="lg" c="dimmed">
+              Built on the world's fastest data platform for unlimited scale and performance
+            </Text>
+          </Box>
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
+            <Card withBorder p="md" ta="center">
+              <IconBolt size={32} style={{ color: 'var(--mantine-color-green-6)' }} />
+              <Text fw={500} mt="sm">Sub-Second Access</Text>
+              <Text size="sm" c="dimmed">Any moment, instantly</Text>
+            </Card>
+            <Card withBorder p="md" ta="center">
+              <IconDatabase size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
+              <Text fw={500} mt="sm">Petabyte Scale</Text>
+              <Text size="sm" c="dimmed">Unlimited storage</Text>
+            </Card>
+            <Card withBorder p="md" ta="center">
+              <IconActivity size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
+              <Text fw={500} mt="sm">Real-Time Processing</Text>
+              <Text size="sm" c="dimmed">Live stream indexing</Text>
+            </Card>
+            <Card withBorder p="md" ta="center">
+              <IconShield size={32} style={{ color: 'var(--mantine-color-purple-6)' }} />
+              <Text fw={500} mt="sm">Enterprise Ready</Text>
+              <Text size="sm" c="dimmed">Production hardened</Text>
+            </Card>
+          </SimpleGrid>
+        </Stack>
+      </Container>
+
+      {/* Demo CTA */}
+      <Box py="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
         <Container size="xl" px="xl">
           <Stack align="center" gap="xl">
             <Box ta="center" maw={700}>
-              <Title order={2} mb="lg">
-                Ready to Transform Your Media Storage?
+              <Title order={2} mb="lg" c="white">
+                Ready to Experience TAMS?
               </Title>
-              <Text size="lg" mb="xl" c="dimmed">
-                Experience the power of time-addressable media storage with our interactive demo. 
-                See how TAMS can revolutionize your media workflows.
+              <Text size="lg" mb="xl" c="white" opacity={0.9}>
+                Start exploring the interactive demo areas to see how TAMS can transform your media workflows.
               </Text>
             </Box>
             <Group gap="md">
-              <Button size="xl" rightSection={<IconPlayerPlay size={24} />}>
-                Start Demo Now
+              <Button size="xl" rightSection={<IconPlayerPlay size={24} />} color="white" variant="filled">
+                Start Interactive Demo
               </Button>
-              <Button size="xl" variant="outline" rightSection={<IconExternalLink size={24} />}>
-                View Documentation
+              <Button size="xl" variant="outline" color="white" rightSection={<IconArrowRight size={24} />}>
+                Explore Features
               </Button>
             </Group>
             <Group gap="lg" mt="xl">
               <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'var(--mantine-color-green-6)' }} />
-                <Text size="sm">Production Ready</Text>
+                <IconCheck size={16} style={{ color: 'white' }} />
+                <Text size="sm" c="white">Live Demo Data</Text>
               </Group>
               <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'var(--mantine-color-green-6)' }} />
-                <Text size="sm">Enterprise Security</Text>
+                <IconCheck size={16} style={{ color: 'white' }} />
+                <Text size="sm" c="white">Interactive Features</Text>
               </Group>
               <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'var(--mantine-color-green-6)' }} />
-                <Text size="sm">Scalable Architecture</Text>
+                <IconCheck size={16} style={{ color: 'white' }} />
+                <Text size="sm" c="white">Real-Time Metrics</Text>
               </Group>
             </Group>
           </Stack>
