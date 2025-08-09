@@ -25,24 +25,18 @@ import {
   IconVolume,
   IconVolumeOff,
   IconMaximize,
-  IconSettings,
-  IconDownload,
-  IconShare,
-  IconQrcode,
-  IconDeviceMobile,
-  IconWifi,
-  IconBattery,
-  IconClock,
-  IconCheck,
-  IconX,
-  IconAlertCircle,
-  IconRefresh,
   IconMinimize,
-  IconSkipBack,
-  IconSkipForward,
   IconRotate,
-  IconBrightness,
-  IconContrast
+  IconDeviceMobile,
+  IconBattery,
+  IconWifi,
+  IconSettings,
+  IconX,
+  IconChevronLeft,
+  IconChevronRight,
+  IconAlertCircle,
+  IconDownload,
+  IconShare
 } from '@tabler/icons-react';
 
 // Types for mobile video player
@@ -161,17 +155,33 @@ export default function MobileVideoPlayer({
   useEffect(() => {
     // Initialize device info
     const updateDeviceInfo = async () => {
-      const battery = await navigator.getBattery?.();
-      const connection = (navigator as any).connection;
-      
-      setAnalytics(prev => ({
-        ...prev,
-        deviceInfo: {
-          ...prev.deviceInfo,
-          batteryLevel: battery ? Math.round(battery.level * 100) : 0,
-          networkType: connection ? connection.effectiveType : 'unknown'
+      try {
+        // Check if getBattery is available (Chrome/Edge)
+        if ('getBattery' in navigator) {
+          const battery = await (navigator as any).getBattery();
+          setAnalytics(prev => ({
+            ...prev,
+            deviceInfo: {
+              ...prev.deviceInfo,
+              batteryLevel: Math.round(battery.level * 100)
+            }
+          }));
         }
-      }));
+        
+        // Get connection info
+        if ('connection' in navigator) {
+          const connection = (navigator as any).connection;
+          setAnalytics(prev => ({
+            ...prev,
+            deviceInfo: {
+              ...prev.deviceInfo,
+              networkType: connection.effectiveType || 'unknown'
+            }
+          }));
+        }
+      } catch (error) {
+        console.log('Device info not available:', error);
+      }
     };
 
     updateDeviceInfo();

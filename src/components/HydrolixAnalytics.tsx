@@ -237,6 +237,9 @@ export default function HydrolixAnalytics({
 
       return () => clearInterval(interval);
     }
+    
+    // Return cleanup function for when videoId is not provided
+    return () => {};
   }, [videoId, onAnalyticsUpdate]);
 
   // Track real CMCD events

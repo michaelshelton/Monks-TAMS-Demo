@@ -27,7 +27,7 @@ export class VideoMerger {
 
   constructor(segments: VideoSegment[], onProgress?: (progress: MergeProgress) => void) {
     this.segments = segments;
-    this.onProgress = onProgress;
+    this.onProgress = onProgress || (() => {});
   }
 
   async mergeVideos(): Promise<string> {
@@ -64,6 +64,8 @@ export class VideoMerger {
       // Process each video segment
       for (let i = 0; i < this.segments.length; i++) {
         const segment = this.segments[i];
+        if (!segment) continue;
+        
         const progress = ((i + 1) / this.segments.length) * 100;
         
         this.updateProgress('processing', progress, `Processing segment ${i + 1}/${this.segments.length}...`);
@@ -169,7 +171,7 @@ export class FFmpegVideoMerger {
 
   constructor(segments: VideoSegment[], onProgress?: (progress: MergeProgress) => void) {
     this.segments = segments;
-    this.onProgress = onProgress;
+    this.onProgress = onProgress || (() => {});
   }
 
   async mergeVideos(): Promise<string> {
@@ -187,7 +189,7 @@ export class MediaSourceVideoMerger {
 
   constructor(segments: VideoSegment[], onProgress?: (progress: MergeProgress) => void) {
     this.segments = segments;
-    this.onProgress = onProgress;
+    this.onProgress = onProgress || (() => {});
   }
 
   async mergeVideos(): Promise<string> {
@@ -214,6 +216,9 @@ export class MediaSourceVideoMerger {
       // For demo purposes, we'll use the first video segment as the "merged" video
       // In a real implementation, this would be the actual merged video
       const firstSegment = this.segments[0];
+      if (!firstSegment) {
+        throw new Error('No video segments available for merging');
+      }
       
       // Create a video element to fetch the first segment
       const video = document.createElement('video');
@@ -245,6 +250,8 @@ export class MediaSourceVideoMerger {
   ): Promise<void> {
     for (let i = 0; i < videos.length; i++) {
       const video = videos[i];
+      if (!video) continue;
+      
       const progress = ((i + 1) / videos.length) * 100;
       
       this.updateProgress('processing', progress, `Processing video ${i + 1}/${videos.length}...`);
@@ -286,7 +293,7 @@ export class MediaSourceVideoMerger {
         };
 
         // Set video source
-        video.src = videos[i].src;
+        video.src = video.src;
       });
 
       // Small delay between videos

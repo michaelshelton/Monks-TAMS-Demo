@@ -48,7 +48,7 @@ class AnalyticsService {
   private config: AnalyticsConfig;
   private eventQueue: CMCDData[] = [];
   private sessionId: string;
-  private flushTimer?: NodeJS.Timeout;
+  private flushTimer?: ReturnType<typeof setTimeout>;
 
   constructor(config: AnalyticsConfig) {
     this.config = config;
@@ -175,70 +175,102 @@ class AnalyticsService {
   /**
    * Track video play event
    */
-  public trackVideoPlay(videoId: string, compilationId?: string): void {
-    this.queueEvent({
+  public trackVideoPlay(videoId: string, compilationId?: string, watchTime: number = 0) {
+    const eventData: CMCDData = {
       event: 'play',
       video_id: videoId,
-      compilation_id: compilationId,
-      watch_time: 0
-    });
+      watch_time: watchTime,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
+    };
+    
+    if (compilationId) {
+      eventData.compilation_id = compilationId;
+    }
+    
+    this.queueEvent(eventData);
   }
 
   /**
    * Track video pause event
    */
-  public trackVideoPause(videoId: string, watchTime: number, compilationId?: string): void {
-    this.queueEvent({
+  public trackVideoPause(videoId: string, watchTime: number, compilationId?: string) {
+    const eventData: CMCDData = {
       event: 'pause',
       video_id: videoId,
-      compilation_id: compilationId,
-      watch_time: watchTime
-    });
+      watch_time: watchTime,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
+    };
+    
+    if (compilationId) {
+      eventData.compilation_id = compilationId;
+    }
+    
+    this.queueEvent(eventData);
   }
 
   /**
    * Track video time update
    */
-  public trackVideoTimeUpdate(videoId: string, watchTime: number, compilationId?: string): void {
-    this.queueEvent({
+  public trackVideoTimeUpdate(videoId: string, watchTime: number, compilationId?: string) {
+    const eventData: CMCDData = {
       event: 'time_update',
       video_id: videoId,
-      compilation_id: compilationId,
-      watch_time: watchTime
-    });
+      watch_time: watchTime,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
+    };
+    
+    if (compilationId) {
+      eventData.compilation_id = compilationId;
+    }
+    
+    this.queueEvent(eventData);
   }
 
   /**
    * Track QR code scan
    */
-  public trackQRScan(compilationId: string): void {
+  public trackQRScan(compilationId: string) {
     this.queueEvent({
       event: 'qr_scan',
       compilation_id: compilationId,
-      qr_scan: true
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
     });
   }
 
   /**
    * Track compilation start
    */
-  public trackCompilationStart(compilationId: string, segmentCount: number): void {
+  public trackCompilationStart(compilationId: string, segmentCount: number) {
     this.queueEvent({
       event: 'compilation_start',
       compilation_id: compilationId,
-      segment_count: segmentCount
+      segment_count: segmentCount,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
     });
   }
 
   /**
    * Track compilation complete
    */
-  public trackCompilationComplete(compilationId: string, duration: number, fileSize: number): void {
+  public trackCompilationComplete(compilationId: string, compilationDuration: number, fileSize: number) {
     this.queueEvent({
       event: 'compilation_complete',
       compilation_id: compilationId,
-      compilation_duration: duration,
-      file_size: fileSize
+      compilation_duration: compilationDuration,
+      file_size: fileSize,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -248,27 +280,26 @@ class AnalyticsService {
   public getMockAnalytics(): AnalyticsData {
     const events = JSON.parse(localStorage.getItem('tams_mock_events') || '[]');
     
-    const sessionViews = new Set(events.map(e => e.session_id)).size;
-    const mobileAccess = events.filter(e => e.device_type === 'mobile').length;
-    const qrScans = events.filter(e => e.event === 'qr_scan').length;
-    const watchTimes = events.filter(e => e.watch_time).map(e => e.watch_time || 0);
-    const avgWatchTime = watchTimes.length > 0 ? watchTimes.reduce((a, b) => a + b, 0) / watchTimes.length : 0;
-    const totalCompilations = events.filter(e => e.event === 'compilation_complete').length;
+    const sessionViews = new Set(events.map((e: CMCDData) => e.session_id)).size;
+    const mobileAccess = events.filter((e: CMCDData) => e.device_type === 'mobile').length;
+    const qrScans = events.filter((e: CMCDData) => e.event === 'qr_scan').length;
+    const watchTimes = events.filter((e: CMCDData) => e.watch_time).map((e: CMCDData) => e.watch_time || 0);
+    const avgWatchTime = watchTimes.length > 0 ? watchTimes.reduce((a: number, b: number) => a + b, 0) / watchTimes.length : 0;
+    const totalCompilations = events.filter((e: CMCDData) => e.event === 'compilation_complete').length;
     
     const recentActivity = events
       .slice(-10)
-      .reverse()
-      .map(e => ({
+      .map((e: CMCDData) => ({
         timestamp: e.timestamp,
         event: e.event,
-        video_id: e.video_id || e.compilation_id || 'unknown'
+        video_id: e.video_id || 'unknown'
       }));
-
+    
     return {
       session_views: sessionViews,
-      mobile_access: Math.round((mobileAccess / events.length) * 100) || 0,
+      mobile_access: mobileAccess,
       qr_scans: qrScans,
-      avg_watch_time: Math.round(avgWatchTime),
+      avg_watch_time: avgWatchTime,
       total_compilations: totalCompilations,
       recent_activity: recentActivity
     };

@@ -40,10 +40,10 @@ import {
 // Types for QR code generation
 interface QRCodeData {
   id: string;
-  type: 'video' | 'session' | 'mobile';
+  type: 'video' | 'mobile' | 'session';
   url: string;
   title: string;
-  description?: string;
+  description: string;
   expiresAt?: string;
   accessCount: number;
   createdAt: string;
@@ -137,11 +137,15 @@ export default function QRCodeGenerator({
       url,
       title,
       description: qrDescription,
-      expiresAt: qrExpiry || undefined,
       accessCount: 0,
       createdAt: new Date().toISOString(),
       isActive: true
     };
+    
+    // Only add expiresAt if it's defined
+    if (qrExpiry) {
+      newQR.expiresAt = qrExpiry;
+    }
 
     setQrCodes(prev => [newQR, ...prev]);
     setShowGeneratorModal(false);
