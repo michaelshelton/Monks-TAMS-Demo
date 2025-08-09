@@ -77,6 +77,65 @@ interface Segment {
 
 // Mock data
 const dummySegments: Segment[] = [
+  // Real video segments from public/videos directory
+  {
+    id: 'seg_uhd_4096_2160',
+    object_id: 'obj_uhd_4096_2160',
+    flow_id: 'flow_test_videos',
+    flow_name: 'Test Videos Collection',
+    flow_format: 'urn:x-nmos:format:video',
+    timerange: { start: '2025-01-25T10:00:00Z', end: '2025-01-25T10:00:15Z' },
+    ts_offset: '00:00:00',
+    last_duration: '00:00:15',
+    key_frame_count: 360, // 24fps * 15s
+    tags: { category: 'test', type: 'uhd', resolution: '4096x2160', fps: '24' },
+    description: 'Ultra HD test video (4096x2160, 24fps)',
+    status: 'active',
+    size: 24117248, // 23MB
+    created: '2025-01-25T10:00:00Z',
+    get_urls: [
+      { url: '/videos/2932301-uhd_4096_2160_24fps.mp4', label: 'Direct Download' }
+    ]
+  },
+  {
+    id: 'seg_uhd_3840_2160',
+    object_id: 'obj_uhd_3840_2160',
+    flow_id: 'flow_test_videos',
+    flow_name: 'Test Videos Collection',
+    flow_format: 'urn:x-nmos:format:video',
+    timerange: { start: '2025-01-25T10:00:15Z', end: '2025-01-25T10:00:40Z' },
+    ts_offset: '00:00:15',
+    last_duration: '00:00:25',
+    key_frame_count: 625, // 25fps * 25s
+    tags: { category: 'test', type: 'uhd', resolution: '3840x2160', fps: '25' },
+    description: 'Ultra HD test video (3840x2160, 25fps)',
+    status: 'active',
+    size: 52428800, // 50MB
+    created: '2025-01-25T10:00:15Z',
+    get_urls: [
+      { url: '/videos/3125907-uhd_3840_2160_25fps.mp4', label: 'Direct Download' }
+    ]
+  },
+  {
+    id: 'seg_hd_1920_1080',
+    object_id: 'obj_hd_1920_1080',
+    flow_id: 'flow_test_videos',
+    flow_name: 'Test Videos Collection',
+    flow_format: 'urn:x-nmos:format:video',
+    timerange: { start: '2025-01-25T10:00:40Z', end: '2025-01-25T10:01:10Z' },
+    ts_offset: '00:00:40',
+    last_duration: '00:00:30',
+    key_frame_count: 900, // 30fps * 30s
+    tags: { category: 'test', type: 'hd', resolution: '1920x1080', fps: '30' },
+    description: 'HD test video (1920x1080, 30fps)',
+    status: 'active',
+    size: 31457280, // 30MB
+    created: '2025-01-25T10:00:40Z',
+    get_urls: [
+      { url: '/videos/852038-hd_1920_1080_30fps.mp4', label: 'Direct Download' }
+    ]
+  },
+  // Original dummy segments
   {
     id: '1',
     object_id: 'obj_001',
@@ -214,6 +273,7 @@ export default function Segments() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   
@@ -234,6 +294,7 @@ export default function Segments() {
       label: 'Flow',
       type: 'select',
       options: [
+        { value: 'flow_test_videos', label: 'Test Videos Collection' },
         { value: 'flow_001', label: 'BBC News Studio' },
         { value: 'flow_002', label: 'Sports Arena Camera' },
         { value: 'flow_003', label: 'Radio Studio A' },
@@ -316,6 +377,11 @@ export default function Segments() {
     setSelectedSegment(null);
   };
 
+  const handlePlaySegment = (segment: Segment) => {
+    setSelectedSegment(segment);
+    setShowVideoPlayer(true);
+  };
+
   const timelineSegments = useMemo(() => {
     return filteredSegments.sort((a, b) => 
       new Date(a.timerange.start).getTime() - new Date(b.timerange.start).getTime()
@@ -393,6 +459,7 @@ export default function Segments() {
                     size="xs"
                     variant="light"
                     leftSection={<IconPlayerPlay size={14} />}
+                    onClick={() => handlePlaySegment(segment)}
                   >
                     Play
                   </Button>
@@ -503,7 +570,7 @@ export default function Segments() {
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Play Segment">
-                      <ActionIcon size="sm" variant="light">
+                      <ActionIcon size="sm" variant="light" onClick={() => handlePlaySegment(segment)}>
                         <IconPlayerPlay size={14} />
                       </ActionIcon>
                     </Tooltip>
@@ -707,7 +774,11 @@ export default function Segments() {
             )}
             
             <Group gap="xs" mt="md">
-              <Button leftSection={<IconPlayerPlay size={16} />}>
+              <Button 
+                leftSection={<IconPlayerPlay size={16} />}
+                onClick={() => handlePlaySegment(selectedSegment)}
+                disabled={selectedSegment.flow_format !== 'urn:x-nmos:format:video'}
+              >
                 Play Segment
               </Button>
               <Button variant="light" leftSection={<IconDownload size={16} />}>
@@ -746,6 +817,114 @@ export default function Segments() {
                 Delete Segment
               </Button>
             </Group>
+          </Stack>
+        </Modal>
+      )}
+
+      {/* Video Player Modal */}
+      {selectedSegment && selectedSegment.flow_format === 'urn:x-nmos:format:video' && (
+        <Modal
+          opened={showVideoPlayer}
+          onClose={() => setShowVideoPlayer(false)}
+          title={`Video Player - ${selectedSegment.flow_name}`}
+          size="xl"
+          fullScreen
+        >
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Box>
+                <Title order={4}>{selectedSegment.description}</Title>
+                <Text size="sm" c="dimmed">
+                  {selectedSegment.flow_name} • {formatDuration(selectedSegment.last_duration || 'PT0S')} • {formatFileSize(selectedSegment.size || 0)}
+                </Text>
+              </Box>
+              <Group>
+                <Button
+                  variant="light"
+                  leftSection={<IconDownload size={16} />}
+                  onClick={() => {
+                    if (selectedSegment.get_urls && selectedSegment.get_urls[0]) {
+                      const link = document.createElement('a');
+                      link.href = selectedSegment.get_urls[0].url;
+                      link.download = selectedSegment.id + '.mp4';
+                      link.click();
+                    }
+                  }}
+                >
+                  Download
+                </Button>
+                <Button variant="light" onClick={() => setShowVideoPlayer(false)}>
+                  Close
+                </Button>
+              </Group>
+            </Group>
+
+            <Box
+              style={{
+                width: '100%',
+                height: '70vh',
+                backgroundColor: '#000',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}
+            >
+              {selectedSegment.get_urls && selectedSegment.get_urls[0] ? (
+                <video
+                  controls
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain'
+                  }}
+                  src={selectedSegment.get_urls[0].url}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <Stack gap="md" align="center">
+                  <IconVideo size={64} color="#666" />
+                  <Text c="dimmed" size="lg" ta="center">
+                    Video not available for playback
+                  </Text>
+                  <Text size="sm" c="dimmed" ta="center">
+                    This segment doesn't have a playable video URL
+                  </Text>
+                </Stack>
+              )}
+            </Box>
+
+            {/* Video Metadata */}
+            <Card withBorder p="md">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+                <Box>
+                  <Text size="sm" fw={500} c="dimmed">Resolution</Text>
+                  <Text size="sm">
+                    {selectedSegment.tags?.resolution || 'Unknown'}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text size="sm" fw={500} c="dimmed">Frame Rate</Text>
+                  <Text size="sm">
+                    {selectedSegment.tags?.fps || 'Unknown'} fps
+                  </Text>
+                </Box>
+                <Box>
+                  <Text size="sm" fw={500} c="dimmed">Key Frames</Text>
+                  <Text size="sm">
+                    {selectedSegment.key_frame_count || 'Unknown'}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text size="sm" fw={500} c="dimmed">Duration</Text>
+                  <Text size="sm">
+                    {formatDuration(selectedSegment.last_duration || 'PT0S')}
+                  </Text>
+                </Box>
+              </SimpleGrid>
+            </Card>
           </Stack>
         </Modal>
       )}

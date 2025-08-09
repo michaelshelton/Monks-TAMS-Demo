@@ -40,7 +40,9 @@ import {
   IconPhoto,
   IconRefresh,
   IconDownload,
-  IconEye
+  IconEye,
+  IconQrcode,
+  IconDeviceMobile
 } from '@tabler/icons-react';
 
 ChartJS.register(
@@ -55,7 +57,7 @@ ChartJS.register(
   Legend
 );
 
-// Mock analytics data based on backend API structure
+// Mock analytics data for overall application
 const mockFlowUsageData = {
   labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
   datasets: [
@@ -104,15 +106,31 @@ const mockStorageUsageData = {
   ],
 };
 
-const mockTimeRangeData = {
-  labels: ['Last Hour', 'Last 6 Hours', 'Last 24 Hours', 'Last Week', 'Last Month'],
+const mockVideoCompilationData = {
+  labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   datasets: [
     {
-      label: 'Active Segments',
-      data: [156, 892, 3247, 18923, 45678],
+      label: 'Video Compilations',
+      data: [12, 19, 15, 25, 22, 18, 14],
       backgroundColor: '#228be6',
       borderColor: '#228be6',
       borderWidth: 1,
+    },
+  ],
+};
+
+const mockQRCodeUsageData = {
+  labels: ['Mobile', 'Desktop', 'Tablet'],
+  datasets: [
+    {
+      data: [75, 20, 5],
+      backgroundColor: [
+        '#40c057',
+        '#228be6', 
+        '#fd7e14'
+      ],
+      borderWidth: 2,
+      borderColor: '#ffffff',
     },
   ],
 };
@@ -153,6 +171,36 @@ const mockTopFlows = [
     duration: '6h',
     storage: '0.8 GB',
     growth: '+5%'
+  }
+];
+
+const mockRecentCompilations = [
+  {
+    id: 'comp_1',
+    name: 'News Highlights Compilation',
+    segments: 5,
+    duration: '2m 30s',
+    views: 156,
+    qrScans: 23,
+    createdAt: '2024-01-15T10:30:00Z'
+  },
+  {
+    id: 'comp_2',
+    name: 'Sports Reel Compilation',
+    segments: 8,
+    duration: '4m 15s',
+    views: 89,
+    qrScans: 12,
+    createdAt: '2024-01-15T09:15:00Z'
+  },
+  {
+    id: 'comp_3',
+    name: 'Event Coverage Compilation',
+    segments: 3,
+    duration: '1m 45s',
+    views: 234,
+    qrScans: 45,
+    createdAt: '2024-01-15T08:45:00Z'
   }
 ];
 
@@ -260,19 +308,19 @@ export default function Analytics() {
       color: '#40c057',
     },
     {
-      title: 'Storage Used',
-      value: '8.4 GB',
-      change: '+15%',
+      title: 'Video Compilations',
+      value: '156',
+      change: '+25%',
       changeType: 'positive',
-      icon: <IconDatabase size={24} />,
+      icon: <IconVideo size={24} />,
       color: '#fd7e14',
     },
     {
-      title: 'Avg. Response Time',
-      value: '45ms',
-      change: '-5%',
+      title: 'QR Code Scans',
+      value: '2,847',
+      change: '+18%',
       changeType: 'positive',
-      icon: <IconClock size={24} />,
+      icon: <IconQrcode size={24} />,
       color: '#7950f2',
     },
   ];
@@ -285,7 +333,7 @@ export default function Analytics() {
     }, 1000);
   };
 
-  const rows = mockTopFlows.map((flow) => (
+  const flowRows = mockTopFlows.map((flow) => (
     <Table.Tr key={flow.id}>
       <Table.Td>
         <Group gap="xs">
@@ -334,16 +382,57 @@ export default function Analytics() {
     </Table.Tr>
   ));
 
+  const compilationRows = mockRecentCompilations.map((comp) => (
+    <Table.Tr key={comp.id}>
+      <Table.Td>
+        <Text fw={600}>{comp.name}</Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Text>{comp.segments}</Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Text>{comp.duration}</Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Text>{comp.views}</Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Text>{comp.qrScans}</Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Text size="sm" c="dimmed">
+          {new Date(comp.createdAt).toLocaleDateString()}
+        </Text>
+      </Table.Td>
+      
+      <Table.Td>
+        <Group gap="xs">
+          <ActionIcon size="sm" variant="subtle">
+            <IconEye size={16} />
+          </ActionIcon>
+          <ActionIcon size="sm" variant="subtle">
+            <IconQrcode size={16} />
+          </ActionIcon>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  ));
+
   return (
     <Container size="xl" px="xl" py="xl">
       <Box mb="xl">
         <Group justify="space-between" align="flex-end">
           <Box>
             <Title order={2} mb="md">
-              Analytics Dashboard
+              Application Analytics Dashboard
             </Title>
             <Text size="lg" c="dimmed">
-              Monitor performance and usage patterns across your media streams
+              Monitor performance and usage patterns across your entire TAMS application
             </Text>
           </Box>
           <Group gap="sm">
@@ -455,27 +544,49 @@ export default function Analytics() {
         </Card>
       </SimpleGrid>
 
-      {/* Time Range Analysis */}
-      <Card withBorder p="xl" mb="xl">
-        <Group justify="space-between" align="center" mb="lg">
-          <Box>
-            <Title order={4} mb="xs">
-              Time Range Analysis
-            </Title>
-            <Text size="sm" c="dimmed">
-              Active segments across different time periods
-            </Text>
-          </Box>
-          <Badge color="orange" variant="light">
-            <IconActivity size={14} style={{ marginRight: 4 }} />
-            Segment Count
-          </Badge>
-        </Group>
-        <Bar data={mockTimeRangeData} options={barOptions} />
-      </Card>
+      {/* Video Compilation Analytics */}
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
+        {/* Video Compilation Chart */}
+        <Card withBorder p="xl">
+          <Group justify="space-between" align="center" mb="lg">
+            <Box>
+              <Title order={4} mb="xs">
+                Video Compilations This Week
+              </Title>
+              <Text size="sm" c="dimmed">
+                Daily compilation activity
+              </Text>
+            </Box>
+            <Badge color="orange" variant="light">
+              <IconVideo size={14} style={{ marginRight: 4 }} />
+              156 Total
+            </Badge>
+          </Group>
+          <Bar data={mockVideoCompilationData} options={barOptions} />
+        </Card>
+
+        {/* QR Code Usage Chart */}
+        <Card withBorder p="xl">
+          <Group justify="space-between" align="center" mb="lg">
+            <Box>
+              <Title order={4} mb="xs">
+                QR Code Access by Device
+              </Title>
+              <Text size="sm" c="dimmed">
+                Mobile vs desktop QR code usage
+              </Text>
+            </Box>
+            <Badge color="purple" variant="light">
+              <IconDeviceMobile size={14} style={{ marginRight: 4 }} />
+              2,847 Scans
+            </Badge>
+          </Group>
+          <Doughnut data={mockQRCodeUsageData} options={doughnutOptions} />
+        </Card>
+      </SimpleGrid>
 
       {/* Top Performing Flows */}
-      <Card withBorder p="xl">
+      <Card withBorder p="xl" mb="xl">
         <Group justify="space-between" align="center" mb="lg">
           <Box>
             <Title order={4} mb="xs">
@@ -503,7 +614,41 @@ export default function Analytics() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows}
+            {flowRows}
+          </Table.Tbody>
+        </Table>
+      </Card>
+
+      {/* Recent Video Compilations */}
+      <Card withBorder p="xl">
+        <Group justify="space-between" align="center" mb="lg">
+          <Box>
+            <Title order={4} mb="xs">
+              Recent Video Compilations
+            </Title>
+            <Text size="sm" c="dimmed">
+              Latest compiled videos and their performance
+            </Text>
+          </Box>
+          <Button variant="light" size="sm">
+            View All
+          </Button>
+        </Group>
+        
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Compilation Name</Table.Th>
+              <Table.Th>Segments</Table.Th>
+              <Table.Th>Duration</Table.Th>
+              <Table.Th>Views</Table.Th>
+              <Table.Th>QR Scans</Table.Th>
+              <Table.Th>Created</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {compilationRows}
           </Table.Tbody>
         </Table>
       </Card>

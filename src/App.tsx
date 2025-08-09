@@ -10,6 +10,7 @@ import Analytics from './pages/Analytics';
 import Service from './pages/Service';
 import Search from './pages/Search';
 import Upload from './pages/Upload';
+import VideoCompilation from './pages/VideoCompilation';
 
 const theme = createTheme({
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
@@ -26,6 +27,7 @@ const navLinks = [
   { label: 'Analytics', to: '/analytics' },
   { label: 'Search', to: '/search' },
   { label: 'Upload', to: '/upload' },
+  { label: 'Video Compilation', to: '/video-compilation' },
   { label: 'Admin', to: '/service' },
 ];
 
@@ -76,6 +78,7 @@ function AppLayout() {
           <Route path="/service" element={<Service />} />
           <Route path="/search" element={<Search />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/video-compilation" element={<VideoCompilation />} />
         </Routes>
       </AppShell.Main>
       <AppShell.Footer h={64}>
