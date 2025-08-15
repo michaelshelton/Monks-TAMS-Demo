@@ -24,7 +24,9 @@ import {
   Menu,
   Divider,
   Alert,
-  Loader
+  Loader,
+  SimpleGrid,
+  Image
 } from '@mantine/core';
 import {
   IconPlus,
@@ -40,7 +42,11 @@ import {
   IconDots,
   IconSettings,
   IconRefresh,
-  IconAlertCircle
+  IconAlertCircle,
+  IconCalendar,
+  IconMapPin,
+  IconActivity,
+  IconInfoCircle
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
@@ -53,8 +59,24 @@ import {
   formatValidationErrors 
 } from '../utils/enhancedValidation';
 import { apiClient } from '../services/api';
+import { getSources, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/bbcTamsApi';
+import BBCPagination from '../components/BBCPagination';
 
-// Mock data structure based on backend API models
+// Football-specific metadata interface
+interface FootballGameMetadata {
+  sport: string;
+  league: string;
+  venue: string;
+  season: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  gameDate?: string;
+  score?: string;
+  duration?: string;
+  highlights?: string[];
+}
+
+// Enhanced Source interface with football metadata
 interface Source {
   id: string;
   format: string;
@@ -71,7 +93,103 @@ interface Source {
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
+  // Football-specific metadata
+  footballMetadata?: FootballGameMetadata;
 }
+
+// Mock football games for demonstration (will be replaced with BBC TAMS API)
+const mockFootballGames: Source[] = [
+  {
+    id: 'game-001',
+    format: 'urn:x-nmos:format:video',
+    label: 'Manchester United vs Liverpool',
+    description: 'Premier League match with full game coverage and highlights',
+    created: '2024-01-15T15:00:00Z',
+    updated: '2024-01-15T17:00:00Z',
+    tags: {
+      'sport': 'football',
+      'league': 'Premier League',
+      'venue': 'Old Trafford',
+      'season': '2024',
+      'home_team': 'Manchester United',
+      'away_team': 'Liverpool',
+      'score': '2-1',
+      'duration': '90:00'
+    },
+    footballMetadata: {
+      sport: 'football',
+      league: 'Premier League',
+      venue: 'Old Trafford',
+      season: '2024',
+      homeTeam: 'Manchester United',
+      awayTeam: 'Liverpool',
+      gameDate: '2024-01-15',
+      score: '2-1',
+      duration: '90:00',
+      highlights: ['Player 19 Goal', 'Player 19 Assist', 'Player 19 Free Kick']
+    }
+  },
+  {
+    id: 'game-002',
+    format: 'urn:x-nmos:format:video',
+    label: 'Arsenal vs Chelsea',
+    description: 'Premier League derby with tactical analysis',
+    created: '2024-01-20T15:00:00Z',
+    updated: '2024-01-20T17:00:00Z',
+    tags: {
+      'sport': 'football',
+      'league': 'Premier League',
+      'venue': 'Emirates Stadium',
+      'season': '2024',
+      'home_team': 'Arsenal',
+      'away_team': 'Chelsea',
+      'score': '1-1',
+      'duration': '90:00'
+    },
+    footballMetadata: {
+      sport: 'football',
+      league: 'Premier League',
+      venue: 'Emirates Stadium',
+      season: '2024',
+      homeTeam: 'Arsenal',
+      awayTeam: 'Chelsea',
+      gameDate: '2024-01-20',
+      score: '1-1',
+      duration: '90:00',
+      highlights: ['Player 10 Goal', 'Player 22 Save']
+    }
+  },
+  {
+    id: 'game-003',
+    format: 'urn:x-nmos:format:video',
+    label: 'Barcelona vs Real Madrid',
+    description: 'El Clásico - La Liga classic match',
+    created: '2024-01-25T15:00:00Z',
+    updated: '2024-01-25T17:00:00Z',
+    tags: {
+      'sport': 'football',
+      'league': 'La Liga',
+      'venue': 'Camp Nou',
+      'season': '2024',
+      'home_team': 'Barcelona',
+      'away_team': 'Real Madrid',
+      'score': '3-2',
+      'duration': '90:00'
+    },
+    footballMetadata: {
+      sport: 'football',
+      league: 'La Liga',
+      venue: 'Camp Nou',
+      season: '2024',
+      homeTeam: 'Barcelona',
+      awayTeam: 'Real Madrid',
+      gameDate: '2024-01-25',
+      score: '3-2',
+      duration: '90:00',
+      highlights: ['Player 9 Hat-trick', 'Player 7 Goal']
+    }
+  }
+];
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -116,12 +234,17 @@ export default function Sources() {
   const [showDeleted, setShowDeleted] = useState(false); // New state for showing deleted items
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   
+  // BBC TAMS API state
+  const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [useBbcApi, setUseBbcApi] = useState(true); // Toggle between BBC TAMS and legacy API
+  
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('sources');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
 
-  // Define filter options
-  const filterOptions: any[] = [ // Assuming FilterOption is not directly imported here
+  // Define filter options with football-specific filters
+  const filterOptions: any[] = [
     {
       key: 'search',
       label: 'Search',
@@ -137,6 +260,50 @@ export default function Sources() {
         { value: 'urn:x-nmos:format:audio', label: 'Audio' },
         { value: 'urn:x-nmos:format:data', label: 'Data' },
         { value: 'urn:x-tam:format:image', label: 'Image' }
+      ]
+    },
+    {
+      key: 'sport',
+      label: 'Sport',
+      type: 'select',
+      options: [
+        { value: 'football', label: 'Football' },
+        { value: 'hockey', label: 'Hockey' },
+        { value: 'basketball', label: 'Basketball' },
+        { value: 'tennis', label: 'Tennis' },
+        { value: 'cricket', label: 'Cricket' }
+      ]
+    },
+    {
+      key: 'league',
+      label: 'League',
+      type: 'select',
+      options: [
+        { value: 'Premier League', label: 'Premier League' },
+        { value: 'La Liga', label: 'La Liga' },
+        { value: 'Bundesliga', label: 'Bundesliga' },
+        { value: 'Serie A', label: 'Serie A' }
+      ]
+    },
+    {
+      key: 'venue',
+      label: 'Venue',
+      type: 'select',
+      options: [
+        { value: 'Old Trafford', label: 'Old Trafford' },
+        { value: 'Emirates Stadium', label: 'Emirates Stadium' },
+        { value: 'Camp Nou', label: 'Camp Nou' },
+        { value: 'Santiago Bernabéu', label: 'Santiago Bernabéu' }
+      ]
+    },
+    {
+      key: 'season',
+      label: 'Season',
+      type: 'select',
+      options: [
+        { value: '2024', label: '2024' },
+        { value: '2023', label: '2023' },
+        { value: '2022', label: '2022' }
       ]
     },
     {
@@ -159,6 +326,7 @@ export default function Sources() {
     }
   ];
 
+  // Filter sources with football-specific logic
   const filteredSources = sources.filter(source => {
     // Search filter
     const searchTerm = filters.search?.toLowerCase();
@@ -169,6 +337,30 @@ export default function Sources() {
     // Format filter
     const formatFilter = filters.format;
     const matchesFormat = !formatFilter || source.format === formatFilter;
+
+    // Sport filter
+    const sportFilter = filters.sport;
+    const matchesSport = !sportFilter || 
+      source.tags?.['sport'] === sportFilter ||
+      source.footballMetadata?.sport === sportFilter;
+
+    // League filter
+    const leagueFilter = filters.league;
+    const matchesLeague = !leagueFilter || 
+      source.tags?.['league'] === leagueFilter ||
+      source.footballMetadata?.league === leagueFilter;
+
+    // Venue filter
+    const venueFilter = filters.venue;
+    const matchesVenue = !venueFilter || 
+      source.tags?.['venue'] === venueFilter ||
+      source.footballMetadata?.venue === venueFilter;
+
+    // Season filter
+    const seasonFilter = filters.season;
+    const matchesSeason = !seasonFilter || 
+      source.tags?.['season'] === seasonFilter ||
+      source.footballMetadata?.season === seasonFilter;
 
     // Created date filter
     const createdFilter = filters.created;
@@ -202,29 +394,85 @@ export default function Sources() {
     const deletedFilter = filters.deleted;
     const matchesDeleted = !deletedFilter || (source.deleted === deletedFilter);
 
-    return matchesSearch && matchesFormat && matchesCreated && matchesTags && matchesDeleted;
+    return matchesSearch && matchesFormat && matchesSport && matchesLeague && 
+           matchesVenue && matchesSeason && matchesCreated && matchesTags && matchesDeleted;
   });
 
-  useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        setLoading(true);
-        const response = await apiClient.getSources({
-          page: currentPage,
-          page_size: 10,
-          show_deleted: showDeleted
-        });
-        setSources(response.data);
-      } catch (err) {
-        setError('Failed to fetch sources');
-        console.error(err);
-      } finally {
-        setLoading(false);
+  // Fetch sources using BBC TAMS API
+  const fetchSourcesBbcTams = async (cursor?: string) => {
+    try {
+      setLoading(true);
+      const options: BBCApiOptions = {
+        limit: 10,
+        custom: { show_deleted: showDeleted }
+      };
+      
+      if (cursor) {
+        options.page = cursor;
       }
-    };
 
-    fetchSources();
-  }, [currentPage, showDeleted, filters]);
+      // Apply filters to BBC TAMS API
+      if (filters.format) options.format = filters.format;
+      if (filters.sport) options.tags = { ...options.tags, sport: filters.sport };
+      if (filters.league) options.tags = { ...options.tags, league: filters.league };
+      if (filters.venue) options.tags = { ...options.tags, venue: filters.venue };
+      if (filters.season) options.tags = { ...options.tags, season: filters.season };
+
+      const response = await getSources(options);
+      setSources(response.data);
+      setBbcPagination(response.pagination);
+      setCurrentCursor(cursor || null);
+      setError(null);
+    } catch (err) {
+      console.error('BBC TAMS API error:', err);
+      // Fallback to mock data for demo
+      setSources(mockFootballGames);
+      setBbcPagination({});
+      setError('BBC TAMS API unavailable, using demo data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Legacy API fetch (fallback)
+  const fetchSourcesLegacy = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.getSources({
+        page: currentPage.toString(),
+        limit: 10,
+        custom: { show_deleted: showDeleted }
+      });
+      setSources(response.data);
+    } catch (err) {
+      setError('Failed to fetch sources');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (useBbcApi) {
+      fetchSourcesBbcTams();
+    } else {
+      fetchSourcesLegacy();
+    }
+  }, [useBbcApi, showDeleted, filters]);
+
+  // Initialize with demo data for better demo experience
+  useEffect(() => {
+    if (sources.length === 0 && !loading) {
+      setSources(mockFootballGames);
+    }
+  }, [sources.length, loading]);
+
+  // Handle BBC TAMS pagination
+  const handleBbcPageChange = (cursor: string | null) => {
+    if (cursor) {
+      fetchSourcesBbcTams(cursor);
+    }
+  };
 
   const handleCreateSource = async (newSource: Omit<Source, 'id' | 'created' | 'updated'>) => {
     try {
@@ -317,16 +565,23 @@ export default function Sources() {
     <Container size="xl" px="xl" py="xl">
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
-        <Title order={2}>Sources</Title>
+        <Box>
+          <Title order={2}>Football Games Discovery</Title>
+          <Text c="dimmed" size="sm" mt="xs">
+            Discover and manage football games using BBC TAMS v6.0 API
+          </Text>
+        </Box>
         <Group>
           <Button
             variant="light"
             leftSection={<IconRefresh size={16} />}
             onClick={() => {
-              setCurrentPage(1);
+              if (useBbcApi) {
+                fetchSourcesBbcTams();
+              } else {
+                fetchSourcesLegacy();
+              }
               setError(null);
-              // Trigger a refresh by changing the dependency
-              setCurrentPage(prev => prev);
             }}
             loading={loading}
           >
@@ -336,7 +591,7 @@ export default function Sources() {
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
           >
-            Add Source
+            Add Game
           </Button>
         </Group>
       </Group>
@@ -355,16 +610,39 @@ export default function Sources() {
         </Alert>
       )}
 
+      {/* Demo Mode Info */}
+      {!error && useBbcApi && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="BBC TAMS API Demo Mode"
+          mb="md"
+        >
+          <Text size="sm">
+            This page demonstrates BBC TAMS v6.0 API integration for football content discovery. 
+            The API automatically handles cursor-based pagination, tag filtering, and metadata management.
+            {sources.length > 0 && sources[0]?.footballMetadata && ' Click on any game to view detailed information.'}
+          </Text>
+        </Alert>
+      )}
+
+      {/* Football Demo Features */}
+      <Card withBorder mb="md">
+        <Group gap="md" align="center">
+          <IconActivity size={24} color="#228be6" />
+          <Box>
+            <Text fw={500} size="sm">Football Demo Features</Text>
+            <Text size="xs" c="dimmed">
+              • Sport-specific filtering (football, basketball, tennis) • League-based organization (Premier League, La Liga) • 
+              Venue tracking • Season management • Game metadata (teams, scores, duration) • BBC TAMS v6.0 compliance
+            </Text>
+          </Box>
+        </Group>
+      </Card>
+
       {/* Filter Controls */}
       <Group justify="space-between" mb="md">
         <Group>
-          <Button
-            variant="light"
-            leftSection={<IconFilter size={16} />}
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          >
-            {showAdvancedFilters ? 'Hide' : 'Show'} Filters
-          </Button>
           {hasActiveFilters && (
             <Button
               variant="subtle"
@@ -376,12 +654,12 @@ export default function Sources() {
             </Button>
           )}
           <Chip
-            checked={showDeleted}
-            onChange={(checked) => setShowDeleted(checked)}
+            checked={useBbcApi}
+            onChange={(checked) => setUseBbcApi(checked)}
             variant="outline"
-            color="gray"
+            color="blue"
           >
-            Show Deleted Items
+            BBC TAMS API
           </Chip>
         </Group>
       </Group>
@@ -401,11 +679,11 @@ export default function Sources() {
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Source Name</Table.Th>
+              <Table.Th>Game Information</Table.Th>
               <Table.Th>Format</Table.Th>
-              <Table.Th>Created</Table.Th>
-              <Table.Th>Updated</Table.Th>
-              <Table.Th>Tags</Table.Th>
+              <Table.Th>Game Date</Table.Th>
+              <Table.Th>Venue & League</Table.Th>
+              <Table.Th>Score & Duration</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
@@ -426,7 +704,7 @@ export default function Sources() {
             ) : paginatedSources.length === 0 ? (
               <Table.Tr>
                 <Table.Td colSpan={7} ta="center">
-                  <Text c="dimmed">No sources found matching your filters</Text>
+                  <Text c="dimmed">No football games found matching your filters</Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
@@ -444,7 +722,7 @@ export default function Sources() {
                       <Box>
                         <Group gap="xs" align="center">
                           <Text fw={500} size="sm">
-                            {source.label || 'Unnamed Source'}
+                            {source.label || 'Unnamed Game'}
                           </Text>
                           {source.deleted && (
                             <Badge size="xs" color="red">DELETED</Badge>
@@ -453,6 +731,18 @@ export default function Sources() {
                         <Text size="xs" c="dimmed">
                           {source.description || 'No description'}
                         </Text>
+                        {/* Football Teams */}
+                        {source.footballMetadata && (
+                          <Group gap="xs" mt="xs">
+                            <Badge size="xs" variant="light" color="blue">
+                              {source.footballMetadata.homeTeam}
+                            </Badge>
+                            <Text size="xs" c="dimmed">vs</Text>
+                            <Badge size="xs" variant="light" color="red">
+                              {source.footballMetadata.awayTeam}
+                            </Badge>
+                          </Group>
+                        )}
                       </Box>
                     </Group>
                   </Table.Td>
@@ -462,28 +752,39 @@ export default function Sources() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm">
-                      {source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {source.updated ? new Date(source.updated).toLocaleDateString() : 'Never'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      {source.tags && Object.entries(source.tags).slice(0, 2).map(([key, value]) => (
-                        <Badge key={key} size="xs" variant="light">
-                          {key}: {value}
-                        </Badge>
-                      ))}
-                      {source.tags && Object.keys(source.tags).length > 2 && (
-                        <Badge size="xs" variant="light" color="gray">
-                          +{Object.keys(source.tags).length - 2} more
-                        </Badge>
-                      )}
+                    <Group gap="xs" align="center">
+                      <IconCalendar size={14} />
+                      <Text size="sm">
+                        {source.footballMetadata?.gameDate || 
+                         (source.created ? new Date(source.created).toLocaleDateString() : 'Unknown')}
+                      </Text>
                     </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Stack gap="xs">
+                      <Group gap="xs" align="center">
+                        <IconMapPin size={14} />
+                        <Text size="sm" fw={500}>
+                          {source.footballMetadata?.venue || source.tags?.['venue'] || 'Unknown Venue'}
+                        </Text>
+                      </Group>
+                      <Badge size="xs" variant="light" color="green">
+                        {source.footballMetadata?.league || source.tags?.['league'] || 'Unknown League'}
+                      </Badge>
+                    </Stack>
+                  </Table.Td>
+                  <Table.Td>
+                    <Stack gap="xs">
+                      <Group gap="xs" align="center">
+                        <IconActivity size={14} />
+                        <Text size="sm" fw={500}>
+                          {source.footballMetadata?.score || source.tags?.['score'] || 'N/A'}
+                        </Text>
+                      </Group>
+                      <Text size="xs" c="dimmed">
+                        {source.footballMetadata?.duration || source.tags?.['duration'] || 'Unknown'}
+                      </Text>
+                    </Stack>
                   </Table.Td>
                   <Table.Td>
                     {source.deleted ? (
@@ -498,7 +799,7 @@ export default function Sources() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <Tooltip label="View Details">
+                      <Tooltip label="View Game Details">
                         <ActionIcon
                           variant="subtle"
                           color="blue"
@@ -509,7 +810,7 @@ export default function Sources() {
                       </Tooltip>
                       {!source.deleted ? (
                         <>
-                          <Tooltip label="Edit Source">
+                          <Tooltip label="Edit Game">
                             <ActionIcon
                               variant="subtle"
                               color="blue"
@@ -518,7 +819,7 @@ export default function Sources() {
                               <IconEdit size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <Tooltip label="Delete Source">
+                          <Tooltip label="Delete Game">
                             <ActionIcon
                               variant="subtle"
                               color="red"
@@ -529,7 +830,7 @@ export default function Sources() {
                           </Tooltip>
                         </>
                       ) : (
-                        <Tooltip label="Restore Source">
+                        <Tooltip label="Restore Game">
                           <ActionIcon
                             variant="subtle"
                             color="green"
@@ -547,15 +848,31 @@ export default function Sources() {
           </Table.Tbody>
         </Table>
         
-        {/* Pagination */}
-        {filteredSources.length > 0 && (
+        {/* BBC TAMS Pagination */}
+        {useBbcApi && bbcPagination && Object.keys(bbcPagination).length > 0 ? (
           <Group justify="center" mt="lg">
-            <Pagination 
-              total={Math.ceil(filteredSources.length / 10)} 
-              value={currentPage} 
-              onChange={setCurrentPage}
+            <BBCPagination
+              paginationMeta={bbcPagination}
+              onPageChange={handleBbcPageChange}
+              onLimitChange={(limit) => {
+                // Handle limit change for BBC TAMS API
+                fetchSourcesBbcTams();
+              }}
+              showBBCMetadata={true}
+              showLimitSelector={true}
             />
           </Group>
+        ) : (
+          /* Legacy Pagination */
+          filteredSources.length > 0 && (
+            <Group justify="center" mt="lg">
+              <Pagination 
+                total={Math.ceil(filteredSources.length / 10)} 
+                value={currentPage} 
+                onChange={setCurrentPage}
+              />
+            </Group>
+          )
         )}
       </Card>
 
@@ -585,11 +902,23 @@ export default function Sources() {
           opened={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDeleteConfirm}
-          title="Delete Source"
-          itemName={selectedSource.label || 'Unnamed Source'}
+          title="Delete Football Game"
+          itemName={selectedSource.label || 'Unnamed Game'}
           itemType="source"
           showCascadeOption={true}
           defaultDeletedBy="admin"
+        />
+      )}
+
+      {/* Football Game Preview Modal */}
+      {selectedSource && (
+        <FootballGamePreviewModal
+          source={selectedSource}
+          opened={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedSource(null);
+          }}
         />
       )}
     </Container>
@@ -607,7 +936,15 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
   const [formData, setFormData] = useState({
     label: '',
     description: '',
-    format: 'urn:x-nmos:format:video'
+    format: 'urn:x-nmos:format:video',
+    // Football-specific fields
+    homeTeam: '',
+    awayTeam: '',
+    venue: '',
+    league: '',
+    season: '2024',
+    score: '',
+    duration: ''
   });
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -624,12 +961,51 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
     // Clear validation errors
     setValidationErrors([]);
     
-    onSubmit(formData);
-    setFormData({ label: '', description: '', format: 'urn:x-nmos:format:video' });
+    // Create source with football metadata
+    const sourceData = {
+      label: formData.label,
+      description: formData.description,
+      format: formData.format,
+      tags: {
+        sport: 'football',
+        home_team: formData.homeTeam,
+        away_team: formData.awayTeam,
+        venue: formData.venue,
+        league: formData.league,
+        season: formData.season,
+        score: formData.score,
+        duration: formData.duration
+      },
+      footballMetadata: {
+        sport: 'football',
+        homeTeam: formData.homeTeam,
+        awayTeam: formData.awayTeam,
+        venue: formData.venue,
+        league: formData.league,
+        season: formData.season,
+        score: formData.score,
+        duration: formData.duration,
+        highlights: []
+      }
+    };
+    
+    onSubmit(sourceData);
+    setFormData({ 
+      label: '', 
+      description: '', 
+      format: 'urn:x-nmos:format:video',
+      homeTeam: '',
+      awayTeam: '',
+      venue: '',
+      league: '',
+      season: '2024',
+      score: '',
+      duration: ''
+    });
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Create New Source" size="md">
+    <Modal opened={opened} onClose={onClose} title="Create New Football Game" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           {/* Validation Errors */}
@@ -640,19 +1016,79 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           )}
           
           <TextInput
-            label="Source Name"
-            placeholder="Enter source name"
+            label="Game Title"
+            placeholder="e.g., Manchester United vs Liverpool"
             value={formData.label}
             onChange={(e) => setFormData({ ...formData, label: e.currentTarget.value })}
             required
           />
+          
           <Textarea
             label="Description"
-            placeholder="Enter source description"
+            placeholder="Enter game description"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
             rows={3}
           />
+
+          {/* Football-specific fields */}
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Home Team"
+              placeholder="e.g., Manchester United"
+              value={formData.homeTeam}
+              onChange={(e) => setFormData({ ...formData, homeTeam: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="Away Team"
+              placeholder="e.g., Liverpool"
+              value={formData.awayTeam}
+              onChange={(e) => setFormData({ ...formData, awayTeam: e.currentTarget.value })}
+              required
+            />
+          </SimpleGrid>
+
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Venue"
+              placeholder="e.g., Old Trafford"
+              value={formData.venue}
+              onChange={(e) => setFormData({ ...formData, venue: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="League"
+              placeholder="e.g., Premier League"
+              value={formData.league}
+              onChange={(e) => setFormData({ ...formData, league: e.currentTarget.value })}
+              required
+            />
+          </SimpleGrid>
+
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Season"
+              placeholder="e.g., 2024"
+              value={formData.season}
+              onChange={(e) => setFormData({ ...formData, season: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="Score"
+              placeholder="e.g., 2-1"
+              value={formData.score}
+              onChange={(e) => setFormData({ ...formData, score: e.currentTarget.value })}
+            />
+          </SimpleGrid>
+
+          <TextInput
+            label="Duration"
+            placeholder="e.g., 90:00"
+            value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: e.currentTarget.value })}
+          />
+          
           <Select
             label="Format"
             data={VALID_CONTENT_FORMATS.map(format => ({
@@ -664,9 +1100,10 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
             required
             description="Select the content format according to TAMS v6.0 specification"
           />
+          
           <Group justify="flex-end" gap="sm">
             <Button variant="light" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Create Source</Button>
+            <Button type="submit">Create Game</Button>
           </Group>
         </Stack>
       </form>
@@ -685,7 +1122,15 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
   const [formData, setFormData] = useState({
     label: source.label || '',
     description: source.description || '',
-    format: source.format
+    format: source.format,
+    // Football-specific fields
+    homeTeam: source.footballMetadata?.homeTeam || source.tags?.['home_team'] || '',
+    awayTeam: source.footballMetadata?.awayTeam || source.tags?.['away_team'] || '',
+    venue: source.footballMetadata?.venue || source.tags?.['venue'] || '',
+    league: source.footballMetadata?.league || source.tags?.['league'] || '',
+    season: source.footballMetadata?.season || source.tags?.['season'] || '2024',
+    score: source.footballMetadata?.score || source.tags?.['score'] || '',
+    duration: source.footballMetadata?.duration || source.tags?.['duration'] || ''
   });
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -702,16 +1147,43 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
     // Clear validation errors
     setValidationErrors([]);
     
-    onSubmit({
+    // Update source with football metadata
+    const updatedSource = {
       ...source,
-      ...formData,
+      label: formData.label,
+      description: formData.description,
+      format: formData.format,
       updated: new Date().toISOString(),
-      updated_by: 'admin'
-    });
+      updated_by: 'admin',
+      tags: {
+        ...source.tags,
+        sport: 'football',
+        home_team: formData.homeTeam,
+        away_team: formData.awayTeam,
+        venue: formData.venue,
+        league: formData.league,
+        season: formData.season,
+        score: formData.score,
+        duration: formData.duration
+      },
+      footballMetadata: {
+        sport: 'football',
+        homeTeam: formData.homeTeam,
+        awayTeam: formData.awayTeam,
+        venue: formData.venue,
+        league: formData.league,
+        season: formData.season,
+        score: formData.score,
+        duration: formData.duration,
+        highlights: source.footballMetadata?.highlights || []
+      }
+    };
+    
+    onSubmit(updatedSource);
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit Source" size="md">
+    <Modal opened={opened} onClose={onClose} title="Edit Football Game" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           {/* Validation Errors */}
@@ -722,19 +1194,79 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
           )}
           
           <TextInput
-            label="Source Name"
-            placeholder="Enter source name"
+            label="Game Title"
+            placeholder="e.g., Manchester United vs Liverpool"
             value={formData.label}
             onChange={(e) => setFormData({ ...formData, label: e.currentTarget.value })}
             required
           />
+          
           <Textarea
             label="Description"
-            placeholder="Enter source description"
+            placeholder="Enter game description"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
             rows={3}
           />
+
+          {/* Football-specific fields */}
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Home Team"
+              placeholder="e.g., Manchester United"
+              value={formData.homeTeam}
+              onChange={(e) => setFormData({ ...formData, homeTeam: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="Away Team"
+              placeholder="e.g., Liverpool"
+              value={formData.awayTeam}
+              onChange={(e) => setFormData({ ...formData, awayTeam: e.currentTarget.value })}
+              required
+            />
+          </SimpleGrid>
+
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Venue"
+              placeholder="e.g., Old Trafford"
+              value={formData.venue}
+              onChange={(e) => setFormData({ ...formData, venue: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="League"
+              placeholder="e.g., Premier League"
+              value={formData.league}
+              onChange={(e) => setFormData({ ...formData, league: e.currentTarget.value })}
+              required
+            />
+          </SimpleGrid>
+
+          <SimpleGrid cols={2}>
+            <TextInput
+              label="Season"
+              placeholder="e.g., 2024"
+              value={formData.season}
+              onChange={(e) => setFormData({ ...formData, season: e.currentTarget.value })}
+              required
+            />
+            <TextInput
+              label="Score"
+              placeholder="e.g., 2-1"
+              value={formData.score}
+              onChange={(e) => setFormData({ ...formData, score: e.currentTarget.value })}
+            />
+          </SimpleGrid>
+
+          <TextInput
+            label="Duration"
+            placeholder="e.g., 90:00"
+            value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: e.currentTarget.value })}
+          />
+          
           <Select
             label="Format"
             data={[
@@ -747,12 +1279,177 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
             onChange={(value) => setFormData({ ...formData, format: value || 'urn:x-nmos:format:video' })}
             required
           />
+          
           <Group justify="flex-end" gap="sm">
             <Button variant="light" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Update Source</Button>
+            <Button type="submit">Update Game</Button>
           </Group>
         </Stack>
       </form>
+    </Modal>
+  );
+} 
+
+// Football Game Preview Modal Component
+interface FootballGamePreviewModalProps {
+  source: Source;
+  opened: boolean;
+  onClose: () => void;
+}
+
+function FootballGamePreviewModal({ source, opened, onClose }: FootballGamePreviewModalProps) {
+  return (
+    <Modal opened={opened} onClose={onClose} title="Football Game Details" size="lg">
+      <Stack gap="lg">
+        {/* Game Header */}
+        <Card withBorder p="md">
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Title order={3} mb="xs">{source.label}</Title>
+              <Text c="dimmed" mb="md">{source.description}</Text>
+              
+              {/* Teams */}
+              {source.footballMetadata && (
+                <Group gap="lg" mb="md">
+                  <Box>
+                    <Text size="sm" c="dimmed" mb="xs">Home Team</Text>
+                    <Badge size="lg" variant="light" color="blue">
+                      {source.footballMetadata.homeTeam}
+                    </Badge>
+                  </Box>
+                  <Text size="xl" fw={700} c="dimmed">vs</Text>
+                  <Box>
+                    <Text size="sm" c="dimmed" mb="xs">Away Team</Text>
+                    <Badge size="lg" variant="light" color="red">
+                      {source.footballMetadata.awayTeam}
+                    </Badge>
+                  </Box>
+                </Group>
+              )}
+            </Box>
+            
+            {/* Game Status */}
+            <Badge 
+              size="lg" 
+              color={source.deleted ? 'red' : 'green'}
+              variant="light"
+            >
+              {source.deleted ? 'Deleted' : 'Active'}
+            </Badge>
+          </Group>
+        </Card>
+
+        {/* Game Details Grid */}
+        {source.footballMetadata && (
+          <SimpleGrid cols={2} spacing="md">
+            <Card withBorder p="md">
+              <Group gap="xs" mb="xs">
+                <IconCalendar size={16} />
+                <Text fw={500}>Game Date</Text>
+              </Group>
+              <Text>{source.footballMetadata.gameDate}</Text>
+            </Card>
+            
+            <Card withBorder p="md">
+              <Group gap="xs" mb="xs">
+                <IconMapPin size={16} />
+                <Text fw={500}>Venue</Text>
+              </Group>
+              <Text>{source.footballMetadata.venue}</Text>
+            </Card>
+            
+            <Card withBorder p="md">
+              <Group gap="xs" mb="xs">
+                <IconActivity size={16} />
+                <Text fw={500}>Score</Text>
+              </Group>
+              <Text fw={700} size="lg">{source.footballMetadata.score}</Text>
+            </Card>
+            
+            <Card withBorder p="md">
+              <Group gap="xs" mb="xs">
+                <IconActivity size={16} />
+                <Text fw={500}>Duration</Text>
+              </Group>
+              <Text>{source.footballMetadata.duration}</Text>
+            </Card>
+          </SimpleGrid>
+        )}
+
+        {/* League Information */}
+        {source.footballMetadata && (
+          <Card withBorder p="md">
+            <Group gap="xs" mb="xs">
+              <IconActivity size={16} />
+              <Text fw={500}>League & Season</Text>
+            </Group>
+            <Group gap="md">
+              <Badge size="md" variant="light" color="green">
+                {source.footballMetadata.league}
+              </Badge>
+              <Badge size="md" variant="light" color="blue">
+                Season {source.footballMetadata.season}
+              </Badge>
+            </Group>
+          </Card>
+        )}
+
+        {/* Highlights */}
+        {source.footballMetadata?.highlights && source.footballMetadata.highlights.length > 0 && (
+          <Card withBorder p="md">
+            <Text fw={500} mb="md">Key Highlights</Text>
+            <SimpleGrid cols={1} spacing="xs">
+              {source.footballMetadata.highlights.map((highlight, index) => (
+                <Badge key={index} size="sm" variant="light" color="gray" fullWidth>
+                  {highlight}
+                </Badge>
+              ))}
+            </SimpleGrid>
+          </Card>
+        )}
+
+        {/* Technical Information */}
+        <Card withBorder p="md">
+          <Text fw={500} mb="md">Technical Details</Text>
+          <SimpleGrid cols={2} spacing="md">
+            <Box>
+              <Text size="sm" c="dimmed">Format</Text>
+              <Text>{getFormatLabel(source.format)}</Text>
+            </Box>
+            <Box>
+              <Text size="sm" c="dimmed">Created</Text>
+              <Text>{source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}</Text>
+            </Box>
+            <Box>
+              <Text size="sm" c="dimmed">Updated</Text>
+              <Text>{source.updated ? new Date(source.updated).toLocaleDateString() : 'Never'}</Text>
+            </Box>
+            <Box>
+              <Text size="sm" c="dimmed">Source ID</Text>
+              <Text size="xs" style={{ fontFamily: 'monospace' }}>{source.id}</Text>
+            </Box>
+          </SimpleGrid>
+        </Card>
+
+        {/* Tags */}
+        {source.tags && Object.keys(source.tags).length > 0 && (
+          <Card withBorder p="md">
+            <Text fw={500} mb="md">Tags & Metadata</Text>
+            <Group gap="xs">
+              {Object.entries(source.tags).map(([key, value]) => (
+                <Badge key={key} size="sm" variant="light" color="blue">
+                  {key}: {value}
+                </Badge>
+              ))}
+            </Group>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <Group justify="flex-end">
+          <Button variant="light" onClick={onClose}>Close</Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 } 

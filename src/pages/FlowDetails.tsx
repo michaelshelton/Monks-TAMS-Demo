@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -75,9 +75,15 @@ import {
   IconSignalE,
   IconPalette,
   IconCode,
-  IconContainer
+  IconContainer,
+  IconChartBar,
+  IconUpload
 } from '@tabler/icons-react';
 import { apiClient } from '../services/api';
+import AdvancedFilter, { FilterOption, FilterPreset } from '../components/AdvancedFilter';
+import { useFilterPersistence } from '../hooks/useFilterPersistence';
+import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
+import { cmcdTracker, type CMCDMetrics } from '../services/cmcdService';
 
 // Mock data structure based on backend API models
 interface FlowDetails {
@@ -296,12 +302,43 @@ const formatDuration = (start: string, end: string) => {
 export default function FlowDetails() {
   const { flowId } = useParams<{ flowId: string }>();
   const navigate = useNavigate();
+  // Removed unused searchParams
   const [flow, setFlow] = useState<FlowDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'performance' | 'storage' | 'technical'>('overview');
+
+  // Segments state (flow-scoped)
+  interface SegmentItem {
+    id: string;
+    object_id: string;
+    timerange: { start: string; end: string };
+    description?: string;
+    size?: number;
+    status: string;
+    last_duration?: string;
+    key_frame_count?: number;
+    get_urls?: Array<{ url: string; label?: string }>;
+    tags?: Record<string, string>;
+    flow_format?: string;
+  }
+  const [segments, setSegments] = useState<SegmentItem[]>([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [segmentsError, setSegmentsError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
+  const [selectedSegment, setSelectedSegment] = useState<SegmentItem | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const { filters: segFilters, updateFilters: updateSegFilters } = useFilterPersistence('flow_segments');
+  const [segSavedPresets, setSegSavedPresets] = useState<FilterPreset[]>([]);
+
+  // CMCD tracking state
+  const [cmcdMetrics, setCmcdMetrics] = useState<CMCDMetrics[]>([]);
+  const [showCMCDPanel, setShowCMCDPanel] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const fetchFlowDetails = async () => {
@@ -319,7 +356,7 @@ export default function FlowDetails() {
         } else {
           setError('Failed to fetch flow details');
         }
-        console.error(err);
+        // Error logged by component
       } finally {
         setLoading(false);
       }
@@ -327,6 +364,116 @@ export default function FlowDetails() {
 
     fetchFlowDetails();
   }, [flowId]);
+
+  // Fetch flow-scoped segments
+  const fetchSegments = async () => {
+    if (!flowId) return;
+    try {
+      setSegmentsLoading(true);
+      setSegmentsError(null);
+      const flowSegments = await apiClient.getFlowSegments(flowId);
+      const transformed = (flowSegments.data || []).map((seg: any): SegmentItem => ({
+        id: seg.id || `${flowId}_${seg.timerange?.start || Date.now()}`,
+        object_id: seg.object_id || 'unknown',
+        timerange: seg.timerange || { start: new Date().toISOString(), end: new Date().toISOString() },
+        description: seg.description || 'No description',
+        size: seg.size,
+        status: seg.status || 'active',
+        last_duration: seg.last_duration,
+        key_frame_count: seg.key_frame_count,
+        get_urls: seg.get_urls,
+        tags: seg.tags,
+        flow_format: seg.flow_format || flow?.format
+      }));
+      setSegments(transformed);
+    } catch (err: any) {
+      setSegmentsError('Failed to fetch segments');
+      // Error logged by component
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'segments') {
+      fetchSegments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, flowId]);
+
+  const formatIsoDuration = (duration: string) => {
+    return duration.replace('PT', '').replace('H', 'h ').replace('M', 'm ').replace('S', 's').trim();
+  };
+
+  const handlePlaySegment = (segment: SegmentItem) => {
+    setSelectedSegment(segment);
+    setShowVideoPlayer(true);
+    // Reset CMCD tracking for new segment
+    cmcdTracker.resetSession();
+    setCmcdMetrics([]);
+  };
+
+  const handleDeleteSegment = async (segment: SegmentItem, options: DeleteOptions) => {
+    if (!flowId) return;
+    try {
+      setSegmentsLoading(true);
+      await apiClient.deleteFlowSegments(flowId, {
+        timerange: `${segment.timerange.start}_${segment.timerange.end}`,
+        softDelete: options.softDelete,
+        deletedBy: options.deletedBy
+      });
+      setSegments(prev => prev.filter(s => s.id !== segment.id));
+      setShowDeleteModal(false);
+      setSelectedSegment(null);
+    } catch (err: any) {
+      setSegmentsError('Failed to delete segment');
+      // Error logged by component
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+
+  // Segment filters (no flow selector, since scoped to this flow)
+  const segmentFilterOptions: FilterOption[] = [
+    { key: 'search', label: 'Search', type: 'text', placeholder: 'Search segments by description...' },
+    { key: 'format', label: 'Format', type: 'select', options: [
+      { value: 'urn:x-nmos:format:video', label: 'Video' },
+      { value: 'urn:x-nmos:format:audio', label: 'Audio' },
+      { value: 'urn:x-tam:format:image', label: 'Image' }
+    ]},
+    { key: 'status', label: 'Status', type: 'select', options: [
+      { value: 'active', label: 'Active' },
+      { value: 'processing', label: 'Processing' },
+      { value: 'error', label: 'Error' },
+      { value: 'deleted', label: 'Deleted' }
+    ]},
+    { key: 'timerange', label: 'Time Range', type: 'text', placeholder: 'Filter by time range (HH:MM:SS)' },
+    { key: 'tags', label: 'Tags', type: 'text', placeholder: 'Filter by tag key:value' }
+  ];
+
+  const filteredSegments = segments.filter(segment => {
+    const searchTerm = segFilters.search?.toLowerCase();
+    const matchesSearch = !searchTerm ||
+      segment.description?.toLowerCase().includes(searchTerm);
+
+    const formatFilter = segFilters.format;
+    const matchesFormat = !formatFilter || (segment.flow_format === formatFilter);
+
+    const statusFilter = segFilters.status;
+    const matchesStatus = !statusFilter || segment.status === statusFilter;
+
+    const timerangeFilter = segFilters.timerange;
+    const matchesTimerange = !timerangeFilter ||
+      segment.timerange.start.includes(timerangeFilter) ||
+      segment.timerange.end.includes(timerangeFilter);
+
+    const tagsFilter = segFilters.tags;
+    const matchesTags = !tagsFilter || (segment.tags && Object.entries(segment.tags).some(([key, value]) => `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())));
+
+    return matchesSearch && matchesFormat && matchesStatus && matchesTimerange && matchesTags;
+  });
+
+  // Removed URL sync - tab state managed locally
 
   const handleDeleteFlow = async () => {
     if (!flowId) return;
@@ -541,7 +688,7 @@ export default function FlowDetails() {
       )}
 
       {/* Main Content */}
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onChange={(val) => setActiveTab((val as any) || 'overview')}>
         <Tabs.List>
           <Tabs.Tab value="overview" leftSection={<IconInfoCircle size={16} />}>
             Overview
@@ -734,72 +881,409 @@ export default function FlowDetails() {
         <Tabs.Panel value="segments" pt="xl">
           <Card withBorder p="xl">
             <Group justify="space-between" mb="md">
-              <Title order={4}>Flow Segments</Title>
-              <Button leftSection={<IconPlus size={16} />}>
-                Upload Segment
-              </Button>
+              <Group gap="sm">
+                <Title order={4}>Flow Segments</Title>
+                {segmentsLoading && <Loader size="sm" />}
+              </Group>
+              <Group gap="xs">
+                <Select
+                  value={viewMode}
+                  onChange={(value) => setViewMode((value as 'timeline' | 'list') || 'timeline')}
+                  data={[{ value: 'timeline', label: 'Timeline View' }, { value: 'list', label: 'List View' }]}
+                  size="sm"
+                />
+                <Button variant="light" leftSection={<IconRefresh size={16} />} size="sm" onClick={fetchSegments} loading={segmentsLoading}>
+                  Refresh
+                </Button>
+                <Button leftSection={<IconPlus size={16} />} size="sm">Upload Segment</Button>
+              </Group>
             </Group>
-            <Text size="sm" c="dimmed" mb="lg">
-              {flow.storage?.total_segments || 0} segments found
-            </Text>
-            
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Object ID</Table.Th>
-                  <Table.Th>Start Time</Table.Th>
-                  <Table.Th>End Time</Table.Th>
-                  <Table.Th>Duration</Table.Th>
-                  <Table.Th>Size</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {flow.recent_segments?.map((segment) => (
-                  <Table.Tr key={segment.object_id}>
-                    <Table.Td>
-                      <Text size="sm" style={{ fontFamily: 'monospace' }}>
-                        {segment.object_id}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatTimestamp(segment.timerange.start)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatTimestamp(segment.timerange.end)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">
-                        {formatDuration(segment.timerange.start, segment.timerange.end)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatFileSize(segment.size)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={getStatusColor(segment.status)} variant="light" size="sm">
-                        {segment.status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs">
-                        <ActionIcon size="sm" variant="light">
-                          <IconEye size={14} />
-                        </ActionIcon>
-                        <ActionIcon size="sm" variant="light">
-                          <IconPlayerPlay size={14} />
-                        </ActionIcon>
-                        <ActionIcon size="sm" variant="light">
-                          <IconDownload size={14} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
+
+            {segmentsError && (
+              <Alert icon={<IconAlertCircle size={16} />} color="red" mb="md" withCloseButton onClose={() => setSegmentsError(null)}>
+                {segmentsError}
+              </Alert>
+            )}
+
+            <AdvancedFilter
+              filters={segmentFilterOptions}
+              value={segFilters}
+              onChange={updateSegFilters}
+              presets={segSavedPresets}
+              onPresetSave={(preset) => setSegSavedPresets([...segSavedPresets, preset])}
+              onPresetDelete={(presetId) => setSegSavedPresets(segSavedPresets.filter(p => p.id !== presetId))}
+            />
+
+            <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="lg" mb="lg">
+              <Card withBorder p="md">
+                <Group gap="xs">
+                  <IconTimeline size={20} color="#228be6" />
+                  <Box>
+                    <Text size="xs" c="dimmed">Segments</Text>
+                    <Text fw={600}>{filteredSegments.length}</Text>
+                  </Box>
+                </Group>
+              </Card>
+              <Card withBorder p="md">
+                <Group gap="xs">
+                  <IconClock size={20} color="#40c057" />
+                  <Box>
+                    <Text size="xs" c="dimmed">Total Duration</Text>
+                    <Text fw={600}>{filteredSegments.reduce((acc, s) => acc + (parseInt((s.last_duration || '').replace(/\D/g, '')) || 0), 0)}s</Text>
+                  </Box>
+                </Group>
+              </Card>
+              <Card withBorder p="md">
+                <Group gap="xs">
+                  <IconDatabase size={20} color="#fd7e14" />
+                  <Box>
+                    <Text size="xs" c="dimmed">Total Size</Text>
+                    <Text fw={600}>{formatFileSize(filteredSegments.reduce((acc, s) => acc + (s.size || 0), 0))}</Text>
+                  </Box>
+                </Group>
+              </Card>
+              <Card withBorder p="md">
+                <Group gap="xs">
+                  <IconInfoCircle size={20} color="#7950f2" />
+                  <Box>
+                    <Text size="xs" c="dimmed">Status Counts</Text>
+                    <Text fw={600}>{new Set(filteredSegments.map(s => s.status)).size} types</Text>
+                  </Box>
+                </Group>
+              </Card>
+            </SimpleGrid>
+
+            {segmentsLoading ? (
+              <Box ta="center" py="xl"><Loader size="lg" /><Text mt="md" c="dimmed">Loading segments...</Text></Box>
+            ) : filteredSegments.length === 0 ? (
+              <Box ta="center" py="xl"><Text c="dimmed">No segments found.</Text></Box>
+            ) : viewMode === 'timeline' ? (
+              <Timeline active={filteredSegments.length - 1} bulletSize={24} lineWidth={2}>
+                {filteredSegments
+                  .slice()
+                  .sort((a, b) => new Date(a.timerange.start).getTime() - new Date(b.timerange.start).getTime())
+                  .map((segment) => (
+                  <Timeline.Item key={segment.id} bullet={getFormatIcon(segment.flow_format || flow.format)} title={
+                    <Group gap="xs" align="center">
+                      <Text fw={600}>{flow.label}</Text>
+                      <Badge color={getStatusColor(segment.status)} variant="light" size="sm">{segment.status}</Badge>
+                    </Group>
+                  }>
+                    <Card withBorder p="md" mt="xs">
+                      <Stack gap="xs">
+                        <Group justify="space-between">
+                          <Group gap="xs">
+                            <IconClock size={14} />
+                            <Text size="sm">{formatTimestamp(segment.timerange.start)} - {formatTimestamp(segment.timerange.end)}</Text>
+                          </Group>
+                          <Group gap="xs">
+                            <Badge color="blue" variant="light" size="sm">{formatIsoDuration(segment.last_duration || 'PT0S')}</Badge>
+                            {segment.size && (<Badge color="gray" variant="light" size="sm">{formatFileSize(segment.size)}</Badge>)}
+                          </Group>
+                        </Group>
+                        <Text size="sm" c="dimmed">{segment.description}</Text>
+                        {segment.tags && (
+                          <Group gap="xs" wrap="wrap">{Object.entries(segment.tags).map(([k,v]) => (<Badge key={k} color="gray" variant="outline" size="xs">{k}: {v}</Badge>))}</Group>
+                        )}
+                        <Group gap="xs" mt="xs">
+                          <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}>Details</Button>
+                          <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={() => handlePlaySegment(segment)} disabled={(segment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}>Play</Button>
+                          <Button size="xs" variant="light" leftSection={<IconDownload size={14} />}>Download</Button>
+                          <ActionIcon size="sm" variant="light" color="red" onClick={() => { setSelectedSegment(segment); setShowDeleteModal(true); }}><IconTrash size={14} /></ActionIcon>
+                        </Group>
+                      </Stack>
+                    </Card>
+                  </Timeline.Item>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </Timeline>
+            ) : (
+              <ScrollArea>
+                <Stack gap="md">
+                  {filteredSegments.map((segment) => (
+                    <Paper key={segment.id} withBorder p="md">
+                      <Grid>
+                        <Grid.Col span={3}>
+                          <Stack gap="xs">
+                            <Group gap="xs">{getFormatIcon(segment.flow_format || flow.format)}<Text fw={600} size="sm">{flow.label}</Text></Group>
+                            <Text size="xs" c="dimmed">{segment.description}</Text>
+                          </Stack>
+                        </Grid.Col>
+                        <Grid.Col span={2}>
+                          <Stack gap="xs">
+                            <Text size="sm" fw={500}>Time Range</Text>
+                            <Text size="xs">{formatTimestamp(segment.timerange.start)} - {formatTimestamp(segment.timerange.end)}</Text>
+                            <Text size="xs" c="dimmed">Duration: {formatIsoDuration(segment.last_duration || 'PT0S')}</Text>
+                          </Stack>
+                        </Grid.Col>
+                        <Grid.Col span={2}>
+                          <Stack gap="xs">
+                            <Text size="sm" fw={500}>Status & Size</Text>
+                            <Badge color={getStatusColor(segment.status)} variant="light" size="sm">{segment.status}</Badge>
+                            {segment.size && (<Text size="xs" c="dimmed">{formatFileSize(segment.size)}</Text>)}
+                          </Stack>
+                        </Grid.Col>
+                        <Grid.Col span={3}>
+                          <Stack gap="xs">
+                            <Text size="sm" fw={500}>Tags</Text>
+                            <Group gap="xs" wrap="wrap">{segment.tags && Object.entries(segment.tags).map(([k,v]) => (<Badge key={k} color="gray" variant="outline" size="xs">{k}: {v}</Badge>))}</Group>
+                          </Stack>
+                        </Grid.Col>
+                        <Grid.Col span={2}>
+                          <Group gap="xs">
+                            <Tooltip label="View Details"><ActionIcon size="sm" variant="light" onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}><IconEye size={14} /></ActionIcon></Tooltip>
+                            <Tooltip label="Play Segment"><ActionIcon size="sm" variant="light" onClick={() => handlePlaySegment(segment)} disabled={(segment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}><IconPlayerPlay size={14} /></ActionIcon></Tooltip>
+                            <Tooltip label="Download"><ActionIcon size="sm" variant="light"><IconDownload size={14} /></ActionIcon></Tooltip>
+                            <Tooltip label="Delete"><ActionIcon size="sm" variant="light" color="red" onClick={() => { setSelectedSegment(segment); setShowDeleteModal(true); }}><IconTrash size={14} /></ActionIcon></Tooltip>
+                          </Group>
+                        </Grid.Col>
+                      </Grid>
+                    </Paper>
+                  ))}
+                </Stack>
+              </ScrollArea>
+            )}
           </Card>
+
+          {/* Segment Details Modal */}
+          {selectedSegment && (
+            <Modal opened={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Segment Details" size="lg">
+              <Stack gap="md">
+                <Group gap="md">
+                  <Box>
+                    <Text size="sm" fw={500}>Flow</Text>
+                    <Text size="sm">{flow.label}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="sm" fw={500}>Format</Text>
+                    <Group gap="xs">{getFormatIcon(selectedSegment.flow_format || flow.format)}<Text size="sm">{getFormatLabel(selectedSegment.flow_format || flow.format)}</Text></Group>
+                  </Box>
+                  <Box>
+                    <Text size="sm" fw={500}>Status</Text>
+                    <Badge color={getStatusColor(selectedSegment.status)} variant="light">{selectedSegment.status}</Badge>
+                  </Box>
+                </Group>
+                <Divider />
+                <Group gap="md">
+                  <Box><Text size="sm" fw={500}>Start Time</Text><Text size="sm">{formatTimestamp(selectedSegment.timerange.start)}</Text></Box>
+                  <Box><Text size="sm" fw={500}>End Time</Text><Text size="sm">{formatTimestamp(selectedSegment.timerange.end)}</Text></Box>
+                  <Box><Text size="sm" fw={500}>Duration</Text><Text size="sm">{formatIsoDuration(selectedSegment.last_duration || 'PT0S')}</Text></Box>
+                </Group>
+                {selectedSegment.size && (<Box><Text size="sm" fw={500}>File Size</Text><Text size="sm">{formatFileSize(selectedSegment.size)}</Text></Box>)}
+                {selectedSegment.description && (<Box><Text size="sm" fw={500}>Description</Text><Text size="sm">{selectedSegment.description}</Text></Box>)}
+                {selectedSegment.tags && (
+                  <Box>
+                    <Text size="sm" fw={500}>Tags</Text>
+                    <Group gap="xs" wrap="wrap">{Object.entries(selectedSegment.tags).map(([k,v]) => (<Badge key={k} color="gray" variant="outline">{k}: {v}</Badge>))}</Group>
+                  </Box>
+                )}
+                <Group gap="xs" mt="md">
+                  <Button leftSection={<IconPlayerPlay size={16} />} onClick={() => handlePlaySegment(selectedSegment)} disabled={(selectedSegment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}>Play Segment</Button>
+                  <Button variant="light" leftSection={<IconDownload size={16} />}>Download</Button>
+                  <Button variant="light" leftSection={<IconEdit size={16} />}>Edit</Button>
+                </Group>
+              </Stack>
+            </Modal>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {selectedSegment && (
+            <EnhancedDeleteModal
+              opened={showDeleteModal}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={(options) => handleDeleteSegment(selectedSegment, options)}
+              title="Delete Segment"
+              itemName={selectedSegment.description || `Segment ${selectedSegment.id}`}
+              itemType="segment"
+              defaultDeletedBy="admin"
+            />
+          )}
+
+          {/* Video Player Modal */}
+          {selectedSegment && (selectedSegment.flow_format || flow.format) === 'urn:x-nmos:format:video' && (
+            <Modal opened={showVideoPlayer} onClose={() => setShowVideoPlayer(false)} title={`Video Player - ${flow.label}`} size="xl" fullScreen>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <Box>
+                    <Title order={4}>{selectedSegment.description}</Title>
+                    <Text size="sm" c="dimmed">{flow.label} • {formatIsoDuration(selectedSegment.last_duration || 'PT0S')} • {formatFileSize(selectedSegment.size || 0)}</Text>
+                  </Box>
+                  <Group>
+                    <Button variant="light" leftSection={<IconDownload size={16} />}>Download</Button>
+                    <Button variant="light" leftSection={<IconChartBar size={16} />} onClick={() => setShowCMCDPanel(!showCMCDPanel)}>
+                      {showCMCDPanel ? 'Hide' : 'Show'} Analytics
+                    </Button>
+                    <Button variant="light" onClick={() => setShowVideoPlayer(false)}>Close</Button>
+                  </Group>
+                </Group>
+                
+                <Grid>
+                  <Grid.Col span={showCMCDPanel ? 8 : 12}>
+                    <Box style={{ width: '100%', height: '70vh', backgroundColor: '#000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {selectedSegment.get_urls && selectedSegment.get_urls[0] ? (
+                        <video 
+                          ref={videoRef}
+                          controls 
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
+                          src={selectedSegment.get_urls[0].url}
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      ) : (
+                        <Stack gap="md" align="center">
+                          <IconVideo size={64} color="#666" />
+                          <Text c="dimmed" size="lg" ta="center">Video not available for playback</Text>
+                          <Text size="sm" c="dimmed" ta="center">This segment doesn't have a playable video URL</Text>
+                        </Stack>
+                      )}
+                    </Box>
+                  </Grid.Col>
+                  
+                  {showCMCDPanel && (
+                    <Grid.Col span={4}>
+                      <Card withBorder p="md" h="70vh">
+                        <Stack gap="md">
+                          <Group justify="space-between">
+                            <Title order={5}>CMCD Analytics</Title>
+                            <Badge color="blue" variant="light">Live</Badge>
+                          </Group>
+                          
+                          <Divider />
+                          
+                          {/* Real-time metrics */}
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Current Metrics</Text>
+                            {cmcdMetrics.length > 0 && (
+                              <Stack gap="xs">
+                                <Group gap="xs">
+                                  <Text size="xs" c="dimmed">Buffer:</Text>
+                                  <Text size="xs" fw={500}>
+                                    {(() => {
+                                      const bufferLength = cmcdMetrics[cmcdMetrics.length - 1]?.bufferLength;
+                                      return bufferLength ? `${Math.round(bufferLength)}s` : 'N/A';
+                                    })()}
+                                  </Text>
+                                </Group>
+                                <Group gap="xs">
+                                  <Text size="xs" c="dimmed">Playback Rate:</Text>
+                                  <Text size="xs" fw={500}>
+                                    {(() => {
+                                      const playbackRate = cmcdMetrics[cmcdMetrics.length - 1]?.playbackRate;
+                                      return playbackRate ? `${playbackRate}x` : 'N/A';
+                                    })()}
+                                  </Text>
+                                </Group>
+                                <Group gap="xs">
+                                  <Text size="xs" c="dimmed">Duration:</Text>
+                                  <Text size="xs" fw={500}>
+                                    {(() => {
+                                      const objectDuration = cmcdMetrics[cmcdMetrics.length - 1]?.objectDuration;
+                                      return objectDuration ? `${Math.round(objectDuration)}s` : 'N/A';
+                                    })()}
+                                  </Text>
+                                </Group>
+                                <Group gap="xs">
+                                  <Text size="xs" c="dimmed">Bandwidth:</Text>
+                                  <Text size="xs" fw={500}>
+                                    {(() => {
+                                      const bandwidth = cmcdMetrics[cmcdMetrics.length - 1]?.bandwidth;
+                                      return bandwidth ? `${Math.round(bandwidth)} kbps` : 'N/A';
+                                    })()}
+                                  </Text>
+                                </Group>
+                              </Stack>
+                            )}
+                          </Box>
+                          
+                          <Divider />
+                          
+                          {/* Performance indicators */}
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Performance</Text>
+                            <Stack gap="xs">
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Startup Time:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const startupMetric = cmcdMetrics.find(m => m.startupTime);
+                                    return startupMetric?.startupTime ? `${Math.round(startupMetric.startupTime)}ms` : 'N/A';
+                                  })()}
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Rebuffering:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const rebufferingMetric = cmcdMetrics.find(m => m.rebufferingEvents);
+                                    return rebufferingMetric?.rebufferingEvents || 0;
+                                  })()} events
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Frames:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const framesMetric = cmcdMetrics.find(m => m.decodedFrames);
+                                    return framesMetric?.decodedFrames || 0;
+                                  })()} decoded
+                                </Text>
+                              </Group>
+                            </Stack>
+                          </Box>
+                          
+                          <Divider />
+                          
+                          {/* CMCD data export */}
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">CMCD Data</Text>
+                            <Stack gap="xs">
+                              <Button 
+                                size="xs" 
+                                variant="light" 
+                                leftSection={<IconDownload size={14} />}
+                                onClick={() => {
+                                  const session = cmcdTracker.getSession();
+                                  const dataStr = JSON.stringify(session, null, 2);
+                                  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                                  const url = URL.createObjectURL(dataBlob);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `cmcd_${selectedSegment.id}_${Date.now()}.json`;
+                                  link.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                              >
+                                Export Session
+                              </Button>
+                              <Button 
+                                size="xs" 
+                                variant="light" 
+                                leftSection={<IconUpload size={14} />}
+                                onClick={() => {
+                                  cmcdTracker.sendMetricsToAnalytics('/api/analytics/cmcd');
+                                }}
+                              >
+                                Send to Analytics
+                              </Button>
+                            </Stack>
+                          </Box>
+                          
+                          <Box style={{ flex: 1 }} />
+                          
+                          {/* Session info */}
+                          <Box>
+                            <Text size="xs" c="dimmed">Session ID</Text>
+                            <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                              {cmcdTracker.getSession().id}
+                            </Text>
+                          </Box>
+                        </Stack>
+                      </Card>
+                    </Grid.Col>
+                  )}
+                </Grid>
+              </Stack>
+            </Modal>
+          )}
         </Tabs.Panel>
 
         <Tabs.Panel value="performance" pt="xl">

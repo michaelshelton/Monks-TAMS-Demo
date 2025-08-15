@@ -1,598 +1,514 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Group,
-  Text,
-  Button,
-  Stack,
   Card,
-  Badge,
+  Text,
+  Stack,
+  Group,
+  Button,
   TextInput,
+  Select,
   Textarea,
-  Switch,
-  NumberInput,
-  Chip,
-  ActionIcon,
-  Tooltip,
+  Badge,
   Alert,
+  Box,
+  Code,
   Divider,
-  Modal,
-  LoadingOverlay
+  ActionIcon,
+  Tooltip
 } from '@mantine/core';
-import {
-  IconEdit,
-  IconCheck,
-  IconX,
-  IconPlus,
-  IconTrash,
-  IconInfoCircle,
-  IconAlertCircle,
-  IconDeviceFloppy
-} from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconEye, IconRefresh, IconCheck, IconX } from '@tabler/icons-react';
+import { apiClient } from '../services/api';
 
-// BBC TAMS Field Editor Component
+// BBC TAMS Field Editor Props - standardized interface
 interface BBCFieldEditorProps {
   // Entity information
+  entityType: 'flows' | 'sources' | 'segments';
   entityId: string;
-  entityType: 'source' | 'flow';
-  currentData: Record<string, any>;
-  
-  // Field definitions
-  fields: Array<{
-    key: string;
-    label: string;
-    type: 'text' | 'textarea' | 'number' | 'boolean' | 'tags' | 'select';
-    required?: boolean;
-    validation?: (value: any) => string | null;
-    options?: Array<{ value: string; label: string }>;
-    placeholder?: string;
-    description?: string;
-  }>;
+  initialFields?: Record<string, any>;
   
   // Callbacks
-  onFieldUpdate: (fieldKey: string, value: any) => Promise<boolean>;
-  onFieldDelete?: (fieldKey: string) => Promise<boolean>;
-  onSave?: (allData: Record<string, any>) => Promise<boolean>;
+  onFieldUpdate?: (fieldKey: string, value: any) => void;
+  onFieldDelete?: (fieldKey: string) => void;
+  onFieldsChange?: (fields: Record<string, any>) => void;
   
-  // Options
-  showOptimisticUpdates?: boolean;
-  showValidation?: boolean;
-  showFieldHistory?: boolean;
+  // UI options
+  showMetadata?: boolean;
+  showHistory?: boolean;
+  collapsed?: boolean;
   disabled?: boolean;
   className?: string;
+  
+  // Custom styling
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'default' | 'filled' | 'outline' | 'light' | 'white' | 'subtle' | 'gradient';
 }
 
-// Field validation functions
-const fieldValidators = {
-  label: (value: string) => {
-    if (!value || value.trim().length === 0) return 'Label is required';
-    if (value.length > 255) return 'Label must be less than 255 characters';
-    return null;
-  },
-  
-  description: (value: string) => {
-    if (value && value.length > 1000) return 'Description must be less than 1000 characters';
-    return null;
-  },
-  
-  maxBitRate: (value: number) => {
-    if (value && value <= 0) return 'Max bit rate must be positive';
-    if (value && value > 1000000000) return 'Max bit rate must be less than 1 Gbps';
-    return null;
-  },
-  
-  frameWidth: (value: number) => {
-    if (value && value <= 0) return 'Frame width must be positive';
-    if (value && value > 7680) return 'Frame width must be less than 8K';
-    return null;
-  },
-  
-  frameHeight: (value: number) => {
-    if (value && value <= 0) return 'Frame height must be positive';
-    if (value && value > 4320) return 'Frame height must be less than 8K';
-    return null;
-  },
-  
-  sampleRate: (value: number) => {
-    if (value && value <= 0) return 'Sample rate must be positive';
-    if (value && value > 192000) return 'Sample rate must be less than 192 kHz';
-    return null;
-  }
-};
+interface FieldOperation {
+  type: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
+  fieldKey: string;
+  timestamp: Date;
+  success: boolean;
+  response?: any;
+  error?: string;
+}
 
-export default function BBCFieldEditor({
-  entityId,
-  entityType,
-  currentData,
-  fields,
+/**
+ * Standardized BBC TAMS Field Editor Component
+ * 
+ * This component provides field editing capabilities following BBC TAMS v6.0 specification.
+ * It supports GET, PUT, DELETE, and HEAD operations on entity fields.
+ * 
+ * @example
+ * ```tsx
+ * <BBCFieldEditor
+ *   entityType="flows"
+ *   entityId="flow-123"
+ *   initialFields={{ label: "My Flow", description: "Flow description" }}
+ *   onFieldUpdate={(key, value) => console.log(`${key}: ${value}`)}
+ *   showMetadata={true}
+ *   showHistory={true}
+ * />
+ * ```
+ */
+export default function BBCFieldEditor({ 
+  entityType, 
+  entityId, 
+  initialFields = {},
   onFieldUpdate,
   onFieldDelete,
-  onSave,
-  showOptimisticUpdates = true,
-  showValidation = true,
-  showFieldHistory = false,
+  onFieldsChange,
+  showMetadata = true,
+  showHistory = true,
+  collapsed = false,
   disabled = false,
-  className
+  className,
+  size = 'md',
+  variant = 'outline'
 }: BBCFieldEditorProps) {
+  const [fields, setFields] = useState<Record<string, any>>(initialFields);
+  const [availableFields, setAvailableFields] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedField, setSelectedField] = useState<string>('');
+  const [fieldValue, setFieldValue] = useState<string>('');
+  const [operationHistory, setOperationHistory] = useState<FieldOperation[]>([]);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [fieldValues, setFieldValues] = useState<Record<string, any>>(currentData);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [isUpdating, setIsUpdating] = useState<Record<string, boolean>>({});
-  const [updateHistory, setUpdateHistory] = useState<Array<{
-    field: string;
-    oldValue: any;
-    newValue: any;
-    timestamp: Date;
-    success: boolean;
-  }>>([]);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [editValue, setEditValue] = useState<string>('');
 
-  // Initialize field values
+  // Load available fields on component mount
   useEffect(() => {
-    setFieldValues(currentData);
-  }, [currentData]);
+    loadAvailableFields();
+  }, [entityType, entityId]);
 
-  // Handle field value change
-  const handleFieldChange = useCallback((fieldKey: string, value: any) => {
-    setFieldValues(prev => ({ ...prev, [fieldKey]: value }));
-    
-    // Clear field error when user starts typing
-    if (fieldErrors[fieldKey]) {
-      setFieldErrors(prev => ({ ...prev, [fieldKey]: '' }));
-    }
-  }, [fieldErrors]);
-
-  // Validate field value
-  const validateField = useCallback((fieldKey: string, value: any): string | null => {
-    const field = fields.find(f => f.key === fieldKey);
-    if (!field) return null;
-
-    // Check required fields
-    if (field.required && (!value || (typeof value === 'string' && value.trim().length === 0))) {
-      return `${field.label} is required`;
-    }
-
-    // Check custom validation
-    if (field.validation) {
-      const validationError = field.validation(value);
-      if (validationError) return validationError;
-    }
-
-    // Check built-in validators
-    const builtInValidator = fieldValidators[fieldKey as keyof typeof fieldValidators];
-    if (builtInValidator) {
-      // Type-safe validation based on field type
-      if (field.type === 'number' && typeof value === 'number') {
-        const validator = builtInValidator as (value: number) => string | null;
-        const validationError = validator(value);
-        if (validationError) return validationError;
-      } else if (field.type === 'text' && typeof value === 'string') {
-        const validator = builtInValidator as (value: string) => string | null;
-        const validationError = validator(value);
-        if (validationError) return validationError;
-      }
-    }
-
-    return null;
-  }, [fields]);
-
-  // Handle field update
-  const handleFieldUpdate = useCallback(async (fieldKey: string) => {
-    const value = fieldValues[fieldKey];
-    
-    // Validate field
-    const error = validateField(fieldKey, value);
-    if (error) {
-      setFieldErrors(prev => ({ ...prev, [fieldKey]: error }));
-      return;
-    }
-
-    setIsUpdating(prev => ({ ...prev, [fieldKey]: true }));
-    
+  const loadAvailableFields = async () => {
     try {
-      const success = await onFieldUpdate(fieldKey, value);
+      setLoading(true);
+      const fields = await apiClient.getEntityFields(entityType, entityId);
+      setAvailableFields(fields);
       
-      if (success) {
-        // Clear error and exit edit mode
-        setFieldErrors(prev => ({ ...prev, [fieldKey]: '' }));
-        setEditingField(null);
-        
-        // Add to history
-        setUpdateHistory(prev => [{
-          field: fieldKey,
-          oldValue: currentData[fieldKey],
-          newValue: value,
-          timestamp: new Date(),
-          success: true
-        }, ...prev.slice(0, 9)]); // Keep last 10 updates
-        
-        // Show optimistic update
-        if (showOptimisticUpdates) {
-          // Field is already updated in local state
-        }
-      } else {
-        // Revert to original value on failure
-        setFieldValues(prev => ({ ...prev, [fieldKey]: currentData[fieldKey] }));
-        setFieldErrors(prev => ({ ...prev, [fieldKey]: 'Update failed' }));
+      // If no fields returned from API, use initial fields
+      if (fields.length === 0 && Object.keys(initialFields).length > 0) {
+        setAvailableFields(Object.keys(initialFields));
       }
-    } catch (error) {
-      // Revert to original value on error
-      setFieldValues(prev => ({ ...prev, [fieldKey]: currentData[fieldKey] }));
-      setFieldErrors(prev => ({ ...prev, [fieldKey]: `Error: ${error}` }));
+    } catch (err) {
+      console.warn('Could not load entity fields:', err);
+      // Fallback to initial fields
+      if (Object.keys(initialFields).length > 0) {
+        setAvailableFields(Object.keys(initialFields));
+      }
     } finally {
-      setIsUpdating(prev => ({ ...prev, [fieldKey]: false }));
+      setLoading(false);
     }
-  }, [fieldValues, currentData, onFieldUpdate, validateField, showOptimisticUpdates]);
+  };
 
-  // Handle field deletion
-  const handleFieldDelete = useCallback(async (fieldKey: string) => {
-    if (!onFieldDelete) return;
-    
-    setIsUpdating(prev => ({ ...prev, [fieldKey]: true }));
-    
+  const addOperationToHistory = (operation: Omit<FieldOperation, 'timestamp'>) => {
+    setOperationHistory(prev => [{
+      ...operation,
+      timestamp: new Date()
+    }, ...prev.slice(0, 9)]); // Keep last 10 operations
+  };
+
+  const handleGetField = async (fieldKey: string) => {
     try {
-      const success = await onFieldDelete(fieldKey);
+      setLoading(true);
+      setError(null);
       
-      if (success) {
-        // Remove from local state
-        setFieldValues(prev => {
-          const newState = { ...prev };
-          delete newState[fieldKey];
-          return newState;
-        });
-        
-        // Add to history
-        setUpdateHistory(prev => [{
-          field: fieldKey,
-          oldValue: currentData[fieldKey],
-          newValue: undefined,
-          timestamp: new Date(),
-          success: true
-        }, ...prev.slice(0, 9)]);
-      }
-    } catch (error) {
-      // Keep field on error
-      setFieldErrors(prev => ({ ...prev, [fieldKey]: `Delete failed: ${error}` }));
+      const value = await apiClient.getFieldValue(entityType, entityId, fieldKey);
+      
+      // Update local fields state
+      setFields(prev => ({ ...prev, [fieldKey]: value }));
+      
+      // Update operation history
+      addOperationToHistory({
+        type: 'GET',
+        fieldKey,
+        success: true,
+        response: value
+      });
+      
+      // Notify parent component
+      onFieldsChange?.(fields);
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to get field ${fieldKey}: ${errorMsg}`);
+      
+      addOperationToHistory({
+        type: 'GET',
+        fieldKey,
+        success: false,
+        error: errorMsg
+      });
     } finally {
-      setIsUpdating(prev => ({ ...prev, [fieldKey]: false }));
+      setLoading(false);
     }
-  }, [onFieldDelete, currentData]);
+  };
 
-  // Handle save all
-  const handleSaveAll = useCallback(async () => {
-    if (!onSave) return;
-    
-    // Validate all fields
-    const errors: Record<string, string> = {};
-    fields.forEach(field => {
-      const error = validateField(field.key, fieldValues[field.key]);
-      if (error) {
-        errors[field.key] = error;
-      }
-    });
-    
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-    
+  const handleUpdateField = async (fieldKey: string, value: string) => {
     try {
-      const success = await onSave(fieldValues);
-      if (success) {
-        // Clear all errors
-        setFieldErrors({});
-        setEditingField(null);
-      }
-    } catch (error) {
-      // Handle save error
-      console.error('Save failed:', error);
+      setLoading(true);
+      setError(null);
+      
+      await apiClient.updateFieldValue(entityType, entityId, fieldKey, value);
+      
+      // Update local fields state
+      setFields(prev => ({ ...prev, [fieldKey]: value }));
+      
+      // Update operation history
+      addOperationToHistory({
+        type: 'PUT',
+        fieldKey,
+        success: true,
+        response: value
+      });
+      
+      // Notify parent component
+      onFieldUpdate?.(fieldKey, value);
+      onFieldsChange?.(fields);
+      
+      // Reset editing state
+      setEditingField(null);
+      setEditValue('');
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to update field ${fieldKey}: ${errorMsg}`);
+      
+      addOperationToHistory({
+        type: 'PUT',
+        fieldKey,
+        success: false,
+        error: errorMsg
+      });
+    } finally {
+      setLoading(false);
     }
-  }, [onSave, fieldValues, fields, validateField]);
+  };
 
-  // Cancel field edit
-  const handleCancelEdit = useCallback((fieldKey: string) => {
+  const handleDeleteField = async (fieldKey: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await apiClient.deleteField(entityType, entityId, fieldKey);
+      
+      // Remove from local fields state
+      const { [fieldKey]: removed, ...remainingFields } = fields;
+      setFields(remainingFields);
+      
+      // Update operation history
+      addOperationToHistory({
+        type: 'DELETE',
+        fieldKey,
+        success: true
+      });
+      
+      // Notify parent component
+      onFieldDelete?.(fieldKey);
+      onFieldsChange?.(remainingFields);
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to delete field ${fieldKey}: ${errorMsg}`);
+      
+      addOperationToHistory({
+        type: 'DELETE',
+        fieldKey,
+        success: false,
+        error: errorMsg
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetMetadata = async (fieldKey: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const metadata = await apiClient.getFieldMetadata(entityType, entityId, fieldKey);
+      
+      // Update operation history
+      addOperationToHistory({
+        type: 'HEAD',
+        fieldKey,
+        success: true,
+        response: metadata
+      });
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to get metadata for field ${fieldKey}: ${errorMsg}`);
+      
+      addOperationToHistory({
+        type: 'HEAD',
+        fieldKey,
+        success: false,
+        error: errorMsg
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditing = (fieldKey: string, currentValue: any) => {
+    setEditingField(fieldKey);
+    setEditValue(String(currentValue || ''));
+  };
+
+  const cancelEditing = () => {
     setEditingField(null);
-    setFieldValues(prev => ({ ...prev, [fieldKey]: currentData[fieldKey] }));
-    setFieldErrors(prev => ({ ...prev, [fieldKey]: '' }));
-  }, [currentData]);
+    setEditValue('');
+  };
 
-  // Render field input based on type
-  const renderFieldInput = useCallback((field: any, value: any, isEditing: boolean) => {
-    if (!isEditing) {
-      return (
-        <Text size="sm" c={value ? 'inherit' : 'dimmed'}>
-          {value || 'Not set'}
-        </Text>
-      );
+  const getOperationIcon = (type: string) => {
+    switch (type) {
+      case 'GET': return <IconEye size={14} />;
+      case 'PUT': return <IconEdit size={14} />;
+      case 'DELETE': return <IconTrash size={14} />;
+      case 'HEAD': return <IconRefresh size={14} />;
+      default: return <IconEye size={14} />;
     }
+  };
 
-    const commonProps = {
-      value: value || '',
-      onChange: (newValue: any) => handleFieldChange(field.key, newValue),
-      disabled: Boolean(disabled || isUpdating[field.key]),
-      placeholder: field.placeholder,
-      error: fieldErrors[field.key]
-    };
+  const getOperationColor = (type: string, success: boolean) => {
+    if (!success) return 'red';
+    switch (type) {
+      case 'GET': return 'blue';
+      case 'PUT': return 'green';
+      case 'DELETE': return 'orange';
+      case 'HEAD': return 'cyan';
+      default: return 'gray';
+    }
+  };
 
-    switch (field.type) {
-      case 'text':
-        return <TextInput {...commonProps} />;
-      
-      case 'textarea':
-        return <Textarea {...commonProps} minRows={2} maxRows={4} />;
-      
-      case 'number':
-        return <NumberInput {...commonProps} min={0} />;
-      
-      case 'boolean':
-        return (
-                      <Switch
-              checked={value || false}
-              onChange={(event) => handleFieldChange(field.key, event.currentTarget.checked)}
-              disabled={Boolean(disabled || isUpdating[field.key])}
-            />
-        );
-      
-      case 'tags':
-        return (
+  return (
+    <Card {...(className ? { className } : {})} withBorder>
+      <Card.Section p="md">
+        <Group justify="space-between" align="center">
+          <Text fw={500}>BBC TAMS Field Editor</Text>
+          <Badge variant="light" color="blue" size="sm">v6.0</Badge>
+        </Group>
+        <Text size="sm" c="dimmed">Entity: {entityType}/{entityId}</Text>
+      </Card.Section>
+
+      <Card.Section p="md">
+        <Stack gap="md">
+          {/* Field Selection */}
           <Box>
-            <Group gap="xs" mb="xs">
-              {Array.isArray(value) ? value.map((tag: string, index: number) => (
-                <Chip
-                  key={index}
-                  checked={false}
-                  disabled={Boolean(disabled || isUpdating[field.key])}
+            <Text size="sm" fw={500} mb="xs">Field Operations</Text>
+            <Group gap="xs" align="flex-end">
+              <Select
+                label="Select Field"
+                placeholder="Choose a field"
+                data={availableFields.map(field => ({ value: field, label: field }))}
+                value={selectedField}
+                onChange={(value) => setSelectedField(value || '')}
+                disabled={disabled || loading}
+                size={size}
+                style={{ flex: 1 }}
+              />
+              
+              <TextInput
+                label="Field Value"
+                placeholder="Enter field value"
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                disabled={disabled || loading}
+                size={size}
+                style={{ flex: 1 }}
+              />
+              
+              <Button
+                variant={variant}
+                size={size}
+                onClick={() => handleGetField(selectedField)}
+                disabled={disabled || loading || !selectedField}
+                leftSection={<IconEye size={16} />}
+              >
+                Get
+              </Button>
+            </Group>
+          </Box>
+
+          {/* Field Actions */}
+          {selectedField && (
+            <Box>
+              <Text size="sm" fw={500} mb="xs">Field Actions</Text>
+              <Group gap="xs">
+                <Button
+                  variant="light"
+                  size={size}
+                  onClick={() => handleGetMetadata(selectedField)}
+                  disabled={disabled || loading}
+                  leftSection={<IconRefresh size={16} />}
                 >
-                  <Group gap="xs" align="center">
-                    {tag}
+                  Metadata
+                </Button>
+                
+                <Button
+                  variant="light"
+                  size={size}
+                  onClick={() => startEditing(selectedField, fields[selectedField])}
+                  disabled={disabled || loading}
+                  leftSection={<IconEdit size={16} />}
+                >
+                  Edit
+                </Button>
+                
+                <Button
+                  variant="light"
+                  color="red"
+                  size={size}
+                  onClick={() => handleDeleteField(selectedField)}
+                  disabled={disabled || loading}
+                  leftSection={<IconTrash size={16} />}
+                >
+                  Delete
+                </Button>
+              </Group>
+            </Box>
+          )}
+
+          {/* Field Editing */}
+          {editingField && (
+            <Box>
+              <Text size="sm" fw={500} mb="xs">Edit Field: {editingField}</Text>
+              <Group gap="xs" align="flex-end">
+                <TextInput
+                  placeholder="Enter new value"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  disabled={disabled || loading}
+                  size={size}
+                  style={{ flex: 1 }}
+                />
+                
+                <Button
+                  variant="filled"
+                  color="green"
+                  size={size}
+                  onClick={() => handleUpdateField(editingField, editValue)}
+                  disabled={disabled || loading}
+                  leftSection={<IconCheck size={16} />}
+                >
+                  Save
+                </Button>
+                
+                <Button
+                  variant="light"
+                  size={size}
+                  onClick={cancelEditing}
+                  disabled={disabled || loading}
+                  leftSection={<IconX size={16} />}
+                >
+                  Cancel
+                </Button>
+              </Group>
+            </Box>
+          )}
+
+          {/* Current Fields Display */}
+          <Box>
+            <Text size="sm" fw={500} mb="xs">Current Fields</Text>
+            <Group gap="xs" wrap="wrap">
+              {Object.entries(fields).map(([key, value]) => (
+                <Badge
+                  key={key}
+                  variant="outline"
+                  size={size}
+                  rightSection={
                     <ActionIcon
                       size="xs"
                       variant="subtle"
-                      color="red"
-                      onClick={() => {
-                        const newTags = value.filter((_: string, i: number) => i !== index);
-                        handleFieldChange(field.key, newTags);
-                      }}
+                      onClick={() => startEditing(key, value)}
+                      disabled={disabled}
                     >
-                      <IconX size={10} />
+                      <IconEdit size={12} />
                     </ActionIcon>
-                  </Group>
-                </Chip>
-              )) : null}
+                  }
+                >
+                  {key}: {String(value).substring(0, 20)}
+                  {String(value).length > 20 ? '...' : ''}
+                </Badge>
+              ))}
             </Group>
-            <TextInput
-              placeholder="Add new tag"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && event.currentTarget.value.trim()) {
-                  const newTag = event.currentTarget.value.trim();
-                  const currentTags = Array.isArray(value) ? value : [];
-                  handleFieldChange(field.key, [...currentTags, newTag]);
-                  event.currentTarget.value = '';
-                }
-              }}
-              disabled={Boolean(disabled || isUpdating[field.key])}
-            />
           </Box>
-        );
-      
-      case 'select':
-        return (
-          <select
-            value={value || ''}
-            onChange={(event) => handleFieldChange(field.key, event.currentTarget.value)}
-            disabled={Boolean(disabled || isUpdating[field.key])}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '1px solid #ced4da',
-              borderRadius: '4px',
-              fontSize: '14px'
-            }}
-          >
-            <option value="">Select {field.label}</option>
-            {field.options?.map((option: any) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        );
-      
-      default:
-        return <TextInput {...commonProps} />;
-    }
-  }, [handleFieldChange, fieldErrors, disabled, isUpdating]);
 
-  return (
-    <>
-      <Card withBorder {...(className ? { className } : {})}>
-        <Stack gap="md">
-          {/* Header */}
-          <Group justify="space-between" align="center">
-            <Group gap="xs">
-              <IconEdit size={20} />
-              <Text fw={500}>BBC TAMS Field Editor</Text>
-              <Badge variant="light" color="blue">BBC TAMS v6.0</Badge>
-              <Badge variant="light" color="gray">{entityType}</Badge>
-              <Badge variant="light" color="gray">{entityId}</Badge>
-            </Group>
-            
-            <Group gap="xs">
-              {showFieldHistory && (
-                <Button
-                  variant="light"
-                  size="xs"
-                  onClick={() => setShowHistoryModal(true)}
-                  leftSection={<IconInfoCircle size={14} />}
-                  disabled={disabled}
-                >
-                  History
-                </Button>
-              )}
-              
-              {onSave && (
-                <Button
-                  size="xs"
-                  onClick={handleSaveAll}
-                  leftSection={<IconDeviceFloppy size={14} />}
-                  disabled={disabled || Object.keys(fieldErrors).length > 0}
-                >
-                  Save All
-                </Button>
-              )}
-            </Group>
-          </Group>
-
-          {/* Fields */}
-          <Stack gap="md">
-            {fields.map(field => {
-              const isEditing = editingField === field.key;
-              const value = fieldValues[field.key];
-              const hasError = !!fieldErrors[field.key];
-              const isRequired = field.required;
-              
-              return (
-                <Box key={field.key}>
-                  <Group justify="space-between" align="flex-start" mb="xs">
-                    <Box style={{ flex: 1 }}>
-                      <Group gap="xs" align="center" mb="xs">
-                        <Text size="sm" fw={500}>
-                          {field.label}
-                          {isRequired && <Text component="span" c="red"> *</Text>}
-                        </Text>
-                        
-                        {field.description && (
-                          <Tooltip label={field.description}>
-                            <IconInfoCircle size={14} color="dimmed" />
-                          </Tooltip>
-                        )}
-                        
-                        {hasError && (
-                          <IconAlertCircle size={14} color="red" />
-                        )}
-                      </Group>
-                      
-                      {renderFieldInput(field, value, isEditing)}
-                      
-                      {hasError && (
-                        <Text size="xs" c="red" mt="xs">
-                          {fieldErrors[field.key]}
-                        </Text>
-                      )}
-                    </Box>
+          {/* Operation History */}
+          {showHistory && operationHistory.length > 0 && (
+            <Box>
+              <Text size="sm" fw={500} mb="xs">Operation History</Text>
+              <Stack gap="xs">
+                {operationHistory.map((op, index) => (
+                  <Group key={index} gap="xs" align="center">
+                    <Badge
+                      variant="light"
+                      color={getOperationColor(op.type, op.success)}
+                      size="xs"
+                      leftSection={getOperationIcon(op.type)}
+                    >
+                      {op.type}
+                    </Badge>
                     
-                    {/* Field Actions */}
-                    <Group gap="xs">
-                      {isEditing ? (
-                        <>
-                          <ActionIcon
-                            size="sm"
-                            variant="light"
-                            color="green"
-                            onClick={() => handleFieldUpdate(field.key)}
-                            disabled={Boolean(disabled || isUpdating[field.key])}
-                            loading={Boolean(isUpdating[field.key])}
-                          >
-                            <IconCheck size={14} />
-                          </ActionIcon>
-                          
-                          <ActionIcon
-                            size="sm"
-                            variant="light"
-                            color="gray"
-                            onClick={() => handleCancelEdit(field.key)}
-                            disabled={Boolean(disabled || isUpdating[field.key])}
-                          >
-                            <IconX size={14} />
-                          </ActionIcon>
-                        </>
-                      ) : (
-                        <ActionIcon
-                          size="sm"
-                          variant="light"
-                          color="blue"
-                          onClick={() => setEditingField(field.key)}
-                          disabled={Boolean(disabled)}
-                        >
-                          <IconEdit size={14} />
-                        </ActionIcon>
-                      )}
-                      
-                      {onFieldDelete && !isRequired && (
-                        <ActionIcon
-                          size="sm"
-                          variant="light"
-                          color="red"
-                          onClick={() => handleFieldDelete(field.key)}
-                          disabled={Boolean(disabled || isUpdating[field.key])}
-                          loading={Boolean(isUpdating[field.key])}
-                        >
-                          <IconTrash size={14} />
-                        </ActionIcon>
-                      )}
-                    </Group>
+                    <Text size="xs" style={{ flex: 1 }}>
+                      {op.fieldKey}
+                    </Text>
+                    
+                    <Text size="xs" c="dimmed">
+                      {op.timestamp.toLocaleTimeString()}
+                    </Text>
+                    
+                    {op.success ? (
+                      <Badge variant="light" color="green" size="xs">Success</Badge>
+                    ) : (
+                      <Badge variant="light" color="red" size="xs">Failed</Badge>
+                    )}
                   </Group>
-                  
-                  <Divider mt="md" />
-                </Box>
-              );
-            })}
-          </Stack>
+                ))}
+              </Stack>
+            </Box>
+          )}
 
-          {/* BBC TAMS Info */}
-          <Alert color="blue" title="BBC TAMS Field Operations" icon={<IconInfoCircle size={16} />}>
-            <Text size="xs">
-              This field editor provides BBC TAMS v6.0 compliant individual field operations. 
-              It supports granular CRUD operations, field validation, optimistic updates, and 
-              maintains a history of field changes as specified in the BBC TAMS API.
+          {/* Error Display */}
+          {error && (
+            <Alert color="red" icon={<IconX size={16} />}>
+              <Text size="sm">{error}</Text>
+            </Alert>
+          )}
+
+          {/* BBC TAMS Compliance Note */}
+          <Alert icon={<IconRefresh size={16} />} color="blue" variant="light">
+            <Text size="sm">
+              This field editor follows BBC TAMS v6.0 specification with support for GET, PUT, DELETE, 
+              and HEAD operations on entity fields.
             </Text>
           </Alert>
         </Stack>
-      </Card>
-
-      {/* Field History Modal */}
-      <Modal
-        opened={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        title="Field Update History"
-        size="lg"
-      >
-        <Stack gap="md">
-          {updateHistory.length === 0 ? (
-            <Text c="dimmed" ta="center">No field updates yet</Text>
-          ) : (
-            updateHistory.map((update, index) => (
-              <Box key={index} p="xs" style={{ border: '1px solid #dee2e6', borderRadius: '4px' }}>
-                <Group justify="space-between" align="center" mb="xs">
-                  <Text size="sm" fw={500}>{update.field}</Text>
-                  <Badge
-                    variant="light"
-                    color={update.success ? 'green' : 'red'}
-                  >
-                    {update.success ? 'Success' : 'Failed'}
-                  </Badge>
-                </Group>
-                
-                <Group gap="md" mb="xs">
-                  <Box>
-                    <Text size="xs" c="dimmed">Old Value:</Text>
-                    <Text size="sm">{String(update.oldValue || 'Not set')}</Text>
-                  </Box>
-                  
-                  <Box>
-                    <Text size="xs" c="dimmed">New Value:</Text>
-                    <Text size="sm">{String(update.newValue || 'Not set')}</Text>
-                  </Box>
-                </Group>
-                
-                <Text size="xs" c="dimmed">
-                  {update.timestamp.toLocaleString()}
-                </Text>
-              </Box>
-            ))
-          )}
-        </Stack>
-      </Modal>
-    </>
+      </Card.Section>
+    </Card>
   );
 }
+
+export type { BBCFieldEditorProps };

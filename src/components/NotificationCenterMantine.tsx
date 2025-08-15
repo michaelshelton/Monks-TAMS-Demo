@@ -181,7 +181,7 @@ export const NotificationCenterMantine: React.FC<NotificationCenterMantineProps>
           webhook_name: 'Production Alerts',
           payload: { segment_id: 'segment_003', flow_id: 'flow_001', status: 'processed' },
           actions: [
-            { label: 'View Segment', action: 'view', url: '/segments/segment_003' },
+            { label: 'View Segment', action: 'view', url: '/flow-details/flow_001?tab=segments&segmentId=segment_003' },
             { label: 'Add to Flow', action: 'add_to_flow', url: '/flows/flow_001/edit' }
           ]
         },

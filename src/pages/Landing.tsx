@@ -1,32 +1,20 @@
 
-import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid, ActionIcon, Tooltip, Progress, RingProgress, Paper } from '@mantine/core';
+import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid } from '@mantine/core';
 import { 
   IconClock, 
   IconSearch, 
   IconDatabase, 
-  IconPlayerPlay, 
   IconArrowRight,
   IconVideo,
-  IconMusic,
-  IconPhoto,
-  IconServer,
-  IconActivity,
-  IconTimeline,
-  IconSettings,
-  IconWebhook,
-  IconFilter,
-  IconEye,
-  IconDownload,
-  IconPlus,
-  IconCheck,
-  IconExternalLink,
   IconBroadcast,
-  IconNetwork,
-  IconShield,
+  IconTimeline,
   IconBolt,
   IconTarget,
   IconTrendingUp,
-  IconAlertCircle
+  IconActivity,
+  IconShield,
+  IconPlayerPlay,
+  IconCheck
 } from '@tabler/icons-react';
 
 const liveStats = [
