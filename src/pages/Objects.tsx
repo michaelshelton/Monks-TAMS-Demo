@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Container, 
   Title, 
@@ -25,7 +25,9 @@ import {
   SimpleGrid,
   Tabs,
   List,
-  ThemeIcon
+  ThemeIcon,
+  Loader,
+  Chip
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -53,10 +55,14 @@ import {
   IconFile,
   IconDatabase as IconStorage,
   IconNetwork,
-  IconServer
+  IconServer,
+  IconRefresh,
+  IconAlertCircle
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
+import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface MediaObject {
@@ -88,6 +94,10 @@ interface MediaObject {
   };
   tags?: Record<string, string>;
   description?: string;
+  // New soft delete fields for backend v6.0
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 // Mock data
@@ -289,12 +299,16 @@ const getContentTypeIcon = (contentType: string) => {
 };
 
 export default function Objects() {
-  const [objects, setObjects] = useState<MediaObject[]>(dummyObjects);
+  const [objects, setObjects] = useState<MediaObject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedObject, setSelectedObject] = useState<MediaObject | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showDeleted, setShowDeleted] = useState(false);
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('objects');
@@ -412,10 +426,75 @@ export default function Objects() {
     return matchesSearch && matchesStatus && matchesContentType && matchesSizeRange && matchesCreated && matchesTags;
   });
 
-  const handleDeleteObject = (objectId: string) => {
-    setObjects(objects.filter(o => o.object_id !== objectId));
-    setShowDeleteModal(false);
-    setSelectedObject(null);
+  // Fetch objects from API
+  useEffect(() => {
+    const fetchObjects = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.getObjects({
+          page: currentPage,
+          page_size: 10,
+          show_deleted: showDeleted
+        });
+        setObjects(response.data || []);
+      } catch (err: any) {
+        if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+          setError('Objects API endpoint is not available yet. The backend is still being configured.');
+          setObjects([]);
+        } else {
+          setError('Failed to fetch objects');
+          console.error(err);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchObjects();
+  }, [currentPage, showDeleted, filters]);
+
+  const handleCreateObject = async (newObject: Omit<MediaObject, 'object_id' | 'created' | 'updated'>) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.createObject(newObject);
+      setObjects(prev => [...prev, response.data]);
+      setShowEditModal(false);
+    } catch (err) {
+      setError('Failed to create object');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteObject = async (objectId: string, options: DeleteOptions) => {
+    try {
+      setLoading(true);
+      await apiClient.deleteObject(objectId, options);
+      setObjects(prev => prev.filter(o => o.object_id !== objectId));
+      setShowDeleteModal(false);
+      setSelectedObject(null);
+    } catch (err) {
+      setError('Failed to delete object');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleView = (object: MediaObject) => {
+    setSelectedObject(object);
+    setShowDetailsModal(true);
+  };
+
+  const handleEdit = (object: MediaObject) => {
+    setSelectedObject(object);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (object: MediaObject) => {
+    setSelectedObject(object);
+    setShowDeleteModal(true);
   };
 
   const renderGridView = () => (
@@ -724,6 +803,20 @@ export default function Objects() {
             </Text>
           </Box>
           <Group gap="sm">
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => {
+                setCurrentPage(1);
+                setError(null);
+                // Trigger a refresh by changing the dependency
+                setCurrentPage(prev => prev);
+              }}
+              loading={loading}
+              size="sm"
+            >
+              Refresh
+            </Button>
             <Select
               value={viewMode}
               onChange={(value) => setViewMode(value as 'grid' | 'list' | 'table')}
@@ -737,12 +830,41 @@ export default function Objects() {
             <Button
               leftSection={<IconPlus size={16} />}
               size="sm"
+              disabled={!!error}
             >
               Create Object
             </Button>
           </Group>
         </Group>
       </Box>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color={error.includes('not available yet') ? 'yellow' : 'red'} 
+          title={error.includes('not available yet') ? 'Backend Not Ready' : 'Error'}
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+          {error.includes('not available yet') && (
+            <Text size="sm" mt="xs">
+              This page will work once the backend objects API is fully configured. 
+              For now, you can use the Sources and Flows pages which are already working.
+            </Text>
+          )}
+        </Alert>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading objects...</Text>
+        </Box>
+      )}
 
       {/* Advanced Filters */}
       <AdvancedFilter
@@ -754,6 +876,18 @@ export default function Objects() {
         onPresetDelete={(presetId) => setSavedPresets(savedPresets.filter(p => p.id !== presetId))}
       />
 
+      {/* Show Deleted Items Toggle */}
+      <Group justify="flex-end" mb="md">
+        <Chip
+          checked={showDeleted}
+          onChange={(checked) => setShowDeleted(checked)}
+          variant="outline"
+          color="gray"
+        >
+          Show Deleted Items
+        </Chip>
+      </Group>
+
       {/* Statistics */}
       <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="lg" mb="lg">
         <Card withBorder p="md">
@@ -761,7 +895,9 @@ export default function Objects() {
             <IconStorage size={20} color="#228be6" />
             <Box>
               <Text size="xs" c="dimmed">Total Objects</Text>
-              <Text fw={600}>{filteredObjects.length}</Text>
+              <Text fw={600}>
+                {loading ? '...' : error ? 'N/A' : filteredObjects.length}
+              </Text>
             </Box>
           </Group>
         </Card>
@@ -771,7 +907,7 @@ export default function Objects() {
             <Box>
               <Text size="xs" c="dimmed">Total Size</Text>
               <Text fw={600}>
-                {formatFileSize(filteredObjects.reduce((total, obj) => total + (obj.size || 0), 0))}
+                {loading ? '...' : error ? 'N/A' : formatFileSize(filteredObjects.reduce((total, obj) => total + (obj.size || 0), 0))}
               </Text>
             </Box>
           </Group>
@@ -782,7 +918,7 @@ export default function Objects() {
             <Box>
               <Text size="xs" c="dimmed">Active Objects</Text>
               <Text fw={600}>
-                {filteredObjects.filter(obj => obj.status === 'active').length}
+                {loading ? '...' : error ? 'N/A' : filteredObjects.filter(obj => obj.status === 'active').length}
               </Text>
             </Box>
           </Group>
@@ -793,7 +929,7 @@ export default function Objects() {
             <Box>
               <Text size="xs" c="dimmed">Unique Flows</Text>
               <Text fw={600}>
-                {new Set(filteredObjects.flatMap(obj => obj.flow_references.map(f => f.flow_id))).size}
+                {loading ? '...' : error ? 'N/A' : new Set(filteredObjects.flatMap(obj => obj.flow_references.map(f => f.flow_id))).size}
               </Text>
             </Box>
           </Group>
@@ -807,18 +943,28 @@ export default function Objects() {
             {viewMode === 'grid' ? 'Grid View' : viewMode === 'list' ? 'List View' : 'Table View'}
           </Title>
           <Text size="sm" c="dimmed">
-            {filteredObjects.length} objects found
+            {loading ? 'Loading...' : error ? 'API not available' : `${filteredObjects.length} objects found`}
           </Text>
         </Box>
         
-        {viewMode === 'grid' && renderGridView()}
-        {viewMode === 'list' && renderListView()}
-        {viewMode === 'table' && renderTableView()}
-        
-        {filteredObjects.length === 0 && (
+        {loading ? (
+          <Box ta="center" py="xl">
+            <Loader />
+          </Box>
+        ) : error ? (
+          <Box ta="center" py="xl" c="red">
+            {error}
+          </Box>
+        ) : filteredObjects.length === 0 ? (
           <Box ta="center" py="xl">
             <Text c="dimmed">No objects found matching your filters</Text>
           </Box>
+        ) : (
+          <>
+            {viewMode === 'grid' && renderGridView()}
+            {viewMode === 'list' && renderListView()}
+            {viewMode === 'table' && renderTableView()}
+          </>
         )}
       </Card>
 
@@ -1036,9 +1182,9 @@ export default function Objects() {
               <Button variant="light" onClick={() => setShowDeleteModal(false)}>
                 Cancel
               </Button>
-              <Button color="red" onClick={() => handleDeleteObject(selectedObject.object_id)}>
-                Delete Object
-              </Button>
+                              <Button color="red" onClick={() => handleDeleteObject(selectedObject.object_id, { softDelete: true, cascade: false, deletedBy: 'admin' })}>
+                  Delete Object
+                </Button>
             </Group>
           </Stack>
         </Modal>

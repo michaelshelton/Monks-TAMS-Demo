@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Container, 
   Title, 
@@ -16,7 +16,8 @@ import {
   Box,
   Divider,
   Table,
-  ActionIcon
+  ActionIcon,
+  Loader
 } from '@mantine/core';
 import { 
   IconUpload, 
@@ -25,8 +26,10 @@ import {
   IconTrash, 
   IconAlertCircle,
   IconCheck,
-  IconX
+  IconX,
+  IconRefresh
 } from '@tabler/icons-react';
+import { apiClient } from '../services/api';
 
 // Mock data for flows (will be replaced with real API calls)
 const dummyFlows = [
@@ -94,16 +97,62 @@ const getStatusIcon = (status: string) => {
 };
 
 export default function Upload() {
-  const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadHistory, setUploadHistory] = useState(dummyUploadHistory);
+  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [sources, setSources] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // New form state variables
+  const [flowLabel, setFlowLabel] = useState('');
+  const [flowDescription, setFlowDescription] = useState('');
+  const [contentFormat, setContentFormat] = useState<string | null>(null);
+  const [codec, setCodec] = useState('');
+
+  // Fetch sources from API
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const sourcesResponse = await apiClient.getSources();
+        setSources(sourcesResponse.data || []);
+        
+      } catch (err: any) {
+        setError('Failed to fetch sources');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSources();
+  }, []);
+
+  const refreshSources = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const sourcesResponse = await apiClient.getSources();
+      setSources(sourcesResponse.data || []);
+      
+    } catch (err: any) {
+      setError('Failed to refresh sources');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUpload = async () => {
-    if (!selectedFlow || !uploadFile) {
-      setUploadError('Please select a flow and file');
+    if (!selectedSource || !flowLabel || !contentFormat || !codec) {
+      setUploadError('Please fill in all required fields');
       return;
     }
 
@@ -111,40 +160,74 @@ export default function Upload() {
     setUploadError(null);
     setUploadProgress(0);
 
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          
-          // Add to upload history
-          const newUpload = {
-            id: Date.now().toString(),
-            fileName: uploadFile.name,
-            flowName: dummyFlows.find(f => f.id === selectedFlow)?.label || 'Unknown Flow',
-            status: 'completed',
-            progress: 100,
-            uploadedAt: new Date().toISOString(),
-            size: `${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB`
-          };
-          setUploadHistory([newUpload, ...uploadHistory]);
-          setUploadFile(null);
-          setSelectedFlow(null);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    try {
+      // Create a flow object based on the selected format
+      let flowData: any = {
+        id: `flow_${Date.now()}`,
+        source_id: selectedSource,
+        format: contentFormat,
+        codec: codec,
+        label: flowLabel,
+        description: flowDescription || undefined,
+        created_by: 'admin',
+        created: new Date().toISOString(),
+        updated: new Date().toISOString()
+      };
 
-    // Simulate potential error
-    if (Math.random() < 0.1) {
-      setTimeout(() => {
-        clearInterval(interval);
-        setIsUploading(false);
-        setUploadError('Upload failed. Please try again.');
-        setUploadProgress(0);
-      }, 2000);
+      // Add format-specific fields
+      if (contentFormat === "urn:x-nmos:format:video") {
+        flowData = {
+          ...flowData,
+          frame_width: 1920,
+          frame_height: 1080,
+          frame_rate: "25/1",
+          interlace_mode: "progressive",
+          color_sampling: "4:2:2",
+          color_space: "BT709",
+          transfer_characteristics: "BT709",
+          color_primaries: "BT709"
+        };
+      } else if (contentFormat === "urn:x-nmos:format:audio") {
+        flowData = {
+          ...flowData,
+          sample_rate: 48000,
+          bits_per_sample: 16,
+          channels: 2
+        };
+      }
+
+      // Create the flow using the API
+      const response = await apiClient.createFlow(flowData);
+      
+      // Update progress to 100%
+      setUploadProgress(100);
+      
+      // Add to upload history
+      const newUpload = {
+        id: Date.now().toString(),
+        fileName: flowLabel,
+        flowName: `Created Flow: ${flowLabel}`,
+        status: 'completed',
+        progress: 100,
+        uploadedAt: new Date().toISOString(),
+        size: `${contentFormat} - ${codec}`
+      };
+      setUploadHistory([newUpload, ...uploadHistory]);
+      
+      // Reset form
+      setUploadFile(null);
+      setSelectedSource(null);
+      setFlowLabel('');
+      setFlowDescription('');
+      setContentFormat(null);
+      setCodec('');
+      
+    } catch (err: any) {
+      setUploadError('Flow creation failed. Please try again.');
+      console.error('Flow creation error:', err);
+      setUploadProgress(0);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -179,13 +262,9 @@ export default function Upload() {
       </Table.Td>
       
       <Table.Td>
-        {upload.status === 'uploading' ? (
-          <Progress value={upload.progress} size="sm" />
-        ) : (
-          <Text size="xs">
-            {new Date(upload.uploadedAt).toLocaleString()}
-          </Text>
-        )}
+        <Text size="xs">
+          {new Date(upload.uploadedAt).toLocaleString()}
+        </Text>
       </Table.Td>
       
       <Table.Td>
@@ -213,98 +292,182 @@ export default function Upload() {
   return (
     <Container size="xl" px="xl" py="xl">
       <Box mb="xl">
-        <Title order={2} mb="md">
-          Segment Upload
-        </Title>
-        <Text size="lg" c="dimmed">
-          Upload media segments to your flows
-        </Text>
+        <Group justify="space-between" align="flex-end">
+          <Box>
+            <Title order={2} mb="md">
+              Flow Creation
+            </Title>
+            <Text size="lg" c="dimmed">
+              Create new media flows from your sources
+            </Text>
+          </Box>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={refreshSources}
+            loading={loading}
+          >
+            Refresh
+          </Button>
+        </Group>
       </Box>
 
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color="red" 
+          title="Error"
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+        </Alert>
+      )}
+
       {/* Upload Form */}
-      <Card withBorder mb="lg">
-        <Stack gap="md">
-          <Title order={3} size="h4">
-            Upload New Segment
-          </Title>
-          
-          <Select
-            label="Select Flow"
-            placeholder="Choose a flow to upload to"
-            data={dummyFlows.map(flow => ({
-              value: flow.id,
-              label: `${flow.label} (${flow.format})`,
-              description: `Source: ${flow.source}`
-            }))}
-            value={selectedFlow}
-            onChange={setSelectedFlow}
-            required
-          />
-          
-          <FileInput
-            label="Media File"
-            placeholder="Select media file to upload"
-            accept="video/*,audio/*,image/*"
-            value={uploadFile}
-            onChange={setUploadFile}
-            required
-            leftSection={<IconFile size={16} />}
-          />
-          
-          {uploadError && (
-            <Alert icon={<IconAlertCircle size={16} />} color="red">
-              {uploadError}
-            </Alert>
-          )}
-          
-          {isUploading && (
-            <Box>
-              <Text size="sm" mb="xs">Uploading...</Text>
-              <Progress value={uploadProgress} size="md" />
-            </Box>
-          )}
-          
-          <Button
-            leftSection={<IconUpload size={16} />}
-            onClick={handleUpload}
-            disabled={!selectedFlow || !uploadFile || isUploading}
-            loading={isUploading}
-          >
-            Upload Segment
-          </Button>
-        </Stack>
-      </Card>
+      {loading ? (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading sources...</Text>
+        </Box>
+      ) : sources.length === 0 ? (
+        <Box ta="center" py="xl">
+          <Text c="dimmed">No sources available. Please create some sources first.</Text>
+        </Box>
+      ) : (
+        <Card withBorder mb="lg">
+          <Stack gap="md">
+            <Title order={3} size="h4">
+              Create New Flow
+            </Title>
+            
+            <Select
+              label="Select Source"
+              placeholder="Choose a source for the flow"
+              data={sources.map(source => ({
+                value: source.id,
+                label: `${source.label || source.id} (${source.format})`,
+                description: `ID: ${source.id}`
+              }))}
+              value={selectedSource}
+              onChange={setSelectedSource}
+              required
+              disabled={loading}
+            />
+            
+            <TextInput
+              label="Flow Label"
+              placeholder="Enter a descriptive label for the flow"
+              value={flowLabel}
+              onChange={(e) => setFlowLabel(e.target.value)}
+              required
+            />
+            
+            <TextInput
+              label="Flow Description"
+              placeholder="Optional description of the flow"
+              value={flowDescription}
+              onChange={(e) => setFlowDescription(e.target.value)}
+            />
+            
+            <Select
+              label="Content Format"
+              placeholder="Select the content format"
+              data={[
+                { value: "urn:x-nmos:format:video", label: "Video" },
+                { value: "urn:x-nmos:format:audio", label: "Audio" },
+                { value: "urn:x-tam:format:image", label: "Image" },
+                { value: "urn:x-nmos:format:data", label: "Data" },
+                { value: "urn:x-nmos:format:multi", label: "Multi" }
+              ]}
+              value={contentFormat}
+              onChange={setContentFormat}
+              required
+            />
+            
+            <TextInput
+              label="Codec (MIME Type)"
+              placeholder="e.g., video/mp4, audio/wav"
+              value={codec}
+              onChange={(e) => setCodec(e.target.value)}
+              required
+            />
+            
+            <FileInput
+              label="Media File (Optional)"
+              placeholder="Select media file for reference"
+              accept="video/*,audio/*,image/*"
+              value={uploadFile}
+              onChange={setUploadFile}
+              leftSection={<IconFile size={16} />}
+            />
+            
+            {uploadError && (
+              <Alert icon={<IconAlertCircle size={16} />} color="red">
+                {uploadError}
+              </Alert>
+            )}
+            
+            {isUploading && (
+              <Box>
+                <Text size="sm" mb="xs">Creating flow...</Text>
+                <Progress value={uploadProgress} size="md" />
+              </Box>
+            )}
+            
+            <Button
+              leftSection={<IconUpload size={16} />}
+              onClick={handleUpload}
+              disabled={!selectedSource || !flowLabel || !contentFormat || !codec || isUploading}
+              loading={isUploading}
+            >
+              Create Flow
+            </Button>
+          </Stack>
+        </Card>
+      )}
 
       {/* Upload History */}
       <Card withBorder>
         <Box mb="md">
           <Title order={3} size="h4">
-            Upload History
+            Flow Creation History
           </Title>
           <Text size="sm" c="dimmed">
-            Recent segment uploads and their status
+            Recent flows created and their status
           </Text>
         </Box>
         
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>File Name</Table.Th>
-              <Table.Th>Size</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Progress/Date</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows}
-          </Table.Tbody>
-        </Table>
-        
-        {uploadHistory.length === 0 && (
+        {loading ? (
           <Box ta="center" py="xl">
-            <Text c="dimmed">No uploads yet</Text>
+            <Loader size="sm" />
+            <Text mt="md" c="dimmed">Loading...</Text>
           </Box>
+        ) : (
+          <>
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Flow Name</Table.Th>
+                  <Table.Th>Format & Codec</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Created Date</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows}
+              </Table.Tbody>
+            </Table>
+            
+            {uploadHistory.length === 0 && (
+              <Box ta="center" py="xl">
+                <Text c="dimmed">No uploads yet</Text>
+              </Box>
+            )}
+          </>
         )}
       </Card>
     </Container>

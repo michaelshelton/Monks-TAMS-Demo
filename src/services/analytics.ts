@@ -275,6 +275,70 @@ class AnalyticsService {
   }
 
   /**
+   * Track video quality change event
+   */
+  public trackVideoQualityChange(videoId: string, quality: string, compilationId?: string) {
+    const eventData: CMCDData = {
+      event: 'quality_change',
+      video_id: videoId,
+      quality,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
+    };
+    
+    if (compilationId) {
+      eventData.compilation_id = compilationId;
+    }
+    
+    this.queueEvent(eventData);
+  }
+
+  /**
+   * Track video seek event
+   */
+  public trackVideoSeek(videoId: string, seekTime: number, compilationId?: string) {
+    const eventData: CMCDData = {
+      event: 'seek',
+      video_id: videoId,
+      watch_time: seekTime,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString()
+    };
+    
+    if (compilationId) {
+      eventData.compilation_id = compilationId;
+    }
+    
+    this.queueEvent(eventData);
+  }
+
+  /**
+   * Track CMCD (Common Media Client Data) events for BBC TAMS compliance
+   */
+  public trackCMCDEvent(eventType: string, cmcdData: any) {
+    const eventData: CMCDData = {
+      event: 'cmcd_event',
+      video_id: cmcdData.cid,
+      session_id: this.sessionId,
+      device_type: this.getDeviceType(),
+      timestamp: new Date().toISOString(),
+      cmcd_type: eventType,
+      cmcd_data: cmcdData
+    };
+    
+    this.queueEvent(eventData);
+  }
+
+  /**
+   * Get current session ID
+   */
+  public getSessionId(): string {
+    return this.sessionId;
+  }
+
+  /**
    * Get mock analytics data for display
    */
   public getMockAnalytics(): AnalyticsData {

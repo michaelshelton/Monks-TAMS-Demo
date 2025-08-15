@@ -17,7 +17,8 @@ import {
   SimpleGrid,
   Paper,
   Slider,
-  Switch
+  Switch,
+  Code
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -36,8 +37,48 @@ import {
   IconChevronRight,
   IconAlertCircle,
   IconDownload,
-  IconShare
+  IconShare,
+  IconChartBar,
+  IconInfoCircle
 } from '@tabler/icons-react';
+
+import { analyticsService } from '../services/analytics';
+
+// CMCD (Common Media Client Data) interface for BBC TAMS compliance
+interface CMCDData {
+  // CMCD-Object fields
+  ot: 'v' | 'a' | 'm' | 'c'; // Object type (video, audio, manifest, caption)
+  d: number; // Object duration in seconds
+  br: number; // Bitrate in kbps
+  w: number; // Width in pixels (video)
+  h: number; // Height in pixels (video)
+  f: number; // Frame rate (video)
+  sr: number; // Sample rate (audio)
+  ch: number; // Channels (audio)
+  
+  // CMCD-Request fields
+  su: boolean; // Start up
+  nor: string; // Next object request
+  nrr: string; // Next range request
+  bu: string; // Buffer underrun
+  
+  // CMCD-Status fields
+  bs: boolean; // Buffer starvation
+  rtp: number; // Requested throughput
+  dl: number; // Deadline
+  mtp: number; // Measured throughput
+  
+  // CMCD-Device fields
+  dt: 's' | 't' | 'c' | 'h'; // Device type (smartphone, tablet, console, handheld)
+  tb: number; // Top bitrate
+  bl: number; // Buffer length
+  cid: string; // Content ID
+  pr: number; // Playback rate
+  sf: string; // Stream format
+  sid: string; // Session ID
+  st: 'v' | 'l' | 'f'; // Stream type (vod, live, offline)
+  v: number; // Version
+}
 
 // Types for mobile video player
 interface VideoSource {
@@ -101,11 +142,14 @@ export default function MobileVideoPlayer({
     duration: 0,
     volume: 1,
     isMuted: false,
-    quality: 'medium',
+    quality: 'high',
     isFullscreen: false,
     buffering: false,
     error: null
   });
+  const [showCMCD, setShowCMCD] = useState(false);
+  const [cmcdData, setCmcdData] = useState<CMCDData | null>(null);
+  const [lastAnalyticsTime, setLastAnalyticsTime] = useState(0);
 
   const [analytics, setAnalytics] = useState<MobileAnalytics>({
     sessionId: `mobile_sess_${Date.now()}`,
@@ -187,26 +231,103 @@ export default function MobileVideoPlayer({
     updateDeviceInfo();
   }, []);
 
-  const trackEvent = (type: string, data?: any) => {
-    const event = {
-      type: type as any,
-      timestamp: new Date().toISOString(),
-      data
-    };
+  // Enhanced analytics tracking with CMCD
+  const trackVideoEvent = (event: string, data: any = {}) => {
+    try {
+      // Include CMCD data in analytics
+      const eventData = {
+        ...data,
+        cmcd: cmcdData,
+        timestamp: new Date().toISOString(),
+        videoId,
+        deviceType: 'mobile'
+      };
 
-    setAnalytics(prev => ({
-      ...prev,
-      playbackEvents: [...prev.playbackEvents, event]
-    }));
+      switch (event) {
+        case 'play':
+          // Send CMCD play event
+          if (cmcdData) {
+            analyticsService.trackCMCDEvent('play', {
+              ...cmcdData,
+              su: true,
+              pr: 1
+            });
+          }
+          break;
+        case 'pause':
+          // Send CMCD pause event
+          if (cmcdData) {
+            analyticsService.trackCMCDEvent('pause', {
+              ...cmcdData,
+              pr: 0
+            });
+          }
+          break;
+        case 'seek':
+          // Send CMCD seek event
+          if (cmcdData) {
+            analyticsService.trackCMCDEvent('seek', {
+              ...cmcdData,
+              su: false,
+              nrr: `${playbackState.currentTime}-${Math.min(playbackState.currentTime + 10, playbackState.duration)}`
+            });
+          }
+          break;
+        case 'quality_change':
+          // Send CMCD quality change event
+          if (cmcdData) {
+            analyticsService.trackCMCDEvent('quality_change', {
+              ...cmcdData,
+              tb: data.bitrate || 0
+            });
+          }
+          break;
+        case 'buffer_starvation':
+          // Send CMCD buffer starvation event
+          if (cmcdData) {
+            analyticsService.trackCMCDEvent('buffer_starvation', {
+              ...cmcdData,
+              bs: true
+            });
+          }
+          break;
+      }
 
-    onAnalyticsUpdate?.(analytics);
+      // Update mobile analytics
+      if (onAnalyticsUpdate) {
+        const mobileAnalytics: MobileAnalytics = {
+          sessionId: analyticsService.getSessionId(),
+          videoId,
+          deviceInfo: {
+            userAgent: navigator.userAgent,
+            screenSize: `${screen.width}x${screen.height}`,
+            networkType: 'unknown', // Could be enhanced with Network Information API
+            batteryLevel: 0 // Could be enhanced with Battery API
+          },
+          playbackEvents: [{
+            type: event as any,
+            timestamp: new Date().toISOString(),
+            data: eventData
+          }],
+          performanceMetrics: {
+            bufferingTime: 0,
+            errorCount: 0,
+            qualityChanges: 0,
+            completionRate: 0
+          }
+        };
+        onAnalyticsUpdate(mobileAnalytics);
+      }
+    } catch (error) {
+      console.error('Analytics tracking failed:', error);
+    }
   };
 
   const handlePlay = () => {
     if (videoRef.current) {
       videoRef.current.play();
       setPlaybackState(prev => ({ ...prev, isPlaying: true }));
-      trackEvent('play');
+      trackVideoEvent('play');
     }
   };
 
@@ -214,7 +335,7 @@ export default function MobileVideoPlayer({
     if (videoRef.current) {
       videoRef.current.pause();
       setPlaybackState(prev => ({ ...prev, isPlaying: false }));
-      trackEvent('pause');
+      trackVideoEvent('pause');
     }
   };
 
@@ -222,7 +343,7 @@ export default function MobileVideoPlayer({
     if (videoRef.current) {
       videoRef.current.currentTime = time;
       setPlaybackState(prev => ({ ...prev, currentTime: time }));
-      trackEvent('seek', { position: time });
+      trackVideoEvent('seek', { position: time });
     }
   };
 
@@ -239,7 +360,7 @@ export default function MobileVideoPlayer({
 
   const handleQualityChange = (quality: 'low' | 'medium' | 'high') => {
     setPlaybackState(prev => ({ ...prev, quality }));
-    trackEvent('quality_change', { quality });
+    trackVideoEvent('quality_change', { quality });
     
     setAnalytics(prev => ({
       ...prev,
@@ -255,11 +376,11 @@ export default function MobileVideoPlayer({
       if (!playbackState.isFullscreen) {
         videoRef.current.requestFullscreen?.();
         setPlaybackState(prev => ({ ...prev, isFullscreen: true }));
-        trackEvent('fullscreen', { action: 'enter' });
+        trackVideoEvent('fullscreen', { action: 'enter' });
       } else {
         document.exitFullscreen?.();
         setPlaybackState(prev => ({ ...prev, isFullscreen: false }));
-        trackEvent('fullscreen', { action: 'exit' });
+        trackVideoEvent('fullscreen', { action: 'exit' });
       }
     }
   };
@@ -285,7 +406,7 @@ export default function MobileVideoPlayer({
 
   const handleError = (error: string) => {
     setPlaybackState(prev => ({ ...prev, error }));
-    trackEvent('error', { error });
+    trackVideoEvent('error', { error });
     
     setAnalytics(prev => ({
       ...prev,
@@ -542,6 +663,71 @@ export default function MobileVideoPlayer({
                   </Paper>
                 ))}
               </SimpleGrid>
+            </Stack>
+          </Card>
+
+          {/* CMCD Data Display */}
+          <Card withBorder p="md">
+            <Stack gap="md">
+              <Group justify="space-between">
+                <Title order={4}>CMCD Data</Title>
+                <Button
+                  variant="light"
+                  size="xs"
+                  leftSection={<IconChartBar size={16} />}
+                  onClick={() => setShowCMCD(!showCMCD)}
+                >
+                  {showCMCD ? 'Hide' : 'Show'} CMCD
+                </Button>
+              </Group>
+              
+              {showCMCD && cmcdData && (
+                <SimpleGrid cols={2} spacing="xs">
+                  <Box>
+                    <Text size="xs" c="dimmed">Object Type</Text>
+                    <Code>{cmcdData.ot}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Duration</Text>
+                    <Code>{cmcdData.d}s</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Resolution</Text>
+                    <Code>{cmcdData.w}x{cmcdData.h}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Frame Rate</Text>
+                    <Code>{cmcdData.f}fps</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Device Type</Text>
+                    <Code>{cmcdData.dt}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Session ID</Text>
+                    <Code>{cmcdData.sid}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Content ID</Text>
+                    <Code>{cmcdData.cid}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Stream Format</Text>
+                    <Code>{cmcdData.sf}</Code>
+                  </Box>
+                </SimpleGrid>
+              )}
+
+              <Alert
+                icon={<IconInfoCircle size={16} />}
+                title="CMCD Analytics"
+                color="blue"
+              >
+                <Text size="sm">
+                  Common Media Client Data (CMCD) is being collected for BBC TAMS compliance and enhanced video analytics.
+                  This data helps optimize video delivery and provides insights into playback performance.
+                </Text>
+              </Alert>
             </Stack>
           </Card>
         </Stack>

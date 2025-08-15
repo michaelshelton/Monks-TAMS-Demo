@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Container, 
   Title, 
@@ -23,7 +23,8 @@ import {
   ScrollArea,
   Grid,
   Paper,
-  SimpleGrid
+  SimpleGrid,
+  Loader
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -42,10 +43,14 @@ import {
   IconSearch,
   IconTimeline,
   IconCalendar,
-  IconInfoCircle
+  IconInfoCircle,
+  IconRefresh,
+  IconAlertCircle
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
+import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface Segment {
@@ -73,6 +78,10 @@ interface Segment {
   size?: number;
   created?: string;
   updated?: string;
+  // New soft delete fields for backend v6.0
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 // Mock data
@@ -268,18 +277,160 @@ const formatTimestamp = (timestamp: string) => {
 };
 
 export default function Segments() {
-  const [segments, setSegments] = useState<Segment[]>(dummySegments);
-  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('segments');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
+
+  // Fetch segments from API
+  useEffect(() => {
+    const fetchSegments = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // First get all flows
+        const flowsResponse = await apiClient.getFlows();
+        const flows = flowsResponse.data || [];
+        
+        // Then get segments for each flow
+        const allSegments: Segment[] = [];
+        for (const flow of flows) {
+          try {
+            const flowSegments = await apiClient.getFlowSegments(flow.id);
+            // Transform flow segments to match our Segment interface
+            const transformedSegments = flowSegments.map((seg: any) => ({
+              id: seg.id || `seg_${flow.id}_${Date.now()}`,
+              object_id: seg.object_id || 'unknown',
+              flow_id: flow.id,
+              flow_name: flow.label || flow.id,
+              flow_format: flow.format || 'urn:x-nmos:format:video',
+              timerange: seg.timerange || { start: new Date().toISOString(), end: new Date().toISOString() },
+              ts_offset: seg.ts_offset,
+              last_duration: seg.last_duration,
+              sample_offset: seg.sample_offset,
+              sample_count: seg.sample_count,
+              key_frame_count: seg.key_frame_count,
+              get_urls: seg.get_urls,
+              tags: seg.tags,
+              description: seg.description || 'No description',
+              status: seg.status || 'active',
+              size: seg.size,
+              created: seg.created,
+              updated: seg.updated,
+              deleted: seg.deleted || false,
+              deleted_at: seg.deleted_at,
+              deleted_by: seg.deleted_by
+            }));
+            allSegments.push(...transformedSegments);
+          } catch (err: any) {
+            if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+              console.warn(`Segments endpoint not available for flow ${flow.id}:`, err);
+              // Continue with other flows
+            } else {
+              console.warn(`Failed to fetch segments for flow ${flow.id}:`, err);
+              // Continue with other flows
+            }
+          }
+        }
+        
+        if (allSegments.length === 0 && flows.length > 0) {
+          setError('Segments API endpoints are not available yet. The backend is still being configured.');
+        }
+        
+        setSegments(allSegments);
+      } catch (err: any) {
+        if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+          setError('Segments API endpoints are not available yet. The backend is still being configured.');
+        } else {
+          setError('Failed to fetch segments');
+        }
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSegments();
+  }, []);
+
+  const refreshSegments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First get all flows
+      const flowsResponse = await apiClient.getFlows();
+      const flows = flowsResponse.data || [];
+      
+      // Then get segments for each flow
+      const allSegments: Segment[] = [];
+      for (const flow of flows) {
+        try {
+          const flowSegments = await apiClient.getFlowSegments(flow.id);
+          // Transform flow segments to match our Segment interface
+          const transformedSegments = flowSegments.map((seg: any) => ({
+            id: seg.id || `seg_${flow.id}_${Date.now()}`,
+            object_id: seg.object_id || 'unknown',
+            flow_id: flow.id,
+            flow_name: flow.label || flow.id,
+            flow_format: flow.format || 'urn:x-nmos:format:video',
+            timerange: seg.timerange || { start: new Date().toISOString(), end: new Date().toISOString() },
+            ts_offset: seg.ts_offset,
+            last_duration: seg.last_duration,
+            sample_offset: seg.sample_offset,
+            sample_count: seg.sample_count,
+            key_frame_count: seg.key_frame_count,
+            get_urls: seg.get_urls,
+            tags: seg.tags,
+            description: seg.description || 'No description',
+            status: seg.status || 'active',
+            size: seg.size,
+            created: seg.created,
+            updated: seg.updated,
+            deleted: seg.deleted || false,
+            deleted_at: seg.deleted_at,
+            deleted_by: seg.deleted_by
+          }));
+          allSegments.push(...transformedSegments);
+        } catch (err: any) {
+          if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+            console.warn(`Segments endpoint not available for flow ${flow.id}:`, err);
+            // Continue with other flows
+          } else {
+            console.warn(`Failed to fetch segments for flow ${flow.id}:`, err);
+            // Continue with other flows
+          }
+        }
+      }
+      
+      if (allSegments.length === 0 && flows.length > 0) {
+        setError('Segments API endpoints are not available yet. The backend is still being configured.');
+      }
+      
+      setSegments(allSegments);
+    } catch (err: any) {
+      if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+        setError('Segments API endpoints are not available yet. The backend is still being configured.');
+      } else {
+        setError('Failed to refresh segments');
+      }
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Define filter options
   const filterOptions: FilterOption[] = [
@@ -371,10 +522,33 @@ export default function Segments() {
     return matchesSearch && matchesFlow && matchesFormat && matchesStatus && matchesTimerange && matchesTags;
   });
 
-  const handleDeleteSegment = (segmentId: string) => {
-    setSegments(segments.filter(s => s.id !== segmentId));
-    setShowDeleteModal(false);
-    setSelectedSegment(null);
+  const handleDeleteSegment = async (segmentId: string, options: DeleteOptions) => {
+    try {
+      setLoading(true);
+      // Find the segment to get its flow_id
+      const segment = segments.find(s => s.id === segmentId);
+      if (!segment) {
+        setError('Segment not found');
+        return;
+      }
+      
+      // Delete the segment using the API
+      await apiClient.deleteFlowSegments(segment.flow_id, {
+        timerange: `${segment.timerange.start}_${segment.timerange.end}`,
+        softDelete: options.softDelete,
+        deletedBy: options.deletedBy
+      });
+      
+      // Remove from local state
+      setSegments(segments.filter(s => s.id !== segmentId));
+      setShowDeleteModal(false);
+      setSelectedSegment(null);
+    } catch (err: any) {
+      setError('Failed to delete segment');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePlaySegment = (segment: Segment) => {
@@ -619,6 +793,15 @@ export default function Segments() {
             </Text>
           </Box>
           <Group gap="sm">
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={refreshSegments}
+              loading={loading}
+              size="sm"
+            >
+              Refresh
+            </Button>
             <Select
               value={viewMode}
               onChange={(value) => setViewMode(value as 'timeline' | 'list')}
@@ -631,12 +814,41 @@ export default function Segments() {
             <Button
               leftSection={<IconPlus size={16} />}
               size="sm"
+              disabled={!!error}
             >
               Upload Segment
             </Button>
           </Group>
         </Group>
       </Box>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color={error.includes('not available yet') ? 'yellow' : 'red'} 
+          title={error.includes('not available yet') ? 'Backend Not Ready' : 'Error'}
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+          {error.includes('not available yet') && (
+            <Text size="sm" mt="xs">
+              This page will work once the backend segments API is fully configured. 
+              For now, you can use the Sources and Flows pages which are already working.
+            </Text>
+          )}
+        </Alert>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading segments...</Text>
+        </Box>
+      )}
 
       {/* Advanced Filters */}
       <AdvancedFilter
@@ -655,7 +867,9 @@ export default function Segments() {
             <IconVideo size={20} color="#228be6" />
             <Box>
               <Text size="xs" c="dimmed">Total Segments</Text>
-              <Text fw={600}>{filteredSegments.length}</Text>
+              <Text fw={600}>
+                {loading ? '...' : error ? 'N/A' : filteredSegments.length}
+              </Text>
             </Box>
           </Group>
         </Card>
@@ -665,10 +879,12 @@ export default function Segments() {
             <Box>
               <Text size="xs" c="dimmed">Total Duration</Text>
               <Text fw={600}>
-                {filteredSegments.reduce((total, seg) => {
-                  const duration = seg.last_duration || 'PT0S';
-                  return total + (parseInt(duration.replace(/\D/g, '')) || 0);
-                }, 0)}s
+                {loading ? '...' : error ? 'N/A' : 
+                  `${filteredSegments.reduce((total, seg) => {
+                    const duration = seg.last_duration || 'PT0S';
+                    return total + (parseInt(duration.replace(/\D/g, '')) || 0);
+                  }, 0)}s`
+                }
               </Text>
             </Box>
           </Group>
@@ -679,7 +895,9 @@ export default function Segments() {
             <Box>
               <Text size="xs" c="dimmed">Total Size</Text>
               <Text fw={600}>
-                {formatFileSize(filteredSegments.reduce((total, seg) => total + (seg.size || 0), 0))}
+                {loading ? '...' : error ? 'N/A' : 
+                  formatFileSize(filteredSegments.reduce((total, seg) => total + (seg.size || 0), 0))
+                }
               </Text>
             </Box>
           </Group>
@@ -690,7 +908,9 @@ export default function Segments() {
             <Box>
               <Text size="xs" c="dimmed">Active Flows</Text>
               <Text fw={600}>
-                {new Set(filteredSegments.map(s => s.flow_id)).size}
+                {loading ? '...' : error ? 'N/A' : 
+                  new Set(filteredSegments.map(s => s.flow_id)).size
+                }
               </Text>
             </Box>
           </Group>
@@ -698,7 +918,22 @@ export default function Segments() {
       </SimpleGrid>
 
       {/* Timeline/List View */}
-      {viewMode === 'timeline' ? renderTimelineView() : renderListView()}
+      {loading ? (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading segments...</Text>
+        </Box>
+      ) : error ? (
+        <Box ta="center" py="xl" c="red">
+          {error}
+        </Box>
+      ) : segments.length === 0 ? (
+        <Box ta="center" py="xl">
+          <Text c="dimmed">No segments found. Try refreshing or check if there are any flows with segments.</Text>
+        </Box>
+      ) : (
+        viewMode === 'timeline' ? renderTimelineView() : renderListView()
+      )}
 
       {/* Segment Details Modal */}
       {selectedSegment && (
@@ -794,31 +1029,15 @@ export default function Segments() {
 
       {/* Delete Confirmation Modal */}
       {selectedSegment && (
-        <Modal
+        <EnhancedDeleteModal
           opened={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
+          onConfirm={(options) => handleDeleteSegment(selectedSegment.id, options)}
           title="Delete Segment"
-          size="md"
-        >
-          <Stack gap="md">
-            <Alert icon={<IconInfoCircle size={16} />} color="red">
-              Are you sure you want to delete this segment? This action cannot be undone.
-            </Alert>
-            <Text size="sm">
-              <strong>Flow:</strong> {selectedSegment.flow_name}<br />
-              <strong>Time Range:</strong> {formatTimestamp(selectedSegment.timerange.start)} - {formatTimestamp(selectedSegment.timerange.end)}<br />
-              <strong>Description:</strong> {selectedSegment.description}
-            </Text>
-            <Group gap="xs" justify="flex-end">
-              <Button variant="light" onClick={() => setShowDeleteModal(false)}>
-                Cancel
-              </Button>
-              <Button color="red" onClick={() => handleDeleteSegment(selectedSegment.id)}>
-                Delete Segment
-              </Button>
-            </Group>
-          </Stack>
-        </Modal>
+          itemName={selectedSegment.description || `Segment ${selectedSegment.id}`}
+          itemType="segment"
+          defaultDeletedBy="admin"
+        />
       )}
 
       {/* Video Player Modal */}

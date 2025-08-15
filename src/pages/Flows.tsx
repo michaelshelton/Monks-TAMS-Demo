@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -20,7 +20,8 @@ import {
   MultiSelect,
   Alert,
   Pagination,
-  TextInput as MantineTextInput
+  TextInput as MantineTextInput,
+  Loader
 } from '@mantine/core';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
@@ -39,8 +40,12 @@ import {
   IconTag,
   IconClock,
   IconAlertCircle,
-  IconX
+  IconX,
+  IconRefresh
 } from '@tabler/icons-react';
+import BBCAdvancedFilter from '../components/BBCAdvancedFilter';
+import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface Flow {
@@ -69,91 +74,30 @@ interface Flow {
   status?: string;
   views?: number;
   duration?: string;
+  // New soft delete fields for backend v6.0
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
-const dummyFlows: Flow[] = [
-  {
-    id: '1',
-    source_id: '1',
-    format: 'urn:x-nmos:format:video',
-    codec: 'video/mp4',
-    label: 'Live News Feed',
-    description: '24/7 news video stream with real-time updates and breaking news coverage.',
-    created_by: 'admin',
-    created: '2025-01-15T10:00:00Z',
-    updated: '2025-01-15T10:00:00Z',
-    tags: { category: 'news', type: 'live', quality: 'hd' },
-    frame_width: 1920,
-    frame_height: 1080,
-    frame_rate: '25/1',
-    container: 'mp4',
-    status: 'active',
-    views: 1247,
-    duration: '24h'
-  },
-  {
-    id: '2',
-    source_id: '2',
-    format: 'urn:x-nmos:format:audio',
-    codec: 'audio/wav',
-    label: 'Nature Audio',
-    description: 'Ambient nature sounds for relaxation and focus.',
-    created_by: 'admin',
-    created: '2025-01-10T09:00:00Z',
-    updated: '2025-01-12T14:30:00Z',
-    tags: { category: 'nature', type: 'ambient', mood: 'relaxing' },
-    sample_rate: 44100,
-    bits_per_sample: 16,
-    channels: 2,
-    container: 'wav',
-    status: 'active',
-    views: 892,
-    duration: '2h'
-  },
-  {
-    id: '3',
-    source_id: '3',
-    format: 'urn:x-nmos:format:video',
-    codec: 'video/mp4',
-    label: 'Sports Highlights',
-    description: 'Daily sports highlight clips and game summaries.',
-    created_by: 'admin',
-    created: '2025-01-08T16:00:00Z',
-    updated: '2025-01-08T16:00:00Z',
-    tags: { category: 'sports', type: 'highlights', quality: '4k' },
-    frame_width: 3840,
-    frame_height: 2160,
-    frame_rate: '30/1',
-    container: 'mp4',
-    status: 'processing',
-    views: 2156,
-    duration: '1h'
-  },
-  {
-    id: '4',
-    source_id: '4',
-    format: 'urn:x-tam:format:image',
-    codec: 'image/jpeg',
-    label: 'Photo Studio Feed',
-    description: 'High-resolution photography studio feed.',
-    created_by: 'admin',
-    created: '2025-01-05T11:00:00Z',
-    updated: '2025-01-05T11:00:00Z',
-    tags: { category: 'photography', type: 'studio', quality: 'raw' },
-    frame_width: 6000,
-    frame_height: 4000,
-    container: 'jpeg',
-    status: 'active',
-    views: 567,
-    duration: '8h'
-  }
+// BBC TAMS content formats and codecs
+const BBC_CONTENT_FORMATS = [
+  'urn:x-nmos:format:video',
+  'urn:x-nmos:format:audio', 
+  'urn:x-nmos:format:data',
+  'urn:x-nmos:format:multi',
+  'urn:x-tam:format:image'
 ];
 
-const dummySources = [
-  { id: '1', label: 'BBC News Studio' },
-  { id: '2', label: 'Radio Studio A' },
-  { id: '3', label: 'Sports Arena Camera' },
-  { id: '4', label: 'Photo Studio' }
+const COMMON_CODECS = [
+  'video/h264',
+  'video/h265',
+  'video/mp4',
+  'audio/aac',
+  'audio/mp3',
+  'audio/wav',
+  'application/json',
+  'text/plain'
 ];
 
 const getFormatIcon = (format: string) => {
@@ -197,16 +141,70 @@ const getStatusColor = (status: string) => {
 
 export default function Flows() {
   const navigate = useNavigate();
-  const [flows, setFlows] = useState<Flow[]>(dummyFlows);
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [sources, setSources] = useState<Array<{ id: string; label?: string }>>([]);
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-    // Advanced filtering
+  // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('flows');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
+  
+  // BBC TAMS compliant filtering
+  const [bbcFilters, setBbcFilters] = useState({
+    label: '',
+    format: '',
+    codec: '',
+    tags: {},
+    tagExists: {},
+    timerange: '',
+    frame_width: undefined,
+    frame_height: undefined,
+    sample_rate: undefined,
+    bits_per_sample: undefined,
+    channels: undefined,
+    page: '',
+    limit: 50
+  });
+
+  // Fetch flows and sources on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch flows and sources in parallel
+        const [flowsResponse, sourcesResponse] = await Promise.all([
+          apiClient.getFlows(),
+          apiClient.getSources()
+        ]);
+        
+        setFlows(flowsResponse.data);
+        setSources(sourcesResponse.data);
+      } catch (err) {
+        setError('Failed to fetch flows and sources');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentPage]);
+
+  // Refresh data function
+  const handleRefresh = () => {
+    setCurrentPage(1);
+    setError(null);
+    // Trigger a refresh by changing the dependency
+    setCurrentPage(prev => prev);
+  };
 
   // Define filter options
   const filterOptions: FilterOption[] = [
@@ -297,32 +295,116 @@ export default function Flows() {
     return matchesSearch && matchesFormat && matchesStatus && matchesCreated && matchesTags;
   });
 
-  const handleCreateFlow = (newFlow: Omit<Flow, 'id' | 'created' | 'updated'>) => {
-    const flow: Flow = {
-      ...newFlow,
-      id: (flows.length + 1).toString(),
-      created: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      created_by: 'admin',
-      status: 'active',
-      views: 0,
-      duration: '0h'
-    };
-    setFlows([...flows, flow]);
-    setShowCreateModal(false);
+  const handleCreateFlow = async (newFlow: Omit<Flow, 'id' | 'created' | 'updated'>) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.createFlow(newFlow);
+      setFlows(prev => [...prev, response]);
+      setShowCreateModal(false);
+    } catch (err) {
+      setError('Failed to create flow');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateFlow = (updatedFlow: Flow) => {
-    setFlows(flows.map(f => f.id === updatedFlow.id ? updatedFlow : f));
-    setShowEditModal(false);
-    setSelectedFlow(null);
+  const handleUpdateFlow = async (updatedFlow: Flow) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.updateFlow(updatedFlow.id, updatedFlow);
+      setFlows(prev => prev.map(f => f.id === updatedFlow.id ? response : f));
+      setShowEditModal(false);
+      setSelectedFlow(null);
+    } catch (err) {
+      setError('Failed to update flow');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteFlow = (flowId: string) => {
-    setFlows(flows.filter(f => f.id !== flowId));
-    setShowDeleteModal(false);
-    setSelectedFlow(null);
+  const handleDelete = (flow: Flow) => {
+    setSelectedFlow(flow);
+    setShowDeleteModal(true);
   };
+
+  const handleDeleteConfirm = async (options: DeleteOptions) => {
+    if (selectedFlow) {
+      try {
+        setLoading(true);
+        setError(null);
+        await apiClient.deleteFlow(selectedFlow.id, options);
+        setFlows(prev => prev.filter(f => f.id !== selectedFlow.id));
+        setShowDeleteModal(false);
+        setSelectedFlow(null);
+      } catch (err) {
+        setError('Failed to delete flow');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleRestore = async (flow: Flow) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await apiClient.restoreFlow(flow.id);
+      setFlows(prev => prev.map(f => 
+        f.id === flow.id 
+          ? { 
+              ...f, 
+              deleted: false, 
+              deleted_at: null, 
+              deleted_by: null 
+            }
+          : f
+      ));
+      setShowDeleteModal(false);
+      setSelectedFlow(null);
+    } catch (err) {
+      setError('Failed to restore flow');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // BBC TAMS filter handlers
+  const handleBbcFiltersChange = useCallback((newFilters: any) => {
+    setBbcFilters(newFilters);
+    // Reset to first page when filters change
+    setCurrentPage(1);
+  }, []);
+
+  const handleBbcFiltersReset = useCallback(() => {
+    setBbcFilters({
+      label: '',
+      format: '',
+      codec: '',
+      tags: {},
+      tagExists: {},
+      timerange: '',
+      frame_width: undefined,
+      frame_height: undefined,
+      sample_rate: undefined,
+      bits_per_sample: undefined,
+      channels: undefined,
+      page: '',
+      limit: 50
+    });
+    setCurrentPage(1);
+  }, []);
+
+  const handleBbcFiltersApply = useCallback(() => {
+    // Apply BBC filters - this would typically make an API call
+    console.log('Applying BBC filters:', bbcFilters);
+    // For now, just log the filters - in production this would update the API call
+  }, [bbcFilters]);
 
   const rows = filteredFlows.map((flow) => (
     <Table.Tr key={flow.id}>
@@ -414,10 +496,7 @@ export default function Flows() {
             size="sm" 
             variant="subtle" 
             color="red"
-            onClick={() => {
-              setSelectedFlow(flow);
-              setShowDeleteModal(true);
-            }}
+            onClick={() => handleDelete(flow)}
           >
             <IconTrash size={16} />
           </ActionIcon>
@@ -429,22 +508,39 @@ export default function Flows() {
   return (
     <Container size="xl" px="xl" py="xl">
       <Box mb="xl">
-        <Group justify="space-between" align="flex-end">
-          <Box>
-            <Title order={2} mb="md">
-              Media Flows
-            </Title>
-            <Text size="lg" c="dimmed">
-              Manage and monitor your time-addressable media streams
-            </Text>
-          </Box>
-          <Button 
-            leftSection={<IconPlus size={16} />}
-            onClick={() => setShowCreateModal(true)}
-          >
-            Create Flow
-          </Button>
+        <Group justify="space-between" mb="lg">
+          <Title order={2}>Flows</Title>
+          <Group>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={handleRefresh}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setShowCreateModal(true)}
+            >
+              Add Flow
+            </Button>
+          </Group>
         </Group>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert 
+            icon={<IconAlertCircle size={16} />} 
+            color="red" 
+            title="Error"
+            withCloseButton
+            onClose={() => setError(null)}
+            mb="md"
+          >
+            {error}
+          </Alert>
+        )}
       </Box>
 
       {/* Advanced Filters */}
@@ -456,6 +552,25 @@ export default function Flows() {
         onPresetSave={(preset) => setSavedPresets([...savedPresets, preset])}
         onPresetDelete={(presetId) => setSavedPresets(savedPresets.filter(p => p.id !== presetId))}
       />
+
+      {/* BBC TAMS Compliant Filters */}
+      <Box mb="lg">
+        <BBCAdvancedFilter
+          filters={bbcFilters}
+          onFiltersChange={handleBbcFiltersChange}
+          onReset={handleBbcFiltersReset}
+          onApply={handleBbcFiltersApply}
+          availableFormats={BBC_CONTENT_FORMATS}
+          availableCodecs={COMMON_CODECS}
+          availableTags={['quality', 'source', 'metadata', 'processing']}
+          showTimerange={true}
+          showFormatSpecific={true}
+          showTagFilters={true}
+          showPagination={true}
+          collapsed={false}
+          disabled={loading}
+        />
+      </Box>
 
       {/* Flows Table */}
       <Card withBorder>
@@ -472,33 +587,47 @@ export default function Flows() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows}
+            {loading ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center">
+                  <Loader />
+                </Table.Td>
+              </Table.Tr>
+            ) : error ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center" c="red">
+                  {error}
+                </Table.Td>
+              </Table.Tr>
+            ) : filteredFlows.length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center">
+                  <Text c="dimmed">No flows found matching your filters</Text>
+                </Table.Td>
+              </Table.Tr>
+            ) : (
+              rows
+            )}
           </Table.Tbody>
         </Table>
         
-        {filteredFlows.length === 0 && (
-          <Box ta="center" py="xl">
-            <Text c="dimmed">No flows found matching your filters</Text>
-          </Box>
+        {filteredFlows.length > 0 && (
+          <Group justify="center" mt="lg">
+            <Pagination 
+              total={Math.ceil(filteredFlows.length / 10)} 
+              value={currentPage} 
+              onChange={setCurrentPage}
+            />
+          </Group>
         )}
       </Card>
-
-      {/* Pagination */}
-      {filteredFlows.length > 0 && (
-        <Group justify="center" mt="lg">
-          <Pagination 
-            total={Math.ceil(filteredFlows.length / 10)} 
-            value={currentPage} 
-            onChange={setCurrentPage}
-          />
-        </Group>
-      )}
 
       {/* Create Flow Modal */}
       <CreateFlowModal 
         opened={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleCreateFlow}
+        sources={sources}
       />
 
       {/* Edit Flow Modal */}
@@ -516,14 +645,15 @@ export default function Flows() {
 
       {/* Delete Confirmation Modal */}
       {selectedFlow && (
-        <DeleteFlowModal
-          flow={selectedFlow}
+        <EnhancedDeleteModal
           opened={showDeleteModal}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedFlow(null);
-          }}
-          onConfirm={() => handleDeleteFlow(selectedFlow.id)}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Flow"
+          itemName={selectedFlow.label || 'Unnamed Flow'}
+          itemType="flow"
+          showCascadeOption={true}
+          defaultDeletedBy="admin"
         />
       )}
     </Container>
@@ -535,9 +665,10 @@ interface CreateFlowModalProps {
   opened: boolean;
   onClose: () => void;
   onSubmit: (flow: Omit<Flow, 'id' | 'created' | 'updated'>) => void;
+  sources: Array<{ id: string; label?: string }>;
 }
 
-function CreateFlowModal({ opened, onClose, onSubmit }: CreateFlowModalProps) {
+function CreateFlowModal({ opened, onClose, onSubmit, sources }: CreateFlowModalProps) {
   const [formData, setFormData] = useState({
     source_id: '',
     format: 'urn:x-nmos:format:video',
@@ -601,9 +732,9 @@ function CreateFlowModal({ opened, onClose, onSubmit }: CreateFlowModalProps) {
           <Select
             label="Source"
             placeholder="Select source"
-            data={dummySources.map(source => ({
+            data={sources.map(source => ({
               value: source.id,
-              label: source.label
+              label: source.label || 'Unknown Source'
             }))}
             value={formData.source_id}
             onChange={(value) => setFormData({ ...formData, source_id: value || '' })}
@@ -924,35 +1055,6 @@ function EditFlowModal({ flow, opened, onClose, onSubmit }: EditFlowModalProps) 
           </Group>
         </Stack>
       </form>
-    </Modal>
-  );
-}
-
-interface DeleteFlowModalProps {
-  flow: Flow;
-  opened: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-function DeleteFlowModal({ flow, opened, onClose, onConfirm }: DeleteFlowModalProps) {
-  return (
-    <Modal opened={opened} onClose={onClose} title="Delete Flow" size="sm">
-      <Stack gap="md">
-        <Alert icon={<IconAlertCircle size={16} />} color="red">
-          <Text fw={500}>Warning: This action cannot be undone!</Text>
-          <Text size="sm">
-            Deleting this flow will also remove all associated segments and data.
-          </Text>
-        </Alert>
-        <Text>
-          Are you sure you want to delete the flow "{flow.label || 'Unnamed Flow'}"?
-        </Text>
-        <Group justify="flex-end" gap="sm">
-          <Button variant="light" onClick={onClose}>Cancel</Button>
-          <Button color="red" onClick={onConfirm}>Delete Flow</Button>
-        </Group>
-      </Stack>
     </Modal>
   );
 } 

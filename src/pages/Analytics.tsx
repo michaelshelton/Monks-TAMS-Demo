@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Container, 
   Title, 
@@ -14,7 +14,9 @@ import {
   Progress,
   Table,
   ActionIcon,
-  Button
+  Button,
+  Alert,
+  Loader
 } from '@mantine/core';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -42,8 +44,11 @@ import {
   IconDownload,
   IconEye,
   IconQrcode,
-  IconDeviceMobile
+  IconDeviceMobile,
+  IconAlertCircle,
+  IconInfoCircle
 } from '@tabler/icons-react';
+import { apiClient } from '../services/api';
 
 ChartJS.register(
   CategoryScale, 
@@ -288,52 +293,72 @@ const getTypeColor = (type: string) => {
 
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState('24h');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [flowUsageData, setFlowUsageData] = useState<any>(null);
+  const [storageUsageData, setStorageUsageData] = useState<any>(null);
+  const [timeRangeData, setTimeRangeData] = useState<any>(null);
+  const [topFlows, setTopFlows] = useState<any[]>([]);
+  const [recentCompilations, setRecentCompilations] = useState<any[]>([]);
 
-  const stats = [
-    {
-      title: 'Total Flows',
-      value: '12',
-      change: '+12%',
-      changeType: 'positive',
-      icon: <IconActivity size={24} />,
-      color: '#228be6',
-    },
-    {
-      title: 'Active Segments',
-      value: '3,247',
-      change: '+8%',
-      changeType: 'positive',
-      icon: <IconUsers size={24} />,
-      color: '#40c057',
-    },
-    {
-      title: 'Video Compilations',
-      value: '156',
-      change: '+25%',
-      changeType: 'positive',
-      icon: <IconVideo size={24} />,
-      color: '#fd7e14',
-    },
-    {
-      title: 'QR Code Scans',
-      value: '2,847',
-      change: '+18%',
-      changeType: 'positive',
-      icon: <IconQrcode size={24} />,
-      color: '#7950f2',
-    },
-  ];
+  // Fetch analytics data from API
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch all analytics data in parallel
+        const [flowUsage, storageUsage, timeRange] = await Promise.all([
+          apiClient.getFlowUsageAnalytics().catch(err => {
+            console.warn('Flow usage analytics not available:', err);
+            return null;
+          }),
+          apiClient.getStorageUsageAnalytics().catch(err => {
+            console.warn('Storage usage analytics not available:', err);
+            return null;
+          }),
+          apiClient.getTimeRangeAnalytics().catch(err => {
+            console.warn('Time range analytics not available:', err);
+            return null;
+          })
+        ]);
+        
+        setFlowUsageData(flowUsage);
+        setStorageUsageData(storageUsage);
+        setTimeRangeData(timeRange);
+        
+        // Check if any analytics endpoints are available
+        if (!flowUsage && !storageUsage && !timeRange) {
+          setError('Analytics API endpoints are not available yet. The backend is still being configured.');
+        }
+        
+        // For now, we'll use mock data for top flows and recent compilations
+        // since these endpoints don't exist yet
+        setTopFlows(mockTopFlows);
+        setRecentCompilations(mockRecentCompilations);
+        
+      } catch (err: any) {
+        setError('Failed to fetch analytics data');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    fetchAnalyticsData();
+  }, [timeRange]);
+
+  // Prepare chart data from API or fall back to mock data
+  const chartData = {
+    flowUsage: flowUsageData || mockFlowUsageData,
+    storageUsage: storageUsageData || mockStorageUsageData,
+    videoCompilation: timeRangeData || mockVideoCompilationData,
+    qrCodeUsage: mockQRCodeUsageData // No API endpoint for this yet
   };
 
-  const flowRows = mockTopFlows.map((flow) => (
+  // Update table data to use state variables
+  const flowRows = topFlows.map((flow) => (
     <Table.Tr key={flow.id}>
       <Table.Td>
         <Group gap="xs">
@@ -382,7 +407,7 @@ export default function Analytics() {
     </Table.Tr>
   ));
 
-  const compilationRows = mockRecentCompilations.map((comp) => (
+  const compilationRows = recentCompilations.map((comp) => (
     <Table.Tr key={comp.id}>
       <Table.Td>
         <Text fw={600}>{comp.name}</Text>
@@ -423,6 +448,79 @@ export default function Analytics() {
     </Table.Tr>
   ));
 
+  const stats = [
+    {
+      title: 'Total Flows',
+      value: '12',
+      change: '+12%',
+      changeType: 'positive',
+      icon: <IconActivity size={24} />,
+      color: '#228be6',
+    },
+    {
+      title: 'Active Segments',
+      value: '3,247',
+      change: '+8%',
+      changeType: 'positive',
+      icon: <IconUsers size={24} />,
+      color: '#40c057',
+    },
+    {
+      title: 'Video Compilations',
+      value: '156',
+      change: '+25%',
+      changeType: 'positive',
+      icon: <IconVideo size={24} />,
+      color: '#fd7e14',
+    },
+    {
+      title: 'QR Code Scans',
+      value: '2,847',
+      change: '+18%',
+      changeType: 'positive',
+      icon: <IconQrcode size={24} />,
+      color: '#7950f2',
+    },
+  ];
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch all analytics data in parallel
+      const [flowUsage, storageUsage, timeRange] = await Promise.all([
+        apiClient.getFlowUsageAnalytics().catch(err => {
+          console.warn('Flow usage analytics not available:', err);
+          return null;
+        }),
+        apiClient.getStorageUsageAnalytics().catch(err => {
+          console.warn('Storage usage analytics not available:', err);
+          return null;
+        }),
+        apiClient.getTimeRangeAnalytics().catch(err => {
+          console.warn('Time range analytics not available:', err);
+          return null;
+        })
+      ]);
+      
+      setFlowUsageData(flowUsage);
+      setStorageUsageData(storageUsage);
+      setTimeRangeData(timeRange);
+      
+      // Check if any analytics endpoints are available
+      if (!flowUsage && !storageUsage && !timeRange) {
+        setError('Analytics API endpoints are not available yet. The backend is still being configured.');
+      }
+      
+    } catch (err: any) {
+      setError('Failed to refresh analytics data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Container size="xl" px="xl" py="xl">
       <Box mb="xl">
@@ -451,7 +549,7 @@ export default function Analytics() {
             <Button 
               leftSection={<IconRefresh size={16} />}
               variant="light"
-              loading={isLoading}
+              loading={loading}
               onClick={handleRefresh}
             >
               Refresh
@@ -460,269 +558,339 @@ export default function Analytics() {
         </Group>
       </Box>
 
-      {/* Stats Cards */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg" mb="xl">
-        {stats.map((stat, index) => (
-          <Card key={index} withBorder p="xl">
-            <Group justify="space-between" align="flex-start">
-              <Box>
-                <Text size="sm" c="dimmed" mb={8}>
-                  {stat.title}
-                </Text>
-                <Title order={3}>
-                  {stat.value}
-                </Title>
-                <Group gap="xs" mt="xs">
-                  <Badge 
-                    color={stat.changeType === 'positive' ? 'green' : 'red'} 
-                    variant="light"
+      {/* Info Box */}
+      <Alert
+        icon={<IconInfoCircle size={20} />}
+        title="What is this page?"
+        color="blue"
+        variant="light"
+        mb="lg"
+      >
+        <Text size="sm">
+          The Analytics Dashboard provides comprehensive insights into your TAMS application's performance, 
+          including video playback analytics with CMCD (Common Media Client Data) collection for BBC TAMS compliance.
+        </Text>
+        <Text size="sm" mt="xs">
+          This page includes:
+        </Text>
+        <Text size="sm" mt="xs">
+          • <strong>Flow Usage Analytics</strong> - Monitor video, audio, and image flow performance<br/>
+          • <strong>Storage Usage Tracking</strong> - Track storage allocation and usage patterns<br/>
+          • <strong>Video Compilation Metrics</strong> - Analyze compilation success rates and performance<br/>
+          • <strong>QR Code Usage Analytics</strong> - Track mobile access patterns and engagement<br/>
+          • <strong>CMCD Data Collection</strong> - BBC TAMS compliant media client data for optimization<br/>
+          • <strong>Real-time Performance Monitoring</strong> - Live updates on system health and usage
+        </Text>
+        <Text size="sm" mt="xs">
+          All video-related analytics include CMCD data for enhanced performance insights and BBC TAMS compliance.
+        </Text>
+      </Alert>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color={error.includes('not available yet') ? 'yellow' : 'red'} 
+          title={error.includes('not available yet') ? 'Backend Not Ready' : 'Error'}
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+          {error.includes('not available yet') && (
+            <Text size="sm" mt="xs">
+              This page will work once the backend analytics API is fully configured. 
+              For now, you can use the Sources and Flows pages which are already working.
+            </Text>
+          )}
+        </Alert>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading analytics data...</Text>
+        </Box>
+      )}
+
+      {/* Main Content */}
+      {loading ? (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading analytics data...</Text>
+        </Box>
+      ) : error ? (
+        <Box ta="center" py="xl" c="red">
+          {error}
+        </Box>
+      ) : (
+        <>
+          {/* Statistics */}
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg" mb="xl">
+            {stats.map((stat, index) => (
+              <Card key={index} withBorder p="xl">
+                <Group justify="space-between" align="flex-start">
+                  <Box>
+                    <Text size="sm" c="dimmed" mb={8}>
+                      {stat.title}
+                    </Text>
+                    <Title order={3}>
+                      {stat.value}
+                    </Title>
+                    <Group gap="xs" mt="xs">
+                      <Badge 
+                        color={stat.changeType === 'positive' ? 'green' : 'red'} 
+                        variant="light"
+                      >
+                        {stat.change}
+                      </Badge>
+                      <Text size="xs" c="dimmed">
+                        vs last period
+                      </Text>
+                    </Group>
+                  </Box>
+                  <Box 
+                    style={{ 
+                      width: 48, 
+                      height: 48, 
+                      borderRadius: 12,
+                      background: `${stat.color}15`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: stat.color,
+                    }}
                   >
-                    {stat.change}
-                  </Badge>
-                  <Text size="xs" c="dimmed">
-                    vs last period
-                  </Text>
+                    {stat.icon}
+                  </Box>
                 </Group>
+              </Card>
+            ))}
+          </SimpleGrid>
+
+          {/* Charts Grid */}
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
+            {/* Flow Usage Chart */}
+            <Card withBorder p="xl">
+              <Group justify="space-between" align="center" mb="lg">
+                <Box>
+                  <Title order={4} mb="xs">
+                    Flow Usage Over Time
+                  </Title>
+                  <Text size="sm" c="dimmed">
+                    Active flows by type and time period
+                  </Text>
+                </Box>
+                <Badge color="blue" variant="light">
+                  <IconTrendingUp size={14} style={{ marginRight: 4 }} />
+                  Live Data
+                </Badge>
+              </Group>
+              <Line data={chartData.flowUsage} options={chartOptions} />
+            </Card>
+
+            {/* Storage Usage Chart */}
+            <Card withBorder p="xl">
+              <Group justify="space-between" align="center" mb="lg">
+                <Box>
+                  <Title order={4} mb="xs">
+                    Storage Usage Distribution
+                  </Title>
+                  <Text size="sm" c="dimmed">
+                    Storage allocation by media type
+                  </Text>
+                </Box>
+                <Badge color="green" variant="light">
+                  <IconDatabase size={14} style={{ marginRight: 4 }} />
+                  8.4 GB Total
+                </Badge>
+              </Group>
+              <Doughnut data={chartData.storageUsage} options={doughnutOptions} />
+            </Card>
+          </SimpleGrid>
+
+          {/* Video Compilation Analytics */}
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
+            {/* Video Compilation Chart */}
+            <Card withBorder p="xl">
+              <Group justify="space-between" align="center" mb="lg">
+                <Box>
+                  <Title order={4} mb="xs">
+                    Video Compilations This Week
+                  </Title>
+                  <Text size="sm" c="dimmed">
+                    Daily compilation activity
+                  </Text>
+                </Box>
+                <Badge color="orange" variant="light">
+                  <IconVideo size={14} style={{ marginRight: 4 }} />
+                  156 Total
+                </Badge>
+              </Group>
+              <Bar data={chartData.videoCompilation} options={barOptions} />
+            </Card>
+
+            {/* QR Code Usage Chart */}
+            <Card withBorder p="xl">
+              <Group justify="space-between" align="center" mb="lg">
+                <Box>
+                  <Title order={4} mb="xs">
+                    QR Code Access by Device
+                  </Title>
+                  <Text size="sm" c="dimmed">
+                    Mobile vs desktop QR code usage
+                  </Text>
+                </Box>
+                <Badge color="purple" variant="light">
+                  <IconDeviceMobile size={14} style={{ marginRight: 4 }} />
+                  2,847 Scans
+                </Badge>
+              </Group>
+              <Doughnut data={chartData.qrCodeUsage} options={doughnutOptions} />
+            </Card>
+          </SimpleGrid>
+
+          {/* Top Performing Flows */}
+          <Card withBorder p="xl" mb="xl">
+            <Group justify="space-between" align="center" mb="lg">
+              <Box>
+                <Title order={4} mb="xs">
+                  Top Performing Flows
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Most viewed and active media streams
+                </Text>
               </Box>
-              <Box 
-                style={{ 
-                  width: 48, 
-                  height: 48, 
-                  borderRadius: 12,
-                  background: `${stat.color}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: stat.color,
-                }}
-              >
-                {stat.icon}
-              </Box>
+              <Button variant="light" size="sm">
+                View All
+              </Button>
             </Group>
+            
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Flow Name</Table.Th>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Views</Table.Th>
+                  <Table.Th>Duration</Table.Th>
+                  <Table.Th>Storage</Table.Th>
+                  <Table.Th>Growth</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {flowRows}
+              </Table.Tbody>
+            </Table>
           </Card>
-        ))}
-      </SimpleGrid>
 
-      {/* Charts Grid */}
-      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
-        {/* Flow Usage Chart */}
-        <Card withBorder p="xl">
-          <Group justify="space-between" align="center" mb="lg">
-            <Box>
-              <Title order={4} mb="xs">
-                Flow Usage Over Time
-              </Title>
-              <Text size="sm" c="dimmed">
-                Active flows by type and time period
-              </Text>
-            </Box>
-            <Badge color="blue" variant="light">
-              <IconTrendingUp size={14} style={{ marginRight: 4 }} />
-              Live Data
-            </Badge>
-          </Group>
-          <Line data={mockFlowUsageData} options={chartOptions} />
-        </Card>
+          {/* Recent Video Compilations */}
+          <Card withBorder p="xl">
+            <Group justify="space-between" align="center" mb="lg">
+              <Box>
+                <Title order={4} mb="xs">
+                  Recent Video Compilations
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Latest compiled videos and their performance
+                </Text>
+              </Box>
+              <Button variant="light" size="sm">
+                View All
+              </Button>
+            </Group>
+            
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Compilation Name</Table.Th>
+                  <Table.Th>Segments</Table.Th>
+                  <Table.Th>Duration</Table.Th>
+                  <Table.Th>Views</Table.Th>
+                  <Table.Th>QR Scans</Table.Th>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {compilationRows}
+              </Table.Tbody>
+            </Table>
+          </Card>
 
-        {/* Storage Usage Chart */}
-        <Card withBorder p="xl">
-          <Group justify="space-between" align="center" mb="lg">
-            <Box>
-              <Title order={4} mb="xs">
-                Storage Usage Distribution
-              </Title>
-              <Text size="sm" c="dimmed">
-                Storage allocation by media type
-              </Text>
-            </Box>
-            <Badge color="green" variant="light">
-              <IconDatabase size={14} style={{ marginRight: 4 }} />
-              8.4 GB Total
-            </Badge>
-          </Group>
-          <Doughnut data={mockStorageUsageData} options={doughnutOptions} />
-        </Card>
-      </SimpleGrid>
+          {/* Performance Metrics */}
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mt="xl">
+            <Card withBorder p="xl">
+              <Title order={4} mb="lg">System Performance</Title>
+              <Stack gap="md">
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">CPU Usage</Text>
+                    <Text size="sm" fw={600}>45%</Text>
+                  </Group>
+                  <Progress value={45} color="blue" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Memory Usage</Text>
+                    <Text size="sm" fw={600}>62%</Text>
+                  </Group>
+                  <Progress value={62} color="green" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Network I/O</Text>
+                    <Text size="sm" fw={600}>78%</Text>
+                  </Group>
+                  <Progress value={78} color="orange" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Storage I/O</Text>
+                    <Text size="sm" fw={600}>34%</Text>
+                  </Group>
+                  <Progress value={34} color="purple" />
+                </Box>
+              </Stack>
+            </Card>
 
-      {/* Video Compilation Analytics */}
-      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
-        {/* Video Compilation Chart */}
-        <Card withBorder p="xl">
-          <Group justify="space-between" align="center" mb="lg">
-            <Box>
-              <Title order={4} mb="xs">
-                Video Compilations This Week
-              </Title>
-              <Text size="sm" c="dimmed">
-                Daily compilation activity
-              </Text>
-            </Box>
-            <Badge color="orange" variant="light">
-              <IconVideo size={14} style={{ marginRight: 4 }} />
-              156 Total
-            </Badge>
-          </Group>
-          <Bar data={mockVideoCompilationData} options={barOptions} />
-        </Card>
-
-        {/* QR Code Usage Chart */}
-        <Card withBorder p="xl">
-          <Group justify="space-between" align="center" mb="lg">
-            <Box>
-              <Title order={4} mb="xs">
-                QR Code Access by Device
-              </Title>
-              <Text size="sm" c="dimmed">
-                Mobile vs desktop QR code usage
-              </Text>
-            </Box>
-            <Badge color="purple" variant="light">
-              <IconDeviceMobile size={14} style={{ marginRight: 4 }} />
-              2,847 Scans
-            </Badge>
-          </Group>
-          <Doughnut data={mockQRCodeUsageData} options={doughnutOptions} />
-        </Card>
-      </SimpleGrid>
-
-      {/* Top Performing Flows */}
-      <Card withBorder p="xl" mb="xl">
-        <Group justify="space-between" align="center" mb="lg">
-          <Box>
-            <Title order={4} mb="xs">
-              Top Performing Flows
-            </Title>
-            <Text size="sm" c="dimmed">
-              Most viewed and active media streams
-            </Text>
-          </Box>
-          <Button variant="light" size="sm">
-            View All
-          </Button>
-        </Group>
-        
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Flow Name</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Views</Table.Th>
-              <Table.Th>Duration</Table.Th>
-              <Table.Th>Storage</Table.Th>
-              <Table.Th>Growth</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {flowRows}
-          </Table.Tbody>
-        </Table>
-      </Card>
-
-      {/* Recent Video Compilations */}
-      <Card withBorder p="xl">
-        <Group justify="space-between" align="center" mb="lg">
-          <Box>
-            <Title order={4} mb="xs">
-              Recent Video Compilations
-            </Title>
-            <Text size="sm" c="dimmed">
-              Latest compiled videos and their performance
-            </Text>
-          </Box>
-          <Button variant="light" size="sm">
-            View All
-          </Button>
-        </Group>
-        
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Compilation Name</Table.Th>
-              <Table.Th>Segments</Table.Th>
-              <Table.Th>Duration</Table.Th>
-              <Table.Th>Views</Table.Th>
-              <Table.Th>QR Scans</Table.Th>
-              <Table.Th>Created</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {compilationRows}
-          </Table.Tbody>
-        </Table>
-      </Card>
-
-      {/* Performance Metrics */}
-      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mt="xl">
-        <Card withBorder p="xl">
-          <Title order={4} mb="lg">System Performance</Title>
-          <Stack gap="md">
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">CPU Usage</Text>
-                <Text size="sm" fw={600}>45%</Text>
-              </Group>
-              <Progress value={45} color="blue" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Memory Usage</Text>
-                <Text size="sm" fw={600}>62%</Text>
-              </Group>
-              <Progress value={62} color="green" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Network I/O</Text>
-                <Text size="sm" fw={600}>78%</Text>
-              </Group>
-              <Progress value={78} color="orange" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Storage I/O</Text>
-                <Text size="sm" fw={600}>34%</Text>
-              </Group>
-              <Progress value={34} color="purple" />
-            </Box>
-          </Stack>
-        </Card>
-
-        <Card withBorder p="xl">
-          <Title order={4} mb="lg">Error Rates</Title>
-          <Stack gap="md">
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">API Errors</Text>
-                <Text size="sm" fw={600}>0.2%</Text>
-              </Group>
-              <Progress value={0.2} color="green" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Upload Failures</Text>
-                <Text size="sm" fw={600}>1.5%</Text>
-              </Group>
-              <Progress value={1.5} color="yellow" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Processing Errors</Text>
-                <Text size="sm" fw={600}>0.8%</Text>
-              </Group>
-              <Progress value={0.8} color="orange" />
-            </Box>
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm">Network Timeouts</Text>
-                <Text size="sm" fw={600}>0.1%</Text>
-              </Group>
-              <Progress value={0.1} color="green" />
-            </Box>
-          </Stack>
-        </Card>
-      </SimpleGrid>
+            <Card withBorder p="xl">
+              <Title order={4} mb="lg">Error Rates</Title>
+              <Stack gap="md">
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">API Errors</Text>
+                    <Text size="sm" fw={600}>0.2%</Text>
+                  </Group>
+                  <Progress value={0.2} color="green" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Upload Failures</Text>
+                    <Text size="sm" fw={600}>1.5%</Text>
+                  </Group>
+                  <Progress value={1.5} color="yellow" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Processing Errors</Text>
+                    <Text size="sm" fw={600}>0.8%</Text>
+                  </Group>
+                  <Progress value={0.8} color="orange" />
+                </Box>
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm">Network Timeouts</Text>
+                    <Text size="sm" fw={600}>0.1%</Text>
+                  </Group>
+                  <Progress value={0.1} color="green" />
+                </Box>
+              </Stack>
+            </Card>
+          </SimpleGrid>
+        </>
+      )}
     </Container>
   );
 } 

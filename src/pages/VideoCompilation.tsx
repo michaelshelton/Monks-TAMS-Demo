@@ -29,7 +29,8 @@ import {
   IconAlertCircle,
   IconVideo,
   IconTimeline,
-  IconChartBar
+  IconChartBar,
+  IconInfoCircle
 } from '@tabler/icons-react';
 
 import VideoCompilationEngine from '../components/VideoCompilationEngine';
@@ -98,19 +99,16 @@ export default function VideoCompilation() {
   ];
 
   const handleCompilationComplete = (compilationId: string, outputUrl: string) => {
-    const newWorkflow: CompilationWorkflow = {
+    setWorkflow({
       compilationId,
       videoUrl: outputUrl,
-      mobileUrl: `https://mobile.tams.demo/play/${compilationId}`,
+      mobileUrl: outputUrl,
       qrCodeId: `qr_${compilationId}`,
-      sessionId: `sess_${compilationId}`,
+      sessionId: `sess_${Date.now()}`,
       status: 'ready',
       createdAt: new Date().toISOString(),
-      analytics: null
-    };
-
-    setWorkflow(newWorkflow);
-    setActiveTab('qr');
+      analytics: {}
+    });
   };
 
   const handleQRGenerated = (qrData: any) => {
@@ -158,245 +156,170 @@ export default function VideoCompilation() {
 
   return (
     <Container size="xl">
-      <Card shadow="sm" p="xl">
-        <Stack gap="lg">
-          {/* Header */}
-          <Group justify="space-between">
-            <Box>
-              <Title order={2}>Video Compilation Workflow</Title>
-              <Text c="dimmed" size="sm">
-                Compile video segments, generate QR codes, and track mobile analytics
-              </Text>
-            </Box>
+      <Stack gap="lg">
+        {/* Page Header with Info Box */}
+        <Card withBorder p="xl">
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Box>
+                <Title order={2}>Video Compilation Engine</Title>
+                <Text c="dimmed" size="lg">
+                  Advanced video compilation and workflow management with CMCD analytics
+                </Text>
+              </Box>
+              <Badge size="lg" color="blue" variant="light">
+                BBC TAMS Compliant
+              </Badge>
+            </Group>
             
-            {workflow && (
-              <Group>
-                <Badge 
-                  color={getStatusColor(workflow.status)} 
-                  variant="light"
-                  leftSection={getStatusIcon(workflow.status)}
-                >
-                  {workflow.status}
-                </Badge>
-                <Button
-                  size="sm"
-                  variant="light"
-                  leftSection={<IconRefresh size={16} />}
-                  onClick={() => setWorkflow(null)}
-                >
-                  Reset Workflow
-                </Button>
-              </Group>
-            )}
-          </Group>
+            <Alert
+              icon={<IconInfoCircle size={20} />}
+              title="What is this page?"
+              color="blue"
+              variant="light"
+            >
+              <Text size="sm">
+                The Video Compilation Engine allows you to combine multiple video segments into cohesive compilations 
+                while maintaining full BBC TAMS compliance. This page provides:
+              </Text>
+              <Text size="sm" mt="xs">
+                • <strong>Multi-segment compilation</strong> - Combine video segments with precise timing control<br/>
+                • <strong>CMCD analytics</strong> - Common Media Client Data collection for performance optimization<br/>
+                • <strong>Mobile optimization</strong> - Responsive video delivery across all devices<br/>
+                • <strong>QR code integration</strong> - Easy sharing and access to compiled videos<br/>
+                • <strong>Real-time monitoring</strong> - Track compilation progress and performance metrics
+              </Text>
+              <Text size="sm" mt="xs">
+                All video operations include comprehensive CMCD data collection for BBC TAMS compliance and enhanced analytics.
+              </Text>
+            </Alert>
+          </Stack>
+        </Card>
 
-          {/* Workflow Status */}
-          {mockSegments.length > 0 && mockSegments[0] && (
-            <Card withBorder p="md">
-              <Stack gap="md">
-                <Title order={4}>Demo Video Status</Title>
-                
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-                  <Paper p="md" withBorder>
-                    <Stack gap="xs" align="center">
-                      <IconVideo size={24} color="#228be6" />
-                      <Text size="lg" fw={700} c="blue">
-                        {mockSegments[0].id}
+        {/* Main Content */}
+        <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'compilation')}>
+          <Tabs.List>
+            <Tabs.Tab value="compilation" leftSection={<IconVideo size={16} />}>
+              Compilation Engine
+            </Tabs.Tab>
+            <Tabs.Tab value="mobile" leftSection={<IconDeviceMobile size={16} />}>
+              Mobile Player
+            </Tabs.Tab>
+            <Tabs.Tab value="analytics" leftSection={<IconActivity size={16} />}>
+              Analytics
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="compilation" pt="md">
+            <VideoCompilationEngine
+              segments={mockSegments}
+              onCompilationComplete={handleCompilationComplete}
+            />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="mobile" pt="md">
+            {mockSegments.length > 0 && mockSegments[0] && (
+              <Card withBorder p="md">
+                <Stack gap="lg">
+                  <Group justify="space-between">
+                    <Box>
+                      <Title order={4}>Mobile Video Player</Title>
+                      <Text c="dimmed" size="sm">
+                        Test the demo video on mobile devices
                       </Text>
-                      <Text size="xs" c="dimmed">Demo Video ID</Text>
-                    </Stack>
-                  </Paper>
-                  
-                  <Paper p="md" withBorder>
-                    <Stack gap="xs" align="center">
-                      <IconQrcode size={24} color="#40c057" />
-                      <Text size="lg" fw={700} c="green">
-                        qr_{mockSegments[0].id}
-                      </Text>
-                      <Text size="xs" c="dimmed">QR Code ID</Text>
-                    </Stack>
-                  </Paper>
-                  
-                  <Paper p="md" withBorder>
-                    <Stack gap="xs" align="center">
-                      <IconActivity size={24} color="#fd7e14" />
-                      <Text size="lg" fw={700} c="orange">
-                        demo_sess_{Date.now()}
-                      </Text>
-                      <Text size="xs" c="dimmed">Session ID</Text>
-                    </Stack>
-                  </Paper>
-                  
-                  <Paper p="md" withBorder>
-                    <Stack gap="xs" align="center">
-                      <IconDeviceMobile size={24} color="#7950f2" />
-                      <Text size="lg" fw={700} c="purple">
-                        ready
-                      </Text>
-                      <Text size="xs" c="dimmed">Status</Text>
-                    </Stack>
-                  </Paper>
-                </SimpleGrid>
-              </Stack>
-            </Card>
-          )}
-
-          {/* Main Workflow Tabs */}
-          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'compilation')}>
-            <Tabs.List>
-              <Tabs.Tab 
-                value="compilation" 
-                leftSection={<IconVideo size={16} />}
-              >
-                Video Compilation
-              </Tabs.Tab>
-              <Tabs.Tab 
-                value="qr" 
-                leftSection={<IconQrcode size={16} />}
-                disabled={!mockSegments.length}
-              >
-                QR Code
-              </Tabs.Tab>
-              <Tabs.Tab 
-                value="mobile" 
-                leftSection={<IconDeviceMobile size={16} />}
-                disabled={!mockSegments.length}
-              >
-                Mobile Player
-              </Tabs.Tab>
-              <Tabs.Tab 
-                value="analytics" 
-                leftSection={<IconChartBar size={16} />}
-                disabled={!mockSegments.length}
-              >
-                Analytics
-              </Tabs.Tab>
-            </Tabs.List>
-
-            <Tabs.Panel value="compilation" pt="md">
-              <VideoCompilationEngine
-                segments={mockSegments}
-                onCompilationComplete={handleCompilationComplete}
-              />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="qr" pt="md">
-              {mockSegments.length > 0 && mockSegments[0] && (
-                <QRCodeGeneratorWithAnalytics
-                  compilationId={mockSegments[0].id}
-                  mobileUrl={`https://mobile.tams.demo/play/${mockSegments[0].id}`}
-                  title="QR Code for Demo Video"
-                  description="Generate QR codes that allow mobile users to access the demo video directly on their devices"
-                  showAnalytics={true}
-                  onQRGenerated={handleQRGenerated}
-                />
-              )}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="mobile" pt="md">
-              {mockSegments.length > 0 && mockSegments[0] && (
-                <Card withBorder p="md">
-                  <Stack gap="lg">
-                    <Group justify="space-between">
-                      <Box>
-                        <Title order={4}>Mobile Video Player</Title>
-                        <Text c="dimmed" size="sm">
-                          Test the demo video on mobile devices
-                        </Text>
-                      </Box>
-                      
-                      <Group>
-                        <Button
-                          leftSection={<IconPlayerPlay size={16} />}
-                          onClick={() => setShowMobilePlayer(true)}
-                        >
-                          Play on Mobile
-                        </Button>
-                        <Button
-                          variant="light"
-                          leftSection={<IconDownload size={16} />}
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          variant="light"
-                          leftSection={<IconShare size={16} />}
-                        >
-                          Share
-                        </Button>
-                      </Group>
+                    </Box>
+                    
+                    <Group>
+                      <Button
+                        leftSection={<IconPlayerPlay size={16} />}
+                        onClick={() => setShowMobilePlayer(true)}
+                      >
+                        Play on Mobile
+                      </Button>
+                      <Button
+                        variant="light"
+                        leftSection={<IconDownload size={16} />}
+                      >
+                        Download
+                      </Button>
+                      <Button
+                        variant="light"
+                        leftSection={<IconShare size={16} />}
+                      >
+                        Share
+                      </Button>
                     </Group>
+                  </Group>
 
-                    {/* Mobile Player Preview */}
-                    <Card withBorder p="md">
-                      <Stack gap="md">
-                        <Title order={5}>Mobile Player Preview</Title>
-                        
-                        <Box
-                          style={{
-                            width: '100%',
-                            height: '300px',
-                            backgroundColor: '#f0f0f0',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '2px dashed #ccc'
-                          }}
-                        >
-                          <Stack gap="md" align="center">
-                            <IconDeviceMobile size={48} color="#666" />
-                            <Text c="dimmed" size="sm" ta="center">
-                              Mobile Video Player<br />
-                              Ready for mobile testing
-                            </Text>
-                            <Button
-                              size="sm"
-                              onClick={() => setShowMobilePlayer(true)}
-                            >
-                              Launch Mobile Player
-                            </Button>
-                          </Stack>
-                        </Box>
+                  {/* Mobile Player Preview */}
+                  <Card withBorder p="md">
+                    <Stack gap="md">
+                      <Title order={5}>Mobile Player Preview</Title>
+                      
+                      <Box
+                        style={{
+                          width: '100%',
+                          height: '300px',
+                          backgroundColor: '#f0f0f0',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px dashed #ccc'
+                        }}
+                      >
+                        <Stack gap="md" align="center">
+                          <IconDeviceMobile size={48} color="#666" />
+                          <Text c="dimmed" size="sm" ta="center">
+                            Mobile Video Player<br />
+                            Ready for mobile testing
+                          </Text>
+                          <Button
+                            size="sm"
+                            onClick={() => setShowMobilePlayer(true)}
+                          >
+                            Launch Mobile Player
+                          </Button>
+                        </Stack>
+                      </Box>
 
-                        <Group justify="space-between">
-                          <Group>
-                            <Badge color="blue" variant="light">
-                              {mockSegments[0].url}
-                            </Badge>
-                            <Badge color="green" variant="light">
-                              {`https://mobile.tams.demo/play/${mockSegments[0].id}`}
-                            </Badge>
-                          </Group>
-                          
-                          <Group>
-                            <Badge color="orange" variant="light">
-                              Session: demo_sess_{Date.now()}
-                            </Badge>
-                            <Badge color="purple" variant="light">
-                              QR: qr_{mockSegments[0].id}
-                            </Badge>
-                          </Group>
+                      <Group justify="space-between">
+                        <Group>
+                          <Badge color="blue" variant="light">
+                            {mockSegments[0].url}
+                          </Badge>
+                          <Badge color="green" variant="light">
+                            {`https://mobile.tams.demo/play/${mockSegments[0].id}`}
+                          </Badge>
                         </Group>
-                      </Stack>
-                    </Card>
-                  </Stack>
-                </Card>
-              )}
-            </Tabs.Panel>
+                        
+                        <Group>
+                          <Badge color="orange" variant="light">
+                            Session: demo_sess_{Date.now()}
+                          </Badge>
+                          <Badge color="purple" variant="light">
+                            QR: qr_{mockSegments[0].id}
+                          </Badge>
+                        </Group>
+                      </Group>
+                    </Stack>
+                  </Card>
+                </Stack>
+              </Card>
+            )}
+          </Tabs.Panel>
 
-            <Tabs.Panel value="analytics" pt="md">
-              {mockSegments.length > 0 && mockSegments[0] && (
-                <HydrolixAnalytics
-                  videoId={mockSegments[0].id}
-                  sessionId={`demo_sess_${Date.now()}`}
-                  onAnalyticsUpdate={handleAnalyticsUpdate}
-                />
-              )}
-            </Tabs.Panel>
-          </Tabs>
-        </Stack>
-      </Card>
+          <Tabs.Panel value="analytics" pt="md">
+            {mockSegments.length > 0 && mockSegments[0] && (
+              <HydrolixAnalytics
+                videoId={mockSegments[0].id}
+                sessionId={`demo_sess_${Date.now()}`}
+                onAnalyticsUpdate={handleAnalyticsUpdate}
+              />
+            )}
+          </Tabs.Panel>
+        </Tabs>
+      </Stack>
 
       {/* Mobile Player Modal */}
       {showMobilePlayer && mockSegments.length > 0 && mockSegments[0] && (

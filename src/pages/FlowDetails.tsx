@@ -32,7 +32,8 @@ import {
   Switch,
   Timeline,
   RingProgress,
-  Code
+  Code,
+  Loader
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -76,6 +77,7 @@ import {
   IconCode,
   IconContainer
 } from '@tabler/icons-react';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface FlowDetails {
@@ -144,6 +146,11 @@ interface FlowDetails {
     size: number;
     status: string;
   }>;
+  
+  // New soft delete fields for backend v6.0
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 // Mock data
@@ -291,29 +298,149 @@ export default function FlowDetails() {
   const navigate = useNavigate();
   const [flow, setFlow] = useState<FlowDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setFlow(mockFlowDetails);
-      setLoading(false);
-    }, 500);
+    const fetchFlowDetails = async () => {
+      if (!flowId) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await apiClient.getFlow(flowId);
+        setFlow(response);
+      } catch (err: any) {
+        // Check if it's a 404 error (backend not ready)
+        if (err.message && err.message.includes('404')) {
+          setError('Backend Not Ready - Flow details endpoint is not available');
+        } else {
+          setError('Failed to fetch flow details');
+        }
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFlowDetails();
   }, [flowId]);
 
-  const handleDeleteFlow = () => {
-    // Simulate deletion
-    setShowDeleteModal(false);
-    navigate('/flows');
+  const handleDeleteFlow = async () => {
+    if (!flowId) return;
+    
+    try {
+      await apiClient.deleteFlow(flowId, { softDelete: false, cascade: false, deletedBy: 'admin' });
+      setShowDeleteModal(false);
+      navigate('/flows');
+    } catch (err: any) {
+      setError('Failed to delete flow');
+      console.error(err);
+    }
   };
 
-  if (loading) {
+  const refreshFlowDetails = async () => {
+    if (!flowId) return;
+    
+    try {
+      setRefreshing(true);
+      setError(null);
+      const response = await apiClient.getFlow(flowId);
+      setFlow(response);
+    } catch (err: any) {
+      // Check if it's a 404 error (backend not ready)
+      if (err.message && err.message.includes('404')) {
+        setError('Backend Not Ready - Flow details endpoint is not available');
+      } else {
+        setError('Failed to refresh flow details');
+      }
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const retryFlowDetails = async () => {
+    if (!flowId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.getFlow(flowId);
+      setFlow(response);
+    } catch (err: any) {
+      // Check if it's a 404 error (backend not ready)
+      if (err.message && err.message.includes('404')) {
+        setError('Backend Not Ready - Flow details endpoint is not available');
+      } else {
+        setError('Failed to fetch flow details');
+      }
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !flow) {
     return (
       <Container size="xl" px="xl" py="xl">
         <Box ta="center" py="xl">
-          <Text>Loading flow details...</Text>
+          <Loader />
+          <Text mt="md">Loading flow details...</Text>
         </Box>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container size="xl" px="xl" py="xl">
+        <Box mb="xl">
+          <Group gap="sm" mb="md">
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate('/flows')}
+            >
+              Back to Flows
+            </Button>
+          </Group>
+        </Box>
+        
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color="red" 
+          title="Backend Not Ready"
+          mb="xl"
+        >
+          The flow details endpoint is not available. This usually means the backend dependencies are not fully configured.
+          <br /><br />
+          <Text size="sm" c="dimmed">
+            • Check that the backend is running at http://localhost:8000<br />
+            • Verify that all required Python packages are installed<br />
+            • Check backend logs for dependency errors
+          </Text>
+        </Alert>
+        
+        <Card withBorder>
+          <Box ta="center" py="xl">
+            <IconAlertCircle size={48} color="red" />
+            <Title order={3} mt="md" mb="sm">Flow Details Unavailable</Title>
+            <Text c="dimmed" mb="lg">
+              Unable to load flow details from the backend API
+            </Text>
+            <Button 
+              variant="light" 
+              leftSection={<IconRefresh size={16} />}
+              onClick={retryFlowDetails}
+              loading={loading}
+            >
+              Try Again
+            </Button>
+          </Box>
+        </Card>
       </Container>
     );
   }
@@ -364,6 +491,14 @@ export default function FlowDetails() {
             <Button variant="light" leftSection={<IconEdit size={16} />} onClick={() => setShowEditModal(true)}>
               Edit Flow
             </Button>
+            <Button 
+              variant="light" 
+              leftSection={<IconRefresh size={16} />} 
+              onClick={refreshFlowDetails}
+              loading={refreshing}
+            >
+              Refresh
+            </Button>
             <ActionIcon
               color="red"
               variant="light"
@@ -374,6 +509,36 @@ export default function FlowDetails() {
           </Group>
         </Group>
       </Box>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color="red" 
+          title="Error"
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+        </Alert>
+      )}
+
+      {/* Backend Status Note */}
+      {error && error.includes('Backend Not Ready') && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="Backend Status"
+          mb="md"
+        >
+          The backend API endpoints for flows are not responding. This is likely due to missing Python dependencies (like 'ibis') that prevent the flows router from loading properly.
+          <br /><br />
+          <Text size="sm" c="dimmed">
+            To fix this, the backend needs to have all required Python packages installed and running correctly.
+          </Text>
+        </Alert>
+      )}
 
       {/* Main Content */}
       <Tabs defaultValue="overview">
@@ -841,18 +1006,18 @@ export default function FlowDetails() {
           <TextInput
             label="Label"
             value={flow.label}
-            onChange={() => {}}
+            onChange={(event) => setFlow({ ...flow, label: event.currentTarget.value })}
           />
           <Textarea
             label="Description"
             value={flow.description}
-            onChange={() => {}}
+            onChange={(event) => setFlow({ ...flow, description: event.currentTarget.value })}
             rows={3}
           />
           <Select
             label="Status"
             value={flow.status}
-            onChange={() => {}}
+            onChange={(value) => setFlow({ ...flow, status: value as 'active' | 'inactive' | 'processing' | 'error' })}
             data={[
               { value: 'active', label: 'Active' },
               { value: 'inactive', label: 'Inactive' },
@@ -863,13 +1028,23 @@ export default function FlowDetails() {
           <Switch
             label="Read Only"
             checked={flow.read_only}
-            onChange={() => {}}
+            onChange={(event) => setFlow({ ...flow, read_only: event.currentTarget.checked })}
           />
           <Group gap="xs" justify="flex-end">
             <Button variant="light" onClick={() => setShowEditModal(false)}>
               Cancel
             </Button>
-            <Button onClick={() => setShowEditModal(false)}>
+            <Button onClick={async () => {
+              if (!flowId) return;
+              
+              try {
+                await apiClient.updateFlow(flowId, flow);
+                setShowEditModal(false);
+              } catch (err: any) {
+                setError('Failed to update flow');
+                console.error(err);
+              }
+            }}>
               Save Changes
             </Button>
           </Group>

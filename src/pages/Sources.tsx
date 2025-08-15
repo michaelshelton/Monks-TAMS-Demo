@@ -1,37 +1,58 @@
-import { useState } from 'react';
-import { 
-  Container, 
-  Title, 
-  Card, 
-  Text, 
-  Badge, 
-  Group, 
-  Box, 
-  Button, 
-  Table, 
+import React, { useState, useEffect } from 'react';
+import {
+  Container,
+  Title,
+  Button,
+  Group,
+  Table,
+  Text,
+  Badge,
   ActionIcon,
   Modal,
-  TextInput,
-  Select,
-  Textarea,
   Stack,
+  TextInput,
+  Textarea,
+  Select,
+  Pagination,
+  Box,
+  Card,
+  Grid,
+  Input,
+  Chip,
+  Flex,
+  Tooltip,
+  Menu,
   Divider,
-  Pagination
+  Alert,
+  Loader
 } from '@mantine/core';
+import {
+  IconPlus,
+  IconEdit,
+  IconTrash,
+  IconSearch,
+  IconFilter,
+  IconVideo,
+  IconMusic,
+  IconDatabase,
+  IconPhoto,
+  IconEye,
+  IconDots,
+  IconSettings,
+  IconRefresh,
+  IconAlertCircle
+} from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
+import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { 
-  IconVideo, 
-  IconMusic, 
-  IconDatabase, 
-  IconPhoto, 
-  IconPlus, 
-  IconEdit, 
-  IconTrash, 
-  IconEye,
-  IconFilter,
-  IconSearch
-} from '@tabler/icons-react';
+  validateTAMSEntity, 
+  VALID_CONTENT_FORMATS, 
+  ContentFormat,
+  sanitizeForBackend,
+  formatValidationErrors 
+} from '../utils/enhancedValidation';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface Source {
@@ -46,53 +67,11 @@ interface Source {
   tags?: Record<string, string>;
   source_collection?: Array<{ id: string; label?: string }>;
   collected_by?: string[];
+  // New soft delete fields for backend v6.0
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
-
-const dummySources: Source[] = [
-  {
-    id: '1',
-    format: 'urn:x-nmos:format:video',
-    label: 'BBC News Studio',
-    description: 'Primary news studio camera feed with 24/7 coverage',
-    created_by: 'admin',
-    created: '2025-01-15T10:00:00Z',
-    updated: '2025-01-15T10:00:00Z',
-    tags: { location: 'london', type: 'news', quality: 'hd' },
-    source_collection: [
-      { id: '1', label: 'News Collection' }
-    ]
-  },
-  {
-    id: '2',
-    format: 'urn:x-nmos:format:audio',
-    label: 'Radio Studio A',
-    description: 'Main radio studio audio feed',
-    created_by: 'admin',
-    created: '2025-01-10T09:00:00Z',
-    updated: '2025-01-12T14:30:00Z',
-    tags: { location: 'manchester', type: 'radio', quality: 'stereo' }
-  },
-  {
-    id: '3',
-    format: 'urn:x-nmos:format:video',
-    label: 'Sports Arena Camera',
-    description: 'Live sports coverage from main arena',
-    created_by: 'admin',
-    created: '2025-01-08T16:00:00Z',
-    updated: '2025-01-08T16:00:00Z',
-    tags: { location: 'birmingham', type: 'sports', quality: '4k' }
-  },
-  {
-    id: '4',
-    format: 'urn:x-tam:format:image',
-    label: 'Photo Studio',
-    description: 'High-resolution photography studio feed',
-    created_by: 'admin',
-    created: '2025-01-05T11:00:00Z',
-    updated: '2025-01-05T11:00:00Z',
-    tags: { location: 'edinburgh', type: 'photography', quality: 'raw' }
-  }
-];
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -125,19 +104,24 @@ const getFormatLabel = (format: string) => {
 };
 
 export default function Sources() {
-  const [sources, setSources] = useState<Source[]>(dummySources);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false); // New state for showing deleted items
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('sources');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
 
   // Define filter options
-  const filterOptions: FilterOption[] = [
+  const filterOptions: any[] = [ // Assuming FilterOption is not directly imported here
     {
       key: 'search',
       label: 'Search',
@@ -166,6 +150,12 @@ export default function Sources() {
       label: 'Tags',
       type: 'text',
       placeholder: 'Filter by tag key:value'
+    },
+    {
+      key: 'deleted',
+      label: 'Show Deleted',
+      type: 'boolean',
+      placeholder: 'Include deleted items'
     }
   ];
 
@@ -208,134 +198,193 @@ export default function Sources() {
         `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())
       ));
 
-    return matchesSearch && matchesFormat && matchesCreated && matchesTags;
+    // Deleted filter
+    const deletedFilter = filters.deleted;
+    const matchesDeleted = !deletedFilter || (source.deleted === deletedFilter);
+
+    return matchesSearch && matchesFormat && matchesCreated && matchesTags && matchesDeleted;
   });
 
-  const handleCreateSource = (newSource: Omit<Source, 'id' | 'created' | 'updated'>) => {
-    const source: Source = {
-      ...newSource,
-      id: (sources.length + 1).toString(),
-      created: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      created_by: 'admin'
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.getSources({
+          page: currentPage,
+          page_size: 10,
+          show_deleted: showDeleted
+        });
+        setSources(response.data);
+      } catch (err) {
+        setError('Failed to fetch sources');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     };
-    setSources([...sources, source]);
-    setShowCreateModal(false);
+
+    fetchSources();
+  }, [currentPage, showDeleted, filters]);
+
+  const handleCreateSource = async (newSource: Omit<Source, 'id' | 'created' | 'updated'>) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.createSource(newSource);
+      setSources(prev => [...prev, response.data]);
+      setShowCreateModal(false);
+    } catch (err) {
+      setError('Failed to create source');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateSource = (updatedSource: Source) => {
-    setSources(sources.map(s => s.id === updatedSource.id ? updatedSource : s));
-    setShowEditModal(false);
-    setSelectedSource(null);
+  const handleUpdateSource = async (updatedSource: Source) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.updateSource(updatedSource.id, updatedSource);
+      setSources(prev => prev.map(s => s.id === updatedSource.id ? response.data : s));
+      setShowEditModal(false);
+      setSelectedSource(null);
+    } catch (err) {
+      setError('Failed to update source');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteSource = (sourceId: string) => {
-    setSources(sources.filter(s => s.id !== sourceId));
-    setShowDeleteModal(false);
-    setSelectedSource(null);
+  const handleDelete = (source: Source) => {
+    setSelectedSource(source);
+    setShowDeleteModal(true);
   };
 
-  const rows = filteredSources.map((source) => (
-    <Table.Tr key={source.id}>
-      <Table.Td>
-        <Box>
-          <Group gap="xs" mb={4}>
-            {getFormatIcon(source.format)}
-            <Text fw={600}>
-              {source.label || 'Unnamed Source'}
-            </Text>
-          </Group>
-          <Text size="xs" c="dimmed">
-            {source.description || 'No description'}
-          </Text>
-        </Box>
-      </Table.Td>
-      
-      <Table.Td>
-        <Badge color="blue" variant="light">
-          {getFormatLabel(source.format)}
-        </Badge>
-      </Table.Td>
-      
-      <Table.Td>
-        <Text size="xs">
-          {source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}
-        </Text>
-      </Table.Td>
-      
-      <Table.Td>
-        <Group gap="xs">
-          {source.tags && Object.entries(source.tags).map(([key, value]) => (
-            <Badge 
-              key={key} 
-              color="gray" 
-              variant="outline"
-              size="xs"
-            >
-              {key}: {value}
-            </Badge>
-          ))}
-        </Group>
-      </Table.Td>
-      
-      <Table.Td>
-        <Group gap="xs">
-          <ActionIcon 
-            size="sm" 
-            variant="subtle"
-            onClick={() => {
-              setSelectedSource(source);
-              setShowEditModal(true);
-            }}
-          >
-            <IconEye size={16} />
-          </ActionIcon>
-          <ActionIcon 
-            size="sm" 
-            variant="subtle"
-            onClick={() => {
-              setSelectedSource(source);
-              setShowEditModal(true);
-            }}
-          >
-            <IconEdit size={16} />
-          </ActionIcon>
-          <ActionIcon 
-            size="sm" 
-            variant="subtle" 
-            color="red"
-            onClick={() => {
-              setSelectedSource(source);
-              setShowDeleteModal(true);
-            }}
-          >
-            <IconTrash size={16} />
-          </ActionIcon>
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  ));
+  const handleDeleteConfirm = async (options: DeleteOptions) => {
+    if (selectedSource) {
+      try {
+        setLoading(true);
+        await apiClient.deleteSource(selectedSource.id, options);
+        setSources(prev => prev.filter(s => s.id !== selectedSource.id));
+        setShowDeleteModal(false);
+        setSelectedSource(null);
+      } catch (err) {
+        setError('Failed to delete source');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleView = (source: Source) => {
+    setSelectedSource(source);
+    setShowEditModal(true); // Reusing edit modal for view
+  };
+
+  const handleEdit = (source: Source) => {
+    setSelectedSource(source);
+    setShowEditModal(true);
+  };
+
+  const handleRestore = async (source: Source) => {
+    try {
+      setLoading(true);
+      await apiClient.restoreSource(source.id);
+      setSources(prev => prev.map(s => 
+        s.id === source.id 
+          ? { 
+              ...s, 
+              deleted: false, 
+              deleted_at: null, 
+              deleted_by: null 
+            }
+          : s
+      ));
+      setShowDeleteModal(false);
+      setSelectedSource(null);
+    } catch (err) {
+      setError('Failed to restore source');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const paginatedSources = filteredSources.slice((currentPage - 1) * 10, currentPage * 10);
 
   return (
     <Container size="xl" px="xl" py="xl">
-      <Box mb="xl">
-        <Group justify="space-between" align="flex-end">
-          <Box>
-            <Title order={2} mb="md">
-              Media Sources
-            </Title>
-            <Text size="lg" c="dimmed">
-              Manage and monitor your media sources and feeds
-            </Text>
-          </Box>
-          <Button 
+      {/* Title and Header */}
+      <Group justify="space-between" mb="lg">
+        <Title order={2}>Sources</Title>
+        <Group>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => {
+              setCurrentPage(1);
+              setError(null);
+              // Trigger a refresh by changing the dependency
+              setCurrentPage(prev => prev);
+            }}
+            loading={loading}
+          >
+            Refresh
+          </Button>
+          <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
           >
             Add Source
           </Button>
         </Group>
-      </Box>
+      </Group>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color="red" 
+          title="Error"
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+        </Alert>
+      )}
+
+      {/* Filter Controls */}
+      <Group justify="space-between" mb="md">
+        <Group>
+          <Button
+            variant="light"
+            leftSection={<IconFilter size={16} />}
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          >
+            {showAdvancedFilters ? 'Hide' : 'Show'} Filters
+          </Button>
+          {hasActiveFilters && (
+            <Button
+              variant="subtle"
+              color="red"
+              size="sm"
+              onClick={clearFilters}
+            >
+              Clear All Filters
+            </Button>
+          )}
+          <Chip
+            checked={showDeleted}
+            onChange={(checked) => setShowDeleted(checked)}
+            variant="outline"
+            color="gray"
+          >
+            Show Deleted Items
+          </Chip>
+        </Group>
+      </Group>
 
       {/* Advanced Filters */}
       <AdvancedFilter
@@ -355,32 +404,160 @@ export default function Sources() {
               <Table.Th>Source Name</Table.Th>
               <Table.Th>Format</Table.Th>
               <Table.Th>Created</Table.Th>
+              <Table.Th>Updated</Table.Th>
               <Table.Th>Tags</Table.Th>
+              <Table.Th>Status</Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows}
+            {loading ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center">
+                  <Loader />
+                </Table.Td>
+              </Table.Tr>
+            ) : error ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center" c="red">
+                  {error}
+                </Table.Td>
+              </Table.Tr>
+            ) : paginatedSources.length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center">
+                  <Text c="dimmed">No sources found matching your filters</Text>
+                </Table.Td>
+              </Table.Tr>
+            ) : (
+              paginatedSources.map((source) => (
+                <Table.Tr 
+                  key={source.id}
+                  style={{ 
+                    opacity: source.deleted ? 0.6 : 1,
+                    backgroundColor: source.deleted ? '#f8f9fa' : 'transparent'
+                  }}
+                >
+                  <Table.Td>
+                    <Group gap="sm">
+                      {getFormatIcon(source.format)}
+                      <Box>
+                        <Group gap="xs" align="center">
+                          <Text fw={500} size="sm">
+                            {source.label || 'Unnamed Source'}
+                          </Text>
+                          {source.deleted && (
+                            <Badge size="xs" color="red">DELETED</Badge>
+                          )}
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {source.description || 'No description'}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color="blue">
+                      {getFormatLabel(source.format)}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">
+                      {source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">
+                      {source.updated ? new Date(source.updated).toLocaleDateString() : 'Never'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      {source.tags && Object.entries(source.tags).slice(0, 2).map(([key, value]) => (
+                        <Badge key={key} size="xs" variant="light">
+                          {key}: {value}
+                        </Badge>
+                      ))}
+                      {source.tags && Object.keys(source.tags).length > 2 && (
+                        <Badge size="xs" variant="light" color="gray">
+                          +{Object.keys(source.tags).length - 2} more
+                        </Badge>
+                      )}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    {source.deleted ? (
+                      <Badge color="red" variant="light" size="sm">
+                        Deleted
+                      </Badge>
+                    ) : (
+                      <Badge color="green" variant="light" size="sm">
+                        Active
+                      </Badge>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Tooltip label="View Details">
+                        <ActionIcon
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => handleView(source)}
+                        >
+                          <IconEye size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      {!source.deleted ? (
+                        <>
+                          <Tooltip label="Edit Source">
+                            <ActionIcon
+                              variant="subtle"
+                              color="blue"
+                              onClick={() => handleEdit(source)}
+                            >
+                              <IconEdit size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete Source">
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => handleDelete(source)}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <Tooltip label="Restore Source">
+                          <ActionIcon
+                            variant="subtle"
+                            color="green"
+                            onClick={() => handleRestore(source)}
+                          >
+                            <IconRefresh size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))
+            )}
           </Table.Tbody>
         </Table>
         
-        {filteredSources.length === 0 && (
-          <Box ta="center" py="xl">
-            <Text c="dimmed">No sources found matching your filters</Text>
-          </Box>
+        {/* Pagination */}
+        {filteredSources.length > 0 && (
+          <Group justify="center" mt="lg">
+            <Pagination 
+              total={Math.ceil(filteredSources.length / 10)} 
+              value={currentPage} 
+              onChange={setCurrentPage}
+            />
+          </Group>
         )}
       </Card>
-
-      {/* Pagination */}
-      {filteredSources.length > 0 && (
-        <Group justify="center" mt="lg">
-          <Pagination 
-            total={Math.ceil(filteredSources.length / 10)} 
-            value={currentPage} 
-            onChange={setCurrentPage}
-          />
-        </Group>
-      )}
 
       {/* Create Source Modal */}
       <CreateSourceModal 
@@ -404,14 +581,15 @@ export default function Sources() {
 
       {/* Delete Confirmation Modal */}
       {selectedSource && (
-        <DeleteSourceModal
-          source={selectedSource}
+        <EnhancedDeleteModal
           opened={showDeleteModal}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedSource(null);
-          }}
-          onConfirm={() => handleDeleteSource(selectedSource.id)}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Source"
+          itemName={selectedSource.label || 'Unnamed Source'}
+          itemType="source"
+          showCascadeOption={true}
+          defaultDeletedBy="admin"
         />
       )}
     </Container>
@@ -431,9 +609,21 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
     description: '',
     format: 'urn:x-nmos:format:video'
   });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Enhanced validation
+    const validation = validateTAMSEntity('source', formData);
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors);
+      return;
+    }
+    
+    // Clear validation errors
+    setValidationErrors([]);
+    
     onSubmit(formData);
     setFormData({ label: '', description: '', format: 'urn:x-nmos:format:video' });
   };
@@ -442,6 +632,13 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
     <Modal opened={opened} onClose={onClose} title="Create New Source" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <Alert icon={<IconAlertCircle size={16} />} color="red" title="Validation Errors">
+              <Text size="sm">{formatValidationErrors(validationErrors)}</Text>
+            </Alert>
+          )}
+          
           <TextInput
             label="Source Name"
             placeholder="Enter source name"
@@ -458,15 +655,14 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           />
           <Select
             label="Format"
-            data={[
-              { value: 'urn:x-nmos:format:video', label: 'Video' },
-              { value: 'urn:x-nmos:format:audio', label: 'Audio' },
-              { value: 'urn:x-nmos:format:data', label: 'Data' },
-              { value: 'urn:x-tam:format:image', label: 'Image' }
-            ]}
+            data={VALID_CONTENT_FORMATS.map(format => ({
+              value: format,
+              label: getFormatLabel(format)
+            }))}
             value={formData.format}
-            onChange={(value) => setFormData({ ...formData, format: value || 'urn:x-nmos:format:video' })}
+            onChange={(value) => setFormData({ ...formData, format: value as ContentFormat || 'urn:x-nmos:format:video' })}
             required
+            description="Select the content format according to TAMS v6.0 specification"
           />
           <Group justify="flex-end" gap="sm">
             <Button variant="light" onClick={onClose}>Cancel</Button>
@@ -491,9 +687,21 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
     description: source.description || '',
     format: source.format
   });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Enhanced validation
+    const validation = validateTAMSEntity('source', formData);
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors);
+      return;
+    }
+    
+    // Clear validation errors
+    setValidationErrors([]);
+    
     onSubmit({
       ...source,
       ...formData,
@@ -506,6 +714,13 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
     <Modal opened={opened} onClose={onClose} title="Edit Source" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <Alert icon={<IconAlertCircle size={16} />} color="red" title="Validation Errors">
+              <Text size="sm">{formatValidationErrors(validationErrors)}</Text>
+            </Alert>
+          )}
+          
           <TextInput
             label="Source Name"
             placeholder="Enter source name"
@@ -538,32 +753,6 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
           </Group>
         </Stack>
       </form>
-    </Modal>
-  );
-}
-
-interface DeleteSourceModalProps {
-  source: Source;
-  opened: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-function DeleteSourceModal({ source, opened, onClose, onConfirm }: DeleteSourceModalProps) {
-  return (
-    <Modal opened={opened} onClose={onClose} title="Delete Source" size="sm">
-      <Stack gap="md">
-        <Text>
-          Are you sure you want to delete the source "{source.label || 'Unnamed Source'}"?
-        </Text>
-        <Text size="sm" c="dimmed">
-          This action cannot be undone. All associated flows and segments will also be affected.
-        </Text>
-        <Group justify="flex-end" gap="sm">
-          <Button variant="light" onClick={onClose}>Cancel</Button>
-          <Button color="red" onClick={onConfirm}>Delete Source</Button>
-        </Group>
-      </Stack>
     </Modal>
   );
 } 

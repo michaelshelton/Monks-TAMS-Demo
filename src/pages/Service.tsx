@@ -30,7 +30,8 @@ import {
   Switch,
   Code,
   CopyButton,
-  Textarea as MantineTextarea
+  Textarea as MantineTextarea,
+  Loader
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -82,6 +83,7 @@ import {
   IconPlug,
   IconDatabase as IconEventStream
 } from '@tabler/icons-react';
+import { apiClient } from '../services/api';
 
 // Mock data structure based on backend API models
 interface ServiceInfo {
@@ -113,6 +115,17 @@ interface Webhook {
   success_count: number;
   error_count: number;
   created: string;
+  // New backend v6.0 fields for enhanced ownership and tracking
+  owner_id: string;
+  created_by: string;
+  updated?: string;
+  updated_by?: string;
+  description?: string;
+  retry_count?: number;
+  max_retries?: number;
+  timeout_seconds?: number;
+  is_secure?: boolean;
+  headers?: Record<string, string>;
 }
 
 // Mock data
@@ -151,7 +164,9 @@ const mockWebhooks: Webhook[] = [
     last_triggered: '2024-01-15T10:25:00Z',
     success_count: 156,
     error_count: 2,
-    created: '2024-01-15T09:00:00Z'
+    created: '2024-01-15T09:00:00Z',
+    owner_id: 'user_123',
+    created_by: 'user_123'
   },
   {
     id: 'webhook_002',
@@ -163,7 +178,9 @@ const mockWebhooks: Webhook[] = [
     last_triggered: '2024-01-15T10:28:00Z',
     success_count: 89,
     error_count: 0,
-    created: '2024-01-15T09:30:00Z'
+    created: '2024-01-15T09:30:00Z',
+    owner_id: 'user_456',
+    created_by: 'user_456'
   },
   {
     id: 'webhook_003',
@@ -174,7 +191,9 @@ const mockWebhooks: Webhook[] = [
     last_triggered: '2024-01-15T10:20:00Z',
     success_count: 45,
     error_count: 12,
-    created: '2024-01-15T10:00:00Z'
+    created: '2024-01-15T10:00:00Z',
+    owner_id: 'user_789',
+    created_by: 'user_789'
   }
 ];
 
@@ -221,36 +240,102 @@ const availableEvents = [
 ];
 
 export default function Service() {
-  const [serviceInfo, setServiceInfo] = useState<ServiceInfo>(mockServiceInfo);
-  const [webhooks, setWebhooks] = useState<Webhook[]>(mockWebhooks);
+  const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateWebhookModal, setShowCreateWebhookModal] = useState(false);
   const [showEditWebhookModal, setShowEditWebhookModal] = useState(false);
   const [showDeleteWebhookModal, setShowDeleteWebhookModal] = useState(false);
   const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null);
   const [showTestWebhookModal, setShowTestWebhookModal] = useState(false);
 
-  const handleCreateWebhook = (webhook: Omit<Webhook, 'id' | 'created' | 'success_count' | 'error_count'>) => {
-    const newWebhook: Webhook = {
-      ...webhook,
-      id: `webhook_${Date.now()}`,
-      created: new Date().toISOString(),
-      success_count: 0,
-      error_count: 0
+  // Fetch service info and webhooks from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [serviceResponse, webhooksResponse] = await Promise.all([
+          apiClient.getService(),
+          apiClient.getWebhooks()
+        ]);
+        
+        setServiceInfo(serviceResponse);
+        setWebhooks(webhooksResponse.data || []);
+      } catch (err: any) {
+        setError('Failed to fetch service information');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     };
-    setWebhooks([...webhooks, newWebhook]);
-    setShowCreateWebhookModal(false);
+
+    fetchData();
+  }, []);
+
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [serviceResponse, webhooksResponse] = await Promise.all([
+        apiClient.getService(),
+        apiClient.getWebhooks()
+      ]);
+      
+      setServiceInfo(serviceResponse);
+      setWebhooks(webhooksResponse.data || []);
+    } catch (err: any) {
+      setError('Failed to refresh service information');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateWebhook = (updatedWebhook: Webhook) => {
-    setWebhooks(webhooks.map(w => w.id === updatedWebhook.id ? updatedWebhook : w));
-    setShowEditWebhookModal(false);
-    setSelectedWebhook(null);
+  const handleCreateWebhook = async (webhook: Omit<Webhook, 'id' | 'created' | 'success_count' | 'error_count'>) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.createWebhook(webhook);
+      setWebhooks(prev => [...prev, response.data]);
+      setShowCreateWebhookModal(false);
+    } catch (err: any) {
+      setError('Failed to create webhook');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteWebhook = (webhookId: string) => {
-    setWebhooks(webhooks.filter(w => w.id !== webhookId));
-    setShowDeleteWebhookModal(false);
-    setSelectedWebhook(null);
+  const handleUpdateWebhook = async (updatedWebhook: Webhook) => {
+    try {
+      setLoading(true);
+      // Note: The backend doesn't have an update webhook endpoint yet
+      // For now, we'll just update the local state
+      setWebhooks(webhooks.map(w => w.id === updatedWebhook.id ? updatedWebhook : w));
+      setShowEditWebhookModal(false);
+      setSelectedWebhook(null);
+    } catch (err: any) {
+      setError('Failed to update webhook');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWebhook = async (webhookId: string) => {
+    try {
+      setLoading(true);
+      // Note: The backend doesn't have a delete webhook endpoint yet
+      // For now, we'll just update the local state
+      setWebhooks(webhooks.filter(w => w.id !== webhookId));
+      setShowDeleteWebhookModal(false);
+      setSelectedWebhook(null);
+    } catch (err: any) {
+      setError('Failed to delete webhook');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleTestWebhook = (webhookId: string) => {
@@ -263,14 +348,58 @@ export default function Service() {
     <Container size="xl" px="xl" py="xl">
       {/* Header */}
       <Box mb="xl">
-        <Title order={2} mb="md">Service Configuration</Title>
-        <Text size="lg" c="dimmed">
-          Manage TAMS service settings, webhooks, and system configuration
-        </Text>
+        <Group justify="space-between" align="flex-end">
+          <Box>
+            <Title order={2} mb="md">Service Configuration</Title>
+            <Text size="lg" c="dimmed">
+              Manage TAMS service settings, webhooks, and system configuration
+            </Text>
+          </Box>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={refreshData}
+            loading={loading}
+          >
+            Refresh
+          </Button>
+        </Group>
       </Box>
 
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          icon={<IconAlertCircle size={16} />} 
+          color="red" 
+          title="Error"
+          withCloseButton
+          onClose={() => setError(null)}
+          mb="md"
+        >
+          {error}
+        </Alert>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading service information...</Text>
+        </Box>
+      )}
+
       {/* Main Content */}
-      <Tabs defaultValue="overview">
+      {loading ? (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md" c="dimmed">Loading service information...</Text>
+        </Box>
+      ) : !serviceInfo ? (
+        <Box ta="center" py="xl">
+          <Text c="dimmed">No service information available</Text>
+        </Box>
+      ) : (
+        <Tabs defaultValue="overview">
         <Tabs.List>
           <Tabs.Tab value="overview" leftSection={<IconInfoCircle size={16} />}>
             Service Overview
@@ -298,19 +427,19 @@ export default function Service() {
                       <Stack gap="md">
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Service Name</Text>
-                          <Text size="sm">{serviceInfo.name}</Text>
+                          <Text size="sm">{serviceInfo?.name}</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Description</Text>
-                          <Text size="sm">{serviceInfo.description}</Text>
+                          <Text size="sm">{serviceInfo?.description}</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Type</Text>
-                          <Text size="sm" style={{ fontFamily: 'monospace' }}>{serviceInfo.type}</Text>
+                          <Text size="sm" style={{ fontFamily: 'monospace' }}>{serviceInfo?.type}</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">API Version</Text>
-                          <Text size="sm">{serviceInfo.api_version}</Text>
+                          <Text size="sm">{serviceInfo?.api_version}</Text>
                         </Box>
                       </Stack>
                     </Grid.Col>
@@ -318,21 +447,21 @@ export default function Service() {
                       <Stack gap="md">
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Service Version</Text>
-                          <Text size="sm">{serviceInfo.service_version}</Text>
+                          <Text size="sm">{serviceInfo?.service_version}</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Status</Text>
-                          <Badge color={getStatusColor(serviceInfo.status)} variant="light">
-                            {serviceInfo.status}
+                          <Badge color={getStatusColor(serviceInfo?.status || '')} variant="light">
+                            {serviceInfo?.status}
                           </Badge>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Uptime</Text>
-                          <Text size="sm">{serviceInfo.uptime}%</Text>
+                          <Text size="sm">{serviceInfo?.uptime}%</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Last Updated</Text>
-                          <Text size="sm">{formatTimestamp(serviceInfo.last_updated)}</Text>
+                          <Text size="sm">{formatTimestamp(serviceInfo?.last_updated || '')}</Text>
                         </Box>
                       </Stack>
                     </Grid.Col>
@@ -347,7 +476,7 @@ export default function Service() {
                       <Stack gap="md">
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Store Type</Text>
-                          <Text size="sm">{serviceInfo.media_store.type}</Text>
+                          <Text size="sm">{serviceInfo?.media_store.type}</Text>
                         </Box>
                       </Stack>
                     </Grid.Col>
@@ -358,7 +487,7 @@ export default function Service() {
                 <Card withBorder p="xl">
                   <Title order={4} mb="md">Event Stream Mechanisms</Title>
                   <List>
-                    {serviceInfo.event_stream_mechanisms.map((mechanism, index) => (
+                    {serviceInfo?.event_stream_mechanisms.map((mechanism, index) => (
                       <List.Item
                         key={index}
                         icon={
@@ -387,19 +516,19 @@ export default function Service() {
                     <Box>
                       <Text size="sm" fw={500} mb="xs">Overall Health</Text>
                       <Progress
-                        value={serviceInfo.uptime}
-                        color={serviceInfo.status === 'healthy' ? 'green' : 
-                               serviceInfo.status === 'warning' ? 'yellow' : 'red'}
+                        value={serviceInfo?.uptime || 0}
+                        color={serviceInfo?.status === 'healthy' ? 'green' : 
+                               serviceInfo?.status === 'warning' ? 'yellow' : 'red'}
                         size="lg"
                       />
                       <Text size="sm" c="dimmed" mt="xs">
-                        {serviceInfo.uptime}% uptime
+                        {serviceInfo?.uptime}% uptime
                       </Text>
                     </Box>
                     <Box>
                       <Text size="sm" fw={500} mb="xs">Status</Text>
-                      <Badge color={getStatusColor(serviceInfo.status)} variant="light" size="lg">
-                        {serviceInfo.status}
+                      <Badge color={getStatusColor(serviceInfo?.status || '')} variant="light" size="lg">
+                        {serviceInfo?.status}
                       </Badge>
                     </Box>
                   </Stack>
@@ -559,18 +688,18 @@ export default function Service() {
                 <Stack gap="md">
                   <TextInput
                     label="Service Name"
-                    value={serviceInfo.name}
+                    value={serviceInfo?.name}
                     onChange={() => {}}
                   />
                   <Textarea
                     label="Description"
-                    value={serviceInfo.description}
+                    value={serviceInfo?.description}
                     onChange={() => {}}
                     rows={3}
                   />
                   <Select
                     label="Service Status"
-                    value={serviceInfo.status}
+                    value={serviceInfo?.status || null}
                     onChange={() => {}}
                     data={[
                       { value: 'healthy', label: 'Healthy' },
@@ -669,12 +798,13 @@ export default function Service() {
               
               <Box>
                 <Text size="sm" fw={500} mb="xs">API Version</Text>
-                <Text size="sm">{serviceInfo.api_version}</Text>
+                <Text size="sm">{serviceInfo?.api_version}</Text>
               </Box>
             </Stack>
           </Card>
         </Tabs.Panel>
       </Tabs>
+      )}
 
       {/* Create Webhook Modal */}
       <Modal
@@ -775,10 +905,18 @@ interface CreateWebhookFormProps {
 function CreateWebhookForm({ onSubmit, onCancel }: CreateWebhookFormProps) {
   const [formData, setFormData] = useState({
     url: '',
-    api_key_name: 'X-API-Key',
+    api_key_name: '',
     api_key_value: '',
     events: [] as string[],
-    status: 'active' as 'active' | 'inactive'
+    status: 'active' as 'active' | 'inactive',
+    // New backend v6.0 fields
+    owner_id: 'user_123', // TODO: Get from current user context
+    created_by: 'user_123', // TODO: Get from current user context
+    description: '',
+    max_retries: 3,
+    timeout_seconds: 30,
+    is_secure: true,
+    headers: {} as Record<string, string>
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -795,6 +933,12 @@ function CreateWebhookForm({ onSubmit, onCancel }: CreateWebhookFormProps) {
           onChange={(e) => setFormData({ ...formData, url: e.currentTarget.value })}
           placeholder="https://example.com/webhook"
           required
+        />
+        <TextInput
+          label="Description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
+          placeholder="Webhook description"
         />
         <TextInput
           label="API Key Name"
