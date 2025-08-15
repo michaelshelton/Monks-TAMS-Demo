@@ -699,6 +699,7 @@ GET /health (Enhanced health check with system metrics)
 #### **BBC TAMS API as the Standard**
 
 **Reference**: [BBC TAMS API v6.0](https://github.com/bbc/tams)  
+**Reference**: [VAST TAMS](https://github.com/jesseVast/vasttams)  
 **Approach**: Use BBC specification as the foundation, VAST TAMS as the enhanced implementation
 
 ### **📋 Phase 1: Core BBC TAMS Compliance (HIGH PRIORITY)**

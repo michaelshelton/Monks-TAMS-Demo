@@ -40,7 +40,7 @@ import {
   IconRefresh,
   IconHistory,
   IconArrowRight,
-  IconPause,
+  IconPlayerPause,
   IconSquare,
   IconDownload,
   IconUpload,

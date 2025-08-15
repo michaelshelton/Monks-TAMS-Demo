@@ -361,7 +361,7 @@ export const WebhookManagerMantine: React.FC<WebhookManagerMantineProps> = ({
             <NumberInput
               label="Retry Count"
               value={formData.retry_count}
-              onChange={(value) => setFormData(prev => ({ ...prev, retry_count: value || 0 }))}
+                              onChange={(value) => setFormData(prev => ({ ...prev, retry_count: typeof value === 'string' ? parseInt(value) || 0 : value || 0 }))}
               min={0}
               max={10}
               description="Number of retry attempts on failure"
@@ -370,7 +370,7 @@ export const WebhookManagerMantine: React.FC<WebhookManagerMantineProps> = ({
             <NumberInput
               label="Timeout (seconds)"
               value={formData.timeout_seconds}
-              onChange={(value) => setFormData(prev => ({ ...prev, timeout_seconds: value || 30 }))}
+                              onChange={(value) => setFormData(prev => ({ ...prev, timeout_seconds: typeof value === 'string' ? parseInt(value) || 30 : value || 30 }))}
               min={5}
               max={300}
               description="Request timeout in seconds"

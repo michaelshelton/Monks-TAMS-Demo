@@ -379,7 +379,7 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
               return (
                 <Table.Tr key={endpoint}>
                   <Table.Td>
-                    <Text size="sm" fontFamily="monospace">{endpoint}</Text>
+                    <Text size="sm" style={{ fontFamily: 'monospace' }}>{endpoint}</Text>
                   </Table.Td>
                   <Table.Td>
                     <NumberFormatter value={count} thousandSeparator />
@@ -406,7 +406,10 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
               {Object.entries(metrics.flow_operations_total).map(([operation, count]) => {
                 const isSuccess = operation.includes('success');
                 const total = Object.entries(metrics.flow_operations_total)
-                  .filter(([op]) => op.startsWith(operation.split('_')[0]))
+                  .filter(([op]) => {
+                    const prefix = operation.split('_')[0];
+                    return prefix && op.startsWith(prefix);
+                  })
                   .reduce((sum, [, c]) => sum + c, 0);
                 const successRate = getSuccessRate(count, total);
                 
@@ -425,12 +428,14 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
                       </Badge>
                     </Group>
                     {isSuccess && (
-                      <Progress 
-                        value={successRate} 
-                        color="green" 
-                        size="xs"
-                        label={`${successRate}%`}
-                      />
+                      <>
+                        <Progress 
+                          value={successRate} 
+                          color="green" 
+                          size="xs"
+                        />
+                        <Text size="xs" ta="center">{successRate}%</Text>
+                      </>
                     )}
                   </Box>
                 );
@@ -446,7 +451,10 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
               {Object.entries(metrics.segment_operations_total).map(([operation, count]) => {
                 const isSuccess = operation.includes('success');
                 const total = Object.entries(metrics.segment_operations_total)
-                  .filter(([op]) => op.startsWith(operation.split('_')[0]))
+                  .filter(([op]) => {
+                    const prefix = operation.split('_')[0];
+                    return prefix && op.startsWith(prefix);
+                  })
                   .reduce((sum, [, c]) => sum + c, 0);
                 const successRate = getSuccessRate(count, total);
                 
@@ -465,12 +473,14 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
                       </Badge>
                     </Group>
                     {isSuccess && (
-                      <Progress 
-                        value={successRate} 
-                        color="green" 
-                        size="xs"
-                        label={`${successRate}%`}
-                      />
+                      <>
+                        <Progress 
+                          value={successRate} 
+                          color="green" 
+                          size="xs"
+                        />
+                        <Text size="xs" ta="center">{successRate}%</Text>
+                      </>
                     )}
                   </Box>
                 );
@@ -486,7 +496,10 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
               {Object.entries(metrics.source_operations_total).map(([operation, count]) => {
                 const isSuccess = operation.includes('success');
                 const total = Object.entries(metrics.source_operations_total)
-                  .filter(([op]) => op.startsWith(operation.split('_')[0]))
+                  .filter(([op]) => {
+                    const prefix = operation.split('_')[0];
+                    return prefix && op.startsWith(prefix);
+                  })
                   .reduce((sum, [, c]) => sum + c, 0);
                 const successRate = getSuccessRate(count, total);
                 
@@ -505,12 +518,14 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
                       </Badge>
                     </Group>
                     {isSuccess && (
-                      <Progress 
-                        value={successRate} 
-                        color="green" 
-                        size="xs"
-                        label={`${successRate}%`}
-                      />
+                      <>
+                        <Progress 
+                          value={successRate} 
+                          color="green" 
+                          size="xs"
+                        />
+                        <Text size="xs" ta="center">{successRate}%</Text>
+                      </>
                     )}
                   </Box>
                 );

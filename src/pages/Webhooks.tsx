@@ -2,31 +2,24 @@ import React, { useState } from 'react';
 import {
   Box,
   Tabs,
-  Tab,
-  Typography,
+  Text,
   Paper,
   Card,
-  CardContent,
-  CardHeader,
-  Grid,
-  Chip,
+  Group,
+  Badge,
   Alert,
-  Divider
-} from '@mui/material';
-import {
-  Webhook as WebhookIcon,
-  Event as EventIcon,
-  Notifications as NotificationsIcon,
-  Info as InfoIcon
-} from '@mui/icons-material';
-import { WebhookManager } from '../components/WebhookManager';
-import { EventHistory } from '../components/EventHistory';
-import { NotificationCenter } from '../components/NotificationCenter';
+  Divider,
+  Title
+} from '@mantine/core';
+import { IconWebhook, IconCalendarEvent, IconBell, IconInfoCircle } from '@tabler/icons-react';
+import { WebhookManagerMantine } from '../components/WebhookManagerMantine';
+import { EventHistoryMantine } from '../components/EventHistoryMantine';
+import { NotificationCenterMantine } from '../components/NotificationCenterMantine';
 
 interface TabPanelProps {
   children?: React.ReactNode;
-  index: number;
-  value: number;
+  index: string;
+  value: string;
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -40,8 +33,8 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`webhook-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ py: 3 }}>
+      {value !== index ? null : (
+        <Box py="md">
           {children}
         </Box>
       )}
@@ -57,9 +50,9 @@ function a11yProps(index: number) {
 }
 
 export const Webhooks: React.FC = () => {
-  const [tabValue, setTabValue] = useState(0);
+  const [tabValue, setTabValue] = useState('webhooks');
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
     setTabValue(newValue);
   };
 
@@ -84,218 +77,79 @@ export const Webhooks: React.FC = () => {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box>
       {/* Page Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h3" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <WebhookIcon color="primary" sx={{ fontSize: '1.2em' }} />
+      <Box mb="md">
+        <Title order={1} mb="xs" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <IconWebhook size="1.2em" color="var(--mantine-color-blue-6)" />
           BBC TAMS Event System
-        </Typography>
-        <Typography variant="h6" color="text.secondary" gutterBottom>
+        </Title>
+        <Text size="lg" c="dimmed" mb="xs">
           Phase 3: Webhook Management, Event History & Real-time Notifications
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </Text>
+        <Text c="dimmed">
           Manage webhook configurations, monitor event history, and receive real-time notifications for BBC TAMS events.
-        </Typography>
+        </Text>
       </Box>
 
-      {/* BBC TAMS Compliance Info */}
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <InfoIcon />
-          <Typography variant="body2">
-            <strong>BBC TAMS v6.0 Compliance:</strong> This implementation follows the BBC TAMS specification for webhook events, 
-            real-time notifications, and event history tracking. All components are designed to work with the standard BBC TAMS API endpoints.
-          </Typography>
-        </Box>
-      </Alert>
+      {/* Main Content */}
+      <Paper shadow="xs" p="md">
+        <Tabs value={tabValue} onChange={(value) => setTabValue(value || 'webhooks')}>
+          <Tabs.List>
+            <Tabs.Tab value="webhooks" leftSection={<IconWebhook size="1rem" />}>
+              Webhook Management
+            </Tabs.Tab>
+            <Tabs.Tab value="events" leftSection={<IconCalendarEvent size="1rem" />}>
+              Event History
+            </Tabs.Tab>
+            <Tabs.Tab value="notifications" leftSection={<IconBell size="1rem" />}>
+              Notifications
+            </Tabs.Tab>
+            <Tabs.Tab value="info" leftSection={<IconInfoCircle size="1rem" />}>
+              System Info
+            </Tabs.Tab>
+          </Tabs.List>
 
-      {/* Feature Overview Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader
-              avatar={<WebhookIcon color="primary" />}
-              title="Webhook Management"
-              subheader="Configure & manage event subscriptions"
+          <TabPanel value={tabValue} index="webhooks">
+            <WebhookManagerMantine
+              onWebhookUpdate={handleWebhookUpdate}
+              onWebhookDelete={handleWebhookDelete}
             />
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Create, edit, and manage webhook configurations for receiving BBC TAMS events. 
-                Support for all standard event types with configurable retry logic and security.
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                <Chip label="Event Subscriptions" size="small" variant="outlined" />
-                <Chip label="Retry Logic" size="small" variant="outlined" />
-                <Chip label="Security" size="small" variant="outlined" />
-                <Chip label="Testing" size="small" variant="outlined" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          </TabPanel>
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader
-              avatar={<EventIcon color="secondary" />}
-              title="Event History"
-              subheader="Track & analyze webhook events"
+          <TabPanel value={tabValue} index="events">
+            <EventHistoryMantine
+              onEventSelect={handleEventSelect}
+              refreshInterval={30}
             />
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Comprehensive event history with filtering, search, and analytics. 
-                Monitor webhook delivery status and troubleshoot issues efficiently.
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                <Chip label="Event Tracking" size="small" variant="outlined" />
-                <Chip label="Filtering" size="small" variant="outlined" />
-                <Chip label="Analytics" size="small" variant="outlined" />
-                <Chip label="Export" size="small" variant="outlined" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          </TabPanel>
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader
-              avatar={<NotificationsIcon color="success" />}
-              title="Real-time Notifications"
-              subheader="Instant event notifications"
+          <TabPanel value={tabValue} index="notifications">
+            <NotificationCenterMantine
+              onNotificationAction={handleNotificationAction}
+              refreshInterval={15}
             />
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Real-time notification center with sound alerts, desktop notifications, 
-                and actionable notifications for immediate response to events.
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                <Chip label="Real-time" size="small" variant="outlined" />
-                <Chip label="Sound Alerts" size="small" variant="outlined" />
-                <Chip label="Desktop Notifications" size="small" variant="outlined" />
-                <Chip label="Actions" size="small" variant="outlined" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+          </TabPanel>
 
-      {/* Main Content Tabs */}
-      <Paper sx={{ width: '100%' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange} 
-            aria-label="BBC TAMS Event System tabs"
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <WebhookIcon />
-                  Webhooks
-                </Box>
-              } 
-              {...a11yProps(0)} 
-            />
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <EventIcon />
-                  Event History
-                </Box>
-              } 
-              {...a11yProps(1)} 
-            />
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <NotificationsIcon />
-                  Notifications
-                </Box>
-              } 
-              {...a11yProps(2)} 
-            />
-          </Tabs>
-        </Box>
-
-        {/* Webhook Management Tab */}
-        <TabPanel value={tabValue} index={0}>
-          <WebhookManager
-            onWebhookUpdate={handleWebhookUpdate}
-            onWebhookDelete={handleWebhookDelete}
-          />
-        </TabPanel>
-
-        {/* Event History Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <EventHistory
-            onEventSelect={handleEventSelect}
-            refreshInterval={30}
-          />
-        </TabPanel>
-
-        {/* Notifications Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <NotificationsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h5" color="text.secondary" gutterBottom>
-              Notification Center
-            </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              The notification center is available as a floating action button in the bottom-right corner.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Click the notification bell icon to open the notification drawer and manage your real-time alerts.
-            </Typography>
-          </Box>
-          
-          {/* Notification Center Component (rendered globally) */}
-          <NotificationCenter
-            onNotificationAction={handleNotificationAction}
-            refreshInterval={10}
-          />
-        </TabPanel>
+          <TabPanel value={tabValue} index="info">
+            <Card>
+              <Card.Section p="md">
+                <Title order={3} mb="md">System Information</Title>
+                <Group gap="md">
+                  <Badge color="green" variant="light">System Status: Operational</Badge>
+                  <Badge color="blue" variant="light">Version: 1.0.0</Badge>
+                  <Badge color="orange" variant="light">Last Updated: {new Date().toLocaleString()}</Badge>
+                </Group>
+              </Card.Section>
+              <Card.Section p="md">
+                <Alert icon={<IconInfoCircle size="1rem" />} title="BBC TAMS Event System" color="blue">
+                  This system provides comprehensive webhook management, event monitoring, and real-time notifications for the BBC TAMS platform.
+                </Alert>
+              </Card.Section>
+            </Card>
+          </TabPanel>
+        </Tabs>
       </Paper>
-
-      {/* BBC TAMS API Integration Notes */}
-      <Card sx={{ mt: 4 }}>
-        <CardHeader
-          title="BBC TAMS API Integration"
-          subheader="Implementation Notes & Next Steps"
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" gutterBottom>Current Implementation</Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                ✅ Webhook configuration management with BBC TAMS event types<br/>
-                ✅ Event history tracking and filtering<br/>
-                ✅ Real-time notification system with sound alerts<br/>
-                ✅ BBC TAMS v6.0 specification compliance
-              </Typography>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" gutterBottom>Next Steps</Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                🔄 Integrate with actual BBC TAMS API endpoints<br/>
-                🔄 Implement webhook signature verification<br/>
-                🔄 Add event replay and retry mechanisms<br/>
-                🔄 Implement notification preferences and user settings
-              </Typography>
-            </Grid>
-          </Grid>
-          
-          <Divider sx={{ my: 2 }} />
-          
-          <Typography variant="body2" color="text.secondary">
-            <strong>Note:</strong> This implementation provides a complete frontend foundation for the BBC TAMS Event System. 
-            The next phase involves backend integration and real-time event processing to enable actual webhook delivery 
-            and event streaming.
-          </Typography>
-        </CardContent>
-      </Card>
     </Box>
   );
 };

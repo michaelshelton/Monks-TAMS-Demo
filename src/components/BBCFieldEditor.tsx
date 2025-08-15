@@ -161,8 +161,16 @@ export default function BBCFieldEditor({
     // Check built-in validators
     const builtInValidator = fieldValidators[fieldKey as keyof typeof fieldValidators];
     if (builtInValidator) {
-      const validationError = builtInValidator(value);
-      if (validationError) return validationError;
+      // Type-safe validation based on field type
+      if (field.type === 'number' && typeof value === 'number') {
+        const validator = builtInValidator as (value: number) => string | null;
+        const validationError = validator(value);
+        if (validationError) return validationError;
+      } else if (field.type === 'text' && typeof value === 'string') {
+        const validator = builtInValidator as (value: string) => string | null;
+        const validationError = validator(value);
+        if (validationError) return validationError;
+      }
     }
 
     return null;
@@ -301,7 +309,7 @@ export default function BBCFieldEditor({
     const commonProps = {
       value: value || '',
       onChange: (newValue: any) => handleFieldChange(field.key, newValue),
-      disabled: disabled || isUpdating[field.key],
+      disabled: Boolean(disabled || isUpdating[field.key]),
       placeholder: field.placeholder,
       error: fieldErrors[field.key]
     };
@@ -318,11 +326,11 @@ export default function BBCFieldEditor({
       
       case 'boolean':
         return (
-          <Switch
-            checked={value || false}
-            onChange={(event) => handleFieldChange(field.key, event.currentTarget.checked)}
-            disabled={disabled || isUpdating[field.key]}
-          />
+                      <Switch
+              checked={value || false}
+              onChange={(event) => handleFieldChange(field.key, event.currentTarget.checked)}
+              disabled={Boolean(disabled || isUpdating[field.key])}
+            />
         );
       
       case 'tags':
@@ -333,13 +341,22 @@ export default function BBCFieldEditor({
                 <Chip
                   key={index}
                   checked={false}
-                  onClose={() => {
-                    const newTags = value.filter((_: string, i: number) => i !== index);
-                    handleFieldChange(field.key, newTags);
-                  }}
-                  disabled={disabled || isUpdating[field.key]}
+                  disabled={Boolean(disabled || isUpdating[field.key])}
                 >
-                  {tag}
+                  <Group gap="xs" align="center">
+                    {tag}
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onClick={() => {
+                        const newTags = value.filter((_: string, i: number) => i !== index);
+                        handleFieldChange(field.key, newTags);
+                      }}
+                    >
+                      <IconX size={10} />
+                    </ActionIcon>
+                  </Group>
                 </Chip>
               )) : null}
             </Group>
@@ -353,7 +370,7 @@ export default function BBCFieldEditor({
                   event.currentTarget.value = '';
                 }
               }}
-              disabled={disabled || isUpdating[field.key]}
+              disabled={Boolean(disabled || isUpdating[field.key])}
             />
           </Box>
         );
@@ -363,7 +380,7 @@ export default function BBCFieldEditor({
           <select
             value={value || ''}
             onChange={(event) => handleFieldChange(field.key, event.currentTarget.value)}
-            disabled={disabled || isUpdating[field.key]}
+            disabled={Boolean(disabled || isUpdating[field.key])}
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -373,7 +390,7 @@ export default function BBCFieldEditor({
             }}
           >
             <option value="">Select {field.label}</option>
-            {field.options?.map(option => (
+            {field.options?.map((option: any) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -388,7 +405,7 @@ export default function BBCFieldEditor({
 
   return (
     <>
-      <Card withBorder className={className}>
+      <Card withBorder {...(className ? { className } : {})}>
         <Stack gap="md">
           {/* Header */}
           <Group justify="space-between" align="center">
@@ -446,12 +463,12 @@ export default function BBCFieldEditor({
                         
                         {field.description && (
                           <Tooltip label={field.description}>
-                            <IconInfoCircle size={14} c="dimmed" />
+                            <IconInfoCircle size={14} color="dimmed" />
                           </Tooltip>
                         )}
                         
                         {hasError && (
-                          <IconAlertCircle size={14} c="red" />
+                          <IconAlertCircle size={14} color="red" />
                         )}
                       </Group>
                       
@@ -473,8 +490,8 @@ export default function BBCFieldEditor({
                             variant="light"
                             color="green"
                             onClick={() => handleFieldUpdate(field.key)}
-                            disabled={disabled || isUpdating[field.key]}
-                            loading={isUpdating[field.key]}
+                            disabled={Boolean(disabled || isUpdating[field.key])}
+                            loading={Boolean(isUpdating[field.key])}
                           >
                             <IconCheck size={14} />
                           </ActionIcon>
@@ -484,7 +501,7 @@ export default function BBCFieldEditor({
                             variant="light"
                             color="gray"
                             onClick={() => handleCancelEdit(field.key)}
-                            disabled={disabled || isUpdating[field.key]}
+                            disabled={Boolean(disabled || isUpdating[field.key])}
                           >
                             <IconX size={14} />
                           </ActionIcon>
@@ -495,7 +512,7 @@ export default function BBCFieldEditor({
                           variant="light"
                           color="blue"
                           onClick={() => setEditingField(field.key)}
-                          disabled={disabled}
+                          disabled={Boolean(disabled)}
                         >
                           <IconEdit size={14} />
                         </ActionIcon>
@@ -507,8 +524,8 @@ export default function BBCFieldEditor({
                           variant="light"
                           color="red"
                           onClick={() => handleFieldDelete(field.key)}
-                          disabled={disabled || isUpdating[field.key]}
-                          loading={isUpdating[field.key]}
+                          disabled={Boolean(disabled || isUpdating[field.key])}
+                          loading={Boolean(isUpdating[field.key])}
                         >
                           <IconTrash size={14} />
                         </ActionIcon>

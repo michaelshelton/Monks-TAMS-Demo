@@ -43,7 +43,7 @@ import {
   IconX,
   IconRefresh
 } from '@tabler/icons-react';
-import BBCAdvancedFilter from '../components/BBCAdvancedFilter';
+import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { apiClient } from '../services/api';
 
@@ -156,18 +156,13 @@ export default function Flows() {
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
   
   // BBC TAMS compliant filtering
-  const [bbcFilters, setBbcFilters] = useState({
+  const [bbcFilters, setBbcFilters] = useState<BBCFilterPatterns>({
     label: '',
     format: '',
     codec: '',
     tags: {},
     tagExists: {},
     timerange: '',
-    frame_width: undefined,
-    frame_height: undefined,
-    sample_rate: undefined,
-    bits_per_sample: undefined,
-    channels: undefined,
     page: '',
     limit: 50
   });
@@ -389,11 +384,6 @@ export default function Flows() {
       tags: {},
       tagExists: {},
       timerange: '',
-      frame_width: undefined,
-      frame_height: undefined,
-      sample_rate: undefined,
-      bits_per_sample: undefined,
-      channels: undefined,
       page: '',
       limit: 50
     });

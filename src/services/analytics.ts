@@ -10,7 +10,7 @@ export interface CMCDData {
   session_id: string;
   video_id?: string;
   compilation_id?: string;
-  event: 'play' | 'pause' | 'stop' | 'time_update' | 'qr_scan' | 'compilation_start' | 'compilation_complete';
+  event: 'play' | 'pause' | 'stop' | 'time_update' | 'qr_scan' | 'compilation_start' | 'compilation_complete' | 'quality_change' | 'seek' | 'cmcd_event';
   watch_time?: number;
   device_type: 'mobile' | 'desktop' | 'tablet';
   qr_scan?: boolean;

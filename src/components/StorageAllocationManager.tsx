@@ -201,7 +201,7 @@ export function StorageAllocationManager({
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + newAllocation.expires_in_hours * 60 * 60 * 1000).toISOString(),
         created_by: 'admin',
-        cors_enabled: newAllocation.cors_enabled
+        // cors_enabled is not part of StorageAllocation interface
       };
 
       if (onAllocate) {
@@ -634,7 +634,7 @@ export function StorageAllocationManager({
                 label="Storage Limit (bytes)"
                 placeholder="1000000000"
                 value={newAllocation.limit}
-                onChange={(value) => setNewAllocation({ ...newAllocation, limit: value || 0 })}
+                onChange={(value) => setNewAllocation({ ...newAllocation, limit: typeof value === 'number' ? value : 0 })}
                 min={0}
                 required
               />
@@ -644,7 +644,7 @@ export function StorageAllocationManager({
                 label="Expires In (hours)"
                 placeholder="24"
                 value={newAllocation.expires_in_hours}
-                onChange={(value) => setNewAllocation({ ...newAllocation, expires_in_hours: value || 24 })}
+                onChange={(value) => setNewAllocation({ ...newAllocation, expires_in_hours: typeof value === 'number' ? value : 24 })}
                 min={1}
                 required
               />
@@ -763,7 +763,7 @@ export function StorageAllocationManager({
                 label="Max Size (bytes)"
                 placeholder="1000000000000"
                 value={newBucket.max_size}
-                onChange={(value) => setNewBucket({ ...newBucket, max_size: value || 0 })}
+                onChange={(value) => setNewBucket({ ...newBucket, max_size: typeof value === 'number' ? value : 0 })}
                 min={0}
                 required
               />

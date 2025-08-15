@@ -77,7 +77,7 @@ const parseLinkHeader = (linkHeader: string): Record<string, string> => {
     const urlMatch = trimmed.match(/<([^>]+)>/);
     const relMatch = trimmed.match(/rel="([^"]+)"/);
     
-    if (urlMatch && relMatch) {
+    if (urlMatch && relMatch && relMatch[1] && urlMatch[1]) {
       links[relMatch[1]] = urlMatch[1];
     }
   });
@@ -161,14 +161,14 @@ const BBCPagination: React.FC<BBCPaginationProps> = ({
   };
 
   return (
-    <Box className={className}>
+    <Box {...(className ? { className } : {})}>
       {/* BBC TAMS Pagination Metadata */}
       {showBBCMetadata && (
         <Box mb="md" p="xs" bg="blue.0" style={{ borderRadius: '4px', border: '1px solid #dee2e6' }}>
           <Stack gap="xs">
             <Group gap="md" align="center">
               <IconInfoCircle size={16} color="#228be6" />
-              <Text size="sm" fw={500} c="blue">BBC TAMS Pagination Info</Text>
+              <Text size="sm" fw={500} color="blue">BBC TAMS Pagination Info</Text>
             </Group>
             
             <Group gap="lg" wrap="wrap">
@@ -189,7 +189,7 @@ const BBCPagination: React.FC<BBCPaginationProps> = ({
               {paginationMeta.timerange && (
                 <Group gap="xs">
                   <Text size="xs" fw={500}>Timerange:</Text>
-                  <Badge variant="outline" size="sm" fontFamily="monospace">
+                  <Badge variant="outline" size="sm" style={{ fontFamily: 'monospace' }}>
                     {paginationMeta.timerange}
                   </Badge>
                 </Group>
@@ -205,7 +205,7 @@ const BBCPagination: React.FC<BBCPaginationProps> = ({
               {paginationMeta.nextKey && (
                 <Group gap="xs">
                   <Text size="xs" fw={500}>Next Key:</Text>
-                  <Badge variant="outline" size="sm" fontFamily="monospace">
+                  <Badge variant="outline" size="sm" style={{ fontFamily: 'monospace' }}>
                     {paginationMeta.nextKey.substring(0, 8)}...
                   </Badge>
                 </Group>
@@ -248,7 +248,7 @@ const BBCPagination: React.FC<BBCPaginationProps> = ({
       <Group justify="space-between" align="center">
         {/* Left: Page Info */}
         <Group gap="md">
-          <Text size="sm" c="dimmed">
+          <Text size="sm" color="dimmed">
             Showing page {currentPage}
             {totalPages > 1 && ` of ${totalPages}`}
             {totalItems > 0 && ` (${totalItems} total items)`}

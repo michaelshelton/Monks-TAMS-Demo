@@ -35,7 +35,7 @@ import {
 import TimerangePicker from './TimerangePicker';
 
 // BBC TAMS Filter patterns
-interface BBCFilterPatterns {
+export interface BBCFilterPatterns {
   // Basic filters
   label?: string;
   format?: string;
@@ -173,8 +173,8 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
   };
 
   // Format-specific filter operations
-  const updateFormatSpecificFilter = (key: string, value: number | undefined) => {
-    updateFilters({ [key]: value });
+  const updateFormatSpecificFilter = (key: string, value: string | number) => {
+    updateFilters({ [key]: value === '' ? undefined : Number(value) });
   };
 
   // Reset all filters
@@ -229,7 +229,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
   ).length;
 
   return (
-    <Box className={className}>
+    <Box {...(className ? { className } : {})}>
       {/* Filter Header */}
       <Group justify="space-between" align="center" mb="md">
         <Group gap="xs">
@@ -274,7 +274,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
 
       {/* BBC TAMS Compliance Info */}
       <Alert icon={<IconInfoCircle size={16} />} title="BBC TAMS v6.0 Compliant" color="blue" mb="md">
-        This filter interface implements BBC TAMS specification patterns including tag.{name}, tag_exists.{name}, 
+        This filter interface implements BBC TAMS specification patterns including tag.name, tag_exists.name, 
         format-specific filters, and timerange filtering.
       </Alert>
 
@@ -298,7 +298,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                 placeholder="Select format"
                 data={availableFormats}
                 value={localFilters.format || ''}
-                onChange={(value) => updateFilters({ format: value || undefined })}
+                onChange={(value) => updateFilters({ format: value || '' })}
                 disabled={disabled}
                 style={{ flex: 1 }}
                 clearable
@@ -309,7 +309,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                 placeholder="Select codec"
                 data={availableCodecs}
                 value={localFilters.codec || ''}
-                onChange={(value) => updateFilters({ codec: value || undefined })}
+                onChange={(value) => updateFilters({ codec: value || '' })}
                 disabled={disabled}
                 style={{ flex: 1 }}
                 clearable
@@ -338,7 +338,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
               
               {/* Tag Value Filters */}
               <Box mb="md">
-                <Text size="sm" c="dimmed" mb="xs">Filter by tag values (tag.{name} = value)</Text>
+                <Text size="sm" color="dimmed" mb="xs">Filter by tag values (tag.name = value)</Text>
                 <Group gap="xs" align="flex-end">
                   <TextInput
                     placeholder="Tag name"
@@ -373,9 +373,11 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                         checked={true}
                         variant="filled"
                         onClick={() => removeTagFilter(key)}
-                        rightSection={<IconX size={12} />}
                       >
-                        {key}={value}
+                        <Group gap="xs" align="center">
+                          {key}={value}
+                          <IconX size={12} />
+                        </Group>
                       </Chip>
                     ))}
                   </Group>
@@ -384,7 +386,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
 
               {/* Tag Existence Filters */}
               <Box>
-                <Text size="sm" c="dimmed" mb="xs">Filter by tag existence (tag_exists.{name} = true/false)</Text>
+                <Text size="sm" color="dimmed" mb="xs">Filter by tag existence (tag_exists.name = true/false)</Text>
                 <Group gap="xs" align="flex-end">
                   <TextInput
                     placeholder="Tag name"
@@ -418,9 +420,11 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                         checked={true}
                         variant="filled"
                         onClick={() => removeTagExistsFilter(key)}
-                        rightSection={<IconX size={12} />}
                       >
-                        {key} {value ? 'exists' : 'missing'}
+                        <Group gap="xs" align="center">
+                          {key} {value ? 'exists' : 'missing'}
+                          <IconX size={12} />
+                        </Group>
                       </Chip>
                     ))}
                   </Group>
@@ -440,7 +444,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   label="Frame Width"
                   placeholder="1920"
                   min={1}
-                  value={localFilters.frame_width || undefined}
+                  value={localFilters.frame_width || ''}
                   onChange={(value) => updateFormatSpecificFilter('frame_width', value)}
                   disabled={disabled}
                   style={{ flex: 1 }}
@@ -450,7 +454,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   label="Frame Height"
                   placeholder="1080"
                   min={1}
-                  value={localFilters.frame_height || undefined}
+                  value={localFilters.frame_height || ''}
                   onChange={(value) => updateFormatSpecificFilter('frame_height', value)}
                   disabled={disabled}
                   style={{ flex: 1 }}
@@ -461,7 +465,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   label="Sample Rate (Hz)"
                   placeholder="48000"
                   min={1}
-                  value={localFilters.sample_rate || undefined}
+                  value={localFilters.sample_rate || ''}
                   onChange={(value) => updateFormatSpecificFilter('sample_rate', value)}
                   disabled={disabled}
                   style={{ flex: 1 }}
@@ -471,7 +475,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   label="Bits Per Sample"
                   placeholder="16"
                   min={1}
-                  value={localFilters.bits_per_sample || undefined}
+                  value={localFilters.bits_per_sample || ''}
                   onChange={(value) => updateFormatSpecificFilter('bits_per_sample', value)}
                   disabled={disabled}
                   style={{ flex: 1 }}
@@ -481,7 +485,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   label="Channels"
                   placeholder="2"
                   min={1}
-                  value={localFilters.channels || undefined}
+                  value={localFilters.channels || ''}
                   onChange={(value) => updateFormatSpecificFilter('channels', value)}
                   disabled={disabled}
                   style={{ flex: 1 }}
@@ -509,8 +513,8 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
                   placeholder="50"
                   min={1}
                   max={1000}
-                  value={localFilters.limit || undefined}
-                  onChange={(value) => updateFilters({ limit: value })}
+                  value={localFilters.limit || ''}
+                  onChange={(value) => updateFilters({ limit: value === '' ? 50 : Number(value) })}
                   disabled={disabled}
                   style={{ flex: 1 }}
                 />
@@ -521,7 +525,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
           {/* Generated Query String */}
           <Box p="xs" bg="gray.0" style={{ borderRadius: '4px', border: '1px solid #dee2e6' }}>
             <Text size="sm" fw={500} mb="xs">Generated BBC Filter Query:</Text>
-            <Text size="sm" fontFamily="monospace" bg="white" px="xs" py="2px" style={{ borderRadius: '2px' }}>
+            <Text size="sm" style={{ fontFamily: 'monospace', backgroundColor: 'white', padding: '2px 8px', borderRadius: '2px' }}>
               {generateFilterQuery() || 'No filters applied'}
             </Text>
           </Box>

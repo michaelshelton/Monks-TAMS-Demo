@@ -81,7 +81,7 @@ export default function TimerangePicker({
       };
     };
 
-    const start = parseTimePart(startPart);
+    const start = parseTimePart(startPart || '0:0');
     let end: TimeValue | null = null;
     let infinite = false;
 

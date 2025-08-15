@@ -18,7 +18,7 @@ import {
 import { IconInfoCircle, IconClock, IconFilter, IconList, IconEdit, IconFolders, IconDatabase, IconActivity, IconVideo } from '@tabler/icons-react';
 import TimerangePicker from '../components/TimerangePicker';
 import BBCPagination from '../components/BBCPagination';
-import BBCAdvancedFilter from '../components/BBCAdvancedFilter';
+import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import TimelineNavigator from '../components/TimelineNavigator';
 import TemporalFilter from '../components/TemporalFilter';
 import BBCFieldEditor from '../components/BBCFieldEditor';
@@ -83,18 +83,13 @@ export default function BBCDemo() {
   });
   
   // BBC filter state
-  const [bbcFilters, setBbcFilters] = useState({
+  const [bbcFilters, setBbcFilters] = useState<BBCFilterPatterns>({
     label: '',
     format: '',
     codec: '',
     tags: {},
     tagExists: {},
     timerange: '',
-    frame_width: undefined as number | undefined,
-    frame_height: undefined as number | undefined,
-    sample_rate: undefined as number | undefined,
-    bits_per_sample: undefined as number | undefined,
-    channels: undefined as number | undefined,
     page: '',
     limit: 50
   });
@@ -131,11 +126,6 @@ export default function BBCDemo() {
       tags: {},
       tagExists: {},
       timerange: '',
-      frame_width: undefined,
-      frame_height: undefined,
-      sample_rate: undefined,
-      bits_per_sample: undefined,
-      channels: undefined,
       page: '',
       limit: 50
     });
@@ -153,7 +143,7 @@ export default function BBCDemo() {
           <Title order={1} mb="md">BBC TAMS v6.0 Compliance Demo</Title>
           <Text size="lg" c="dimmed">
             This page demonstrates the BBC TAMS API compliant components we've implemented, 
-            showcasing how your frontend now aligns with the official BBC TAMS specification.
+            showcasing how the application aligns with the official BBC TAMS specification.
           </Text>
         </Box>
 
@@ -221,7 +211,7 @@ export default function BBCDemo() {
                 <Box>
                   <Title order={3} mb="sm">BBC TAMS Implementation Overview</Title>
                   <Text size="sm" c="dimmed" mb="md">
-                    Here's what we've implemented to align with the BBC TAMS API specification
+                    Here's what is implemented to align with the BBC TAMS API specification
                   </Text>
                 </Box>
 
@@ -278,8 +268,8 @@ export default function BBCDemo() {
                   <Text fw={500} mb="xs">📚 BBC TAMS API Compliance:</Text>
                   <Text size="sm" c="dimmed">
                     Our components now generate exactly the same query parameters and handle the same 
-                    response formats as specified in the BBC TAMS API v6.0 specification. This means 
-                    your frontend can work with any BBC TAMS compliant backend, not just VAST TAMS.
+                    response formats as specified in the BBC TAMS API v6.0 specification. This 
+                    can work with any BBC TAMS compliant backend, not just VAST TAMS.
                   </Text>
                 </Box>
 
@@ -607,7 +597,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         
                         // Update local state
                         setDemoSource(prev => {
-                          const newState = { ...prev };
+                          const newState = { ...prev } as any;
                           delete newState[fieldKey];
                           return newState;
                         });
@@ -617,8 +607,18 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         // Simulate API call
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         
-                        // Update local state
-                        setDemoSource(allData);
+                        // Update local state with proper typing
+                        setDemoSource({
+                          id: allData.id || demoSource.id,
+                          label: allData.label || demoSource.label,
+                          description: allData.description || demoSource.description,
+                          format: allData.format || demoSource.format,
+                          maxBitRate: allData.maxBitRate || demoSource.maxBitRate,
+                          frameWidth: allData.frameWidth || demoSource.frameWidth,
+                          frameHeight: allData.frameHeight || demoSource.frameHeight,
+                          tags: allData.tags || demoSource.tags,
+                          readOnly: allData.readOnly || demoSource.readOnly
+                        });
                         return true; // Success
                       }}
                       showOptimisticUpdates={true}
@@ -723,7 +723,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         
                         // Update local state
                         setDemoFlow(prev => {
-                          const newState = { ...prev };
+                          const newState = { ...prev } as any;
                           delete newState[fieldKey];
                           return newState;
                         });
@@ -733,8 +733,20 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         // Simulate API call
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         
-                        // Update local state
-                        setDemoFlow(allData);
+                        // Update local state with proper typing
+                        setDemoFlow({
+                          id: allData.id || demoFlow.id,
+                          label: allData.label || demoFlow.label,
+                          description: allData.description || demoFlow.description,
+                          format: allData.format || demoFlow.format,
+                          maxBitRate: allData.maxBitRate || demoFlow.maxBitRate,
+                          frameWidth: allData.frameWidth || demoFlow.frameWidth,
+                          frameHeight: allData.frameHeight || demoFlow.frameHeight,
+                          sampleRate: allData.sampleRate || demoFlow.sampleRate,
+                          channels: allData.channels || demoFlow.channels,
+                          tags: allData.tags || demoFlow.tags,
+                          readOnly: allData.readOnly || demoFlow.readOnly
+                        });
                         return true; // Success
                       }}
                       showOptimisticUpdates={true}
@@ -865,6 +877,8 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                 <BBCAdvancedFilter
                   filters={bbcFilters}
                   onFiltersChange={setBbcFilters}
+                  onReset={handleBbcFiltersReset}
+                  onApply={handleBbcFiltersApply}
                 />
               </Stack>
             </Card>
@@ -958,12 +972,12 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                   </Text>
                 </Alert>
 
-                <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Box style={{ textAlign: 'center', padding: '16px 0' }}>
                   <Text size="lg" c="dimmed">
                     The notification center is available as a floating action button in the bottom-right corner.
                   </Text>
                   <Text size="sm" c="dimmed" mt="xs">
-                    Click the notification bell icon to open the notification drawer and manage your real-time alerts.
+                    Click the notification bell icon to open the notification drawer and manage real-time alerts.
                   </Text>
                 </Box>
                 

@@ -28,7 +28,6 @@ import {
   IconChevronUp,
   IconInfoCircle,
   IconCalendar,
-  IconTime,
   IconRefresh
 } from '@tabler/icons-react';
 import TimerangePicker from './TimerangePicker';
@@ -43,12 +42,12 @@ interface TemporalFilterProps {
     endTime?: string;
     
     // Duration filters
-    minDuration?: number;
-    maxDuration?: number;
+    minDuration?: number | undefined;
+    maxDuration?: number | undefined;
     
     // Sample-level filters
-    sampleOffset?: number;
-    sampleCount?: number;
+    sampleOffset?: number | undefined;
+    sampleCount?: number | undefined;
     
     // Temporal patterns
     temporalPattern?: 'continuous' | 'segmented' | 'intermittent' | 'any';
@@ -137,21 +136,21 @@ export default function TemporalFilter({
   }, [updateFilter]);
 
   // Handle duration range changes
-  const handleMinDurationChange = useCallback((value: number | '') => {
-    updateFilter('minDuration', value === '' ? undefined : value);
+  const handleMinDurationChange = useCallback((value: string | number) => {
+    updateFilter('minDuration', value === '' ? undefined : Number(value));
   }, [updateFilter]);
 
-  const handleMaxDurationChange = useCallback((value: number | '') => {
-    updateFilter('maxDuration', value === '' ? undefined : value);
+  const handleMaxDurationChange = useCallback((value: string | number) => {
+    updateFilter('maxDuration', value === '' ? undefined : Number(value));
   }, [updateFilter]);
 
   // Handle sample-level controls
-  const handleSampleOffsetChange = useCallback((value: number | '') => {
-    updateFilter('sampleOffset', value === '' ? undefined : value);
+  const handleSampleOffsetChange = useCallback((value: string | number) => {
+    updateFilter('sampleOffset', value === '' ? undefined : Number(value));
   }, [updateFilter]);
 
-  const handleSampleCountChange = useCallback((value: number | '') => {
-    updateFilter('sampleCount', value === '' ? undefined : value);
+  const handleSampleCountChange = useCallback((value: string | number) => {
+    updateFilter('sampleCount', value === '' ? undefined : Number(value));
   }, [updateFilter]);
 
   // Handle temporal pattern change
@@ -255,7 +254,7 @@ export default function TemporalFilter({
   }, [filters.timeTags]);
 
   return (
-    <Card withBorder className={className}>
+    <Card withBorder {...(className ? { className } : {})}>
       <Stack gap="md">
         {/* Header */}
         <Group justify="space-between" align="center">
@@ -341,7 +340,7 @@ export default function TemporalFilter({
             <Box>
               <Text size="sm" fw={500} mb="xs">Min Duration (seconds)</Text>
               <NumberInput
-                value={filters.minDuration}
+                value={filters.minDuration || ''}
                 onChange={handleMinDurationChange}
                 placeholder="0"
                 min={0}
@@ -352,7 +351,7 @@ export default function TemporalFilter({
             <Box>
               <Text size="sm" fw={500} mb="xs">Max Duration (seconds)</Text>
               <NumberInput
-                value={filters.maxDuration}
+                value={filters.maxDuration || ''}
                 onChange={handleMaxDurationChange}
                 placeholder="3600"
                 min={0}
@@ -373,7 +372,7 @@ export default function TemporalFilter({
                 <Box>
                   <Text size="sm" fw={500} mb="xs">Sample Offset</Text>
                   <NumberInput
-                    value={filters.sampleOffset}
+                    value={filters.sampleOffset || ''}
                     onChange={handleSampleOffsetChange}
                     placeholder="0"
                     min={0}
@@ -384,7 +383,7 @@ export default function TemporalFilter({
                 <Box>
                   <Text size="sm" fw={500} mb="xs">Sample Count</Text>
                   <NumberInput
-                    value={filters.sampleCount}
+                    value={filters.sampleCount || ''}
                     onChange={handleSampleCountChange}
                     placeholder="1500"
                     min={1}

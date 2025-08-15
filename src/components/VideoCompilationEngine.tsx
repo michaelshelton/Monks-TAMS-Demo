@@ -281,7 +281,7 @@ export default function VideoCompilationEngine({ segments }: VideoCompilationEng
               title={`Compiled Video: ${firstSegment.id}`}
               description={`Compiled from ${segments.length} segments`}
               videoDuration={getSegmentDuration(firstSegment)}
-              onQRScan={handleQRGenerated}
+              onQRScan={() => handleQRGenerated({})}
             />
           )}
 

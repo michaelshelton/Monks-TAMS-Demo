@@ -66,7 +66,7 @@ interface CMCDData {
   dt: 's' | 't' | 'c' | 'h'; // Device type (smartphone, tablet, console, handheld)
   tb: number; // Top bitrate
   bl: number; // Buffer length
-  bs: boolean; // Buffer starvation
+  bs_device: boolean; // Buffer starvation (device)
   cid: string; // Content ID
   pr: number; // Playback rate
   sf: string; // Stream format
@@ -98,62 +98,65 @@ export default function VideoPlayerWithAnalytics({
 
   // Initialize CMCD data
   useEffect(() => {
-    if (videoRef.current) {
-      const video = videoRef.current;
-      
-      // Set up CMCD data collection
-      const updateCMCDData = () => {
-        const newCmcdData: CMCDData = {
-          ot: 'v', // Object type: video
-          d: duration,
-          br: 0, // Will be updated when metadata is available
-          w: 0, // Will be updated when metadata is available
-          h: 0, // Will be updated when metadata is available
-          f: 0, // Will be updated when metadata is available
-          sr: 0, // Not applicable for video
-          ch: 0, // Not applicable for video
-          su: true, // Start up
-          nor: '',
-          nrr: '',
-          bu: '',
-          bs: false,
-          rtp: 0,
-          dl: 0,
-          mtp: 0,
-          dt: /mobile|android|iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase()) ? 's' : 'c',
-          tb: 0,
-          bl: 0,
-          cid: videoId,
-          pr: 1,
-          sf: 'dash', // Assuming DASH for BBC TAMS
-          sid: analyticsService.getSessionId(),
-          st: 'v', // VOD
-          v: 1
-        };
-        
-        setCmcdData(newCmcdData);
-      };
-
-      // Update CMCD data when metadata is loaded
-      const handleLoadedMetadata = () => {
-        if (video.videoWidth && video.videoHeight) {
-          setCmcdData(prev => prev ? {
-            ...prev,
-            w: video.videoWidth,
-            h: video.videoHeight,
-            f: 30, // Default frame rate, could be extracted from metadata
-            br: Math.round((video.duration * 8 * 1024) / 1000) // Rough bitrate calculation
-          } : null);
-        }
-      };
-
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      updateCMCDData();
-
-      return () => {
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
+    if (!videoRef.current) {
+      return;
     }
+    
+    const video = videoRef.current;
+    
+    // Set up CMCD data collection
+    const updateCMCDData = () => {
+      const newCmcdData: CMCDData = {
+        ot: 'v', // Object type: video
+        d: duration,
+        br: 0, // Will be updated when metadata is available
+        w: 0, // Will be updated when metadata is available
+        h: 0, // Will be updated when metadata is available
+        f: 0, // Will be updated when metadata is available
+        sr: 0, // Not applicable for video
+        ch: 0, // Not applicable for video
+        su: true, // Start up
+        nor: '',
+        nrr: '',
+        bu: '',
+        bs: false,
+        rtp: 0,
+        dl: 0,
+        mtp: 0,
+        dt: /mobile|android|iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase()) ? 's' : 'c',
+        tb: 0,
+        bl: 0,
+        bs_device: false,
+        cid: videoId,
+        pr: 1,
+        sf: 'dash', // Assuming DASH for BBC TAMS
+        sid: analyticsService.getSessionId(),
+        st: 'v', // VOD
+        v: 1
+      };
+      
+      setCmcdData(newCmcdData);
+    };
+
+    // Update CMCD data when metadata is loaded
+    const handleLoadedMetadata = () => {
+      if (video.videoWidth && video.videoHeight) {
+        setCmcdData(prev => prev ? {
+          ...prev,
+          w: video.videoWidth,
+          h: video.videoHeight,
+          f: 30, // Default frame rate, could be extracted from metadata
+          br: Math.round((video.duration * 8 * 1024) / 1000) // Rough bitrate calculation
+        } : null);
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    updateCMCDData();
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
   }, [videoId, duration]);
 
   // Enhanced analytics tracking with CMCD
@@ -308,27 +311,27 @@ export default function VideoPlayerWithAnalytics({
           <SimpleGrid cols={2} spacing="xs">
             <Box>
               <Text size="xs" c="dimmed">Object Type</Text>
-              <Code size="xs">{cmcdData.ot}</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.ot}</Code>
             </Box>
             <Box>
               <Text size="xs" c="dimmed">Duration</Text>
-              <Code size="xs">{cmcdData.d}s</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.d}s</Code>
             </Box>
             <Box>
               <Text size="xs" c="dimmed">Resolution</Text>
-              <Code size="xs">{cmcdData.w}x{cmcdData.h}</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.w}x{cmcdData.h}</Code>
             </Box>
             <Box>
               <Text size="xs" c="dimmed">Frame Rate</Text>
-              <Code size="xs">{cmcdData.f}fps</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.f}fps</Code>
             </Box>
             <Box>
               <Text size="xs" c="dimmed">Device Type</Text>
-              <Code size="xs">{cmcdData.dt}</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.dt}</Code>
             </Box>
             <Box>
               <Text size="xs" c="dimmed">Session ID</Text>
-              <Code size="xs">{cmcdData.sid}</Code>
+              <Code style={{ fontSize: '0.75rem' }}>{cmcdData.sid}</Code>
             </Box>
           </SimpleGrid>
         </Card>
@@ -378,7 +381,7 @@ export default function VideoPlayerWithAnalytics({
             onSeeked={handleSeeked}
             onLoadedData={handleLoadedData}
             onVolumeChange={handleVolumeChange}
-            onFullscreenChange={handleFullscreenChange}
+
             controls
           />
         </Box>

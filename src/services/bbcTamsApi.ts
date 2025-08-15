@@ -50,11 +50,15 @@ export function parseLinkHeader(linkHeader: string): BBCLinkHeader[] {
       let paramMatch;
       while ((paramMatch = paramRegex.exec(paramsString)) !== null) {
         const [, key, value] = paramMatch;
-        params[key] = value;
+        if (key && value) {
+          params[key] = value;
+        }
       }
     }
     
-    links.push({ url, rel, params });
+    if (url && rel) {
+      links.push({ url, rel, params });
+    }
   }
   
   return links;
@@ -62,14 +66,30 @@ export function parseLinkHeader(linkHeader: string): BBCLinkHeader[] {
 
 // Parse BBC TAMS response headers for pagination metadata
 export function parseBBCHeaders(headers: Headers): BBCPaginationMeta {
-  return {
-    link: headers.get('Link') || undefined,
-    limit: parseInt(headers.get('X-Paging-Limit') || '0') || undefined,
-    nextKey: headers.get('X-Paging-NextKey') || undefined,
-    timerange: headers.get('X-Paging-Timerange') || undefined,
-    count: parseInt(headers.get('X-Paging-Count') || '0') || undefined,
-    reverseOrder: headers.get('X-Paging-ReverseOrder') === 'true'
+  const linkHeader = headers.get('Link');
+  const limitHeader = headers.get('X-Paging-Limit');
+  const nextKeyHeader = headers.get('X-Paging-NextKey');
+  const timerangeHeader = headers.get('X-Paging-Timerange');
+  const countHeader = headers.get('X-Paging-Count');
+  const reverseOrderHeader = headers.get('X-Paging-ReverseOrder');
+  
+  const result: BBCPaginationMeta = {
+    reverseOrder: reverseOrderHeader === 'true'
   };
+  
+  if (linkHeader) result.link = linkHeader;
+  if (limitHeader) {
+    const limit = parseInt(limitHeader);
+    if (!isNaN(limit)) result.limit = limit;
+  }
+  if (nextKeyHeader) result.nextKey = nextKeyHeader;
+  if (timerangeHeader) result.timerange = timerangeHeader;
+  if (countHeader) {
+    const count = parseInt(countHeader);
+    if (!isNaN(count)) result.count = count;
+  }
+  
+  return result;
 }
 
 // Build BBC TAMS query string from options

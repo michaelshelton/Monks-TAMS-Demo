@@ -174,7 +174,7 @@ export default function TimelineNavigator({
   }, [duration]);
 
   return (
-    <Card withBorder className={className}>
+    <Card withBorder {...(className ? { className } : {})}>
       <Stack gap="md">
         {/* Header */}
         <Group justify="space-between" align="center">

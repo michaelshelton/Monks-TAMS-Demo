@@ -261,7 +261,7 @@ export function formatValidationErrors(errors: string[]): string {
   if (errors.length === 0) return '';
   
   if (errors.length === 1) {
-    return errors[0];
+    return errors[0] || '';
   }
   
   return errors.map((error, index) => `${index + 1}. ${error}`).join('\n');
