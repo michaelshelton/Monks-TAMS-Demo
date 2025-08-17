@@ -364,10 +364,10 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
   }
 }
 
-// Use proxy in development, full URL in production
+// Use proxy in development, Vercel proxy in production
 const API_BASE_URL = import.meta.env.DEV 
   ? '/api'  // Use Vite dev server proxy
-  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+  : '/api/proxy'; // Use Vercel proxy in production
 
 // Get specific flow details for video playback
 export async function getFlowDetails(flowId: string): Promise<any> {

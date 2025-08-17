@@ -4,6 +4,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/proxy/(.*)",
+      "destination": "https://34.216.9.25:8000/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
