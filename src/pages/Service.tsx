@@ -177,7 +177,7 @@ interface Webhook {
 // Mock data
 const mockServiceInfo: ServiceInfo = {
   name: 'TAMS API',
-  description: 'Time-addressable Media Store API',
+  description: 'Time-addressable Media Store API with VAST database integration and S3 object storage',
   type: 'urn:x-tams:service:api',
   api_version: '6.0',
   service_version: '1.0.0',
@@ -187,11 +187,11 @@ const mockServiceInfo: ServiceInfo = {
   event_stream_mechanisms: [
     {
       name: 'webhooks',
-      description: 'HTTP webhooks for event notifications'
+      description: 'HTTP webhooks for event notifications on flows, sources, and objects'
     },
     {
       name: 'server-sent-events',
-      description: 'Server-Sent Events for real-time updates'
+      description: 'Server-Sent Events for real-time updates and monitoring'
     }
   ],
   status: 'healthy',
@@ -257,7 +257,7 @@ const mockWebhooks: Webhook[] = [
     url: 'https://analytics.example.com/webhook',
     api_key_name: 'X-API-Key',
     api_key_value: 'sk_1234567890abcdef',
-    events: ['flow.created', 'flow.updated', 'segment.created'],
+    events: ['flow.created', 'flow.updated', 'source.created'],
     status: 'active',
     last_triggered: '2024-01-15T10:25:00Z',
     success_count: 156,
@@ -271,7 +271,7 @@ const mockWebhooks: Webhook[] = [
     url: 'https://monitoring.example.com/events',
     api_key_name: 'Authorization',
     api_key_value: 'Bearer token_1234567890',
-    events: ['flow.deleted', 'segment.deleted', 'error.occurred'],
+    events: ['flow.deleted', 'source.deleted', 'error.occurred'],
     status: 'active',
     last_triggered: '2024-01-15T10:28:00Z',
     success_count: 89,
@@ -324,17 +324,17 @@ const availableEvents = [
   'flow.created',
   'flow.updated',
   'flow.deleted',
-  'segment.created',
-  'segment.updated',
-  'segment.deleted',
-  'object.created',
-  'object.deleted',
   'source.created',
   'source.updated',
   'source.deleted',
+  'object.created',
+  'object.deleted',
   'error.occurred',
   'system.warning',
-  'system.maintenance'
+  'system.maintenance',
+  'webhook.created',
+  'webhook.updated',
+  'webhook.deleted'
 ];
 
 export default function Service() {
@@ -442,6 +442,8 @@ export default function Service() {
     setSelectedWebhook(null);
   };
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   return (
     <Container size="xl" px="xl" py="xl">
       {/* Header */}
@@ -488,7 +490,7 @@ export default function Service() {
         </Text>
         <Text size="sm" mt="xs">
           • <strong>Service Overview</strong> - Basic service information and configuration<br/>
-          • <strong>Webhook Management</strong> - Event notification system configuration<br/>
+          • <strong>Webhook Management</strong> - Event notification system for flows, sources, and objects<br/>
           • <strong>BBC TAMS Compliance</strong> - 100% specification adherence monitoring<br/>
           • <strong>Health & Monitoring</strong> - Real-time system health and performance metrics<br/>
           • <strong>Settings</strong> - General and security configuration options<br/>
@@ -1027,13 +1029,13 @@ export default function Service() {
             {/* Real-time Health Monitoring */}
             <Card withBorder p="xl">
               <Title order={4} mb="lg">Real-Time System Health</Title>
-              <HealthStatusIndicator showDetails={true} refreshInterval={15000} />
+              <HealthStatusIndicator showDetails={true} refreshInterval={60000} /> {/* Refresh every minute instead of every 15 seconds */}
             </Card>
             
             {/* System Metrics Dashboard */}
             <Card withBorder p="xl">
               <Title order={4} mb="lg">System Performance Metrics</Title>
-              <SystemMetricsDashboard refreshInterval={30000} />
+              <SystemMetricsDashboard refreshInterval={60000} /> {/* Refresh every minute instead of every 30 seconds */}
             </Card>
 
             {/* Health Status Overview */}
@@ -1177,9 +1179,9 @@ export default function Service() {
                 <Text size="sm" fw={500} mb="xs">API Base URL</Text>
                 <Group gap="xs">
                   <Text size="sm" style={{ fontFamily: 'monospace' }}>
-                    http://localhost:8000
+                    {API_BASE_URL}
                   </Text>
-                  <CopyButton value="http://localhost:8000">
+                  <CopyButton value={API_BASE_URL}>
                     {({ copied, copy }) => (
                       <ActionIcon color={copied ? 'teal' : 'gray'} onClick={copy}>
                         {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}

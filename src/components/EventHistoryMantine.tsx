@@ -76,7 +76,7 @@ interface EventHistoryMantineProps {
 
 export const EventHistoryMantine: React.FC<EventHistoryMantineProps> = ({
   onEventSelect,
-  refreshInterval = 30
+  refreshInterval = 60 // Refresh every minute instead of every 30 seconds
 }) => {
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<WebhookEvent[]>([]);

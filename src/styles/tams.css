@@ -1,0 +1,181 @@
+/* TAMS Clean Theme - Stock Appearance */
+/* Minimal styling to override any dark theme remnants */
+
+/* Reset any dark theme variables */
+:root {
+  /* Ensure clean, light appearance */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #ffffff;
+  --text-primary: #1a1b1e;
+  --text-secondary: #495057;
+  --text-tertiary: #6c757d;
+}
+
+/* Override any dark backgrounds */
+body {
+  background-color: #ffffff !important;
+  color: #1a1b1e !important;
+}
+
+/* Clean up any dark theme classes that might still be used */
+.dark-bg-primary,
+.dark-bg-secondary,
+.dark-bg-tertiary {
+  background-color: #ffffff !important;
+}
+
+.dark-text-primary {
+  color: #1a1b1e !important;
+}
+
+.dark-text-secondary {
+  color: #495057 !important;
+}
+
+.dark-text-tertiary {
+  color: #6c757d !important;
+}
+
+.dark-modal,
+.dark-info-box {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+.dark-button {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  color: #495057 !important;
+}
+
+.dark-button.primary {
+  background-color: #228be6 !important;
+  border-color: #228be6 !important;
+  color: #ffffff !important;
+}
+
+.dark-button.success {
+  background-color: #40c057 !important;
+  border-color: #40c057 !important;
+  color: #ffffff !important;
+}
+
+.dark-video-timeline {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+/* Ensure clean table appearance */
+.mantine-Table-root {
+  background-color: #ffffff !important;
+}
+
+.mantine-Table-th {
+  background-color: #f8f9fa !important;
+  color: #495057 !important;
+}
+
+.mantine-Table-td {
+  background-color: #ffffff !important;
+  color: #1a1b1e !important;
+}
+
+/* Clean card appearance */
+.mantine-Card-root {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+/* Clean modal appearance */
+.mantine-Modal-root {
+  background-color: #ffffff !important;
+}
+
+.mantine-Modal-header {
+  background-color: #f8f9fa !important;
+}
+
+/* Clean button appearance */
+.mantine-Button-root {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  color: #495057 !important;
+}
+
+.mantine-Button-root[data-variant="filled"] {
+  background-color: #228be6 !important;
+  border-color: #228be6 !important;
+  color: #ffffff !important;
+}
+
+/* Clean input appearance */
+.mantine-Input-root {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+  color: #1a1b1e !important;
+}
+
+.mantine-Input-input {
+  background-color: #ffffff !important;
+  color: #1a1b1e !important;
+}
+
+/* Clean select appearance */
+.mantine-Select-dropdown {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+.mantine-Select-item {
+  background-color: #ffffff !important;
+  color: #1a1b1e !important;
+}
+
+.mantine-Select-item:hover {
+  background-color: #f8f9fa !important;
+}
+
+/* Clean navigation appearance */
+.mantine-AppShell-header {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #dee2e6 !important;
+}
+
+.mantine-AppShell-navbar {
+  background-color: #f8f9fa !important;
+  border-right: 1px solid #dee2e6 !important;
+}
+
+/* Clean badge appearance */
+.mantine-Badge-root {
+  background-color: #e9ecef !important;
+  color: #495057 !important;
+}
+
+/* Clean alert appearance */
+.mantine-Alert-root {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+/* Clean tooltip appearance */
+.mantine-Tooltip-root {
+  background-color: #495057 !important;
+  color: #ffffff !important;
+}
+
+/* Clean menu appearance */
+.mantine-Menu-dropdown {
+  background-color: #ffffff !important;
+  border: 1px solid #dee2e6 !important;
+}
+
+.mantine-Menu-item {
+  background-color: #ffffff !important;
+  color: #1a1b1e !important;
+}
+
+.mantine-Menu-item:hover {
+  background-color: #f8f9fa !important;
+}

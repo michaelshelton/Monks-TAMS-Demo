@@ -4,9 +4,11 @@ import Landing from './pages/Landing';
 import Flows from './pages/Flows';
 import FlowDetails from './pages/FlowDetails';
 import Sources from './pages/Sources';
+import SourceDetails from './pages/SourceDetails';
 import Analytics from './pages/Analytics';
 import Service from './pages/Service';
 import Search from './pages/Search';
+import SearchResults from './pages/SearchResults';
 import Upload from './pages/Upload';
 import VideoCompilation from './pages/VideoCompilation';
 import Observability from './pages/Observability';
@@ -140,9 +142,11 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/sources" element={<Sources />} />
+          <Route path="/source-details/:sourceId" element={<SourceDetails />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/flow-details/:flowId" element={<FlowDetails />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/search-results" element={<SearchResults />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/video-compilation" element={<VideoCompilation />} />
           <Route path="/analytics" element={<Analytics />} />

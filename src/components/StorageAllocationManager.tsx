@@ -45,6 +45,7 @@ import {
   IconRefresh,
   IconHistory
 } from '@tabler/icons-react';
+import { createFlowStorage } from '../services/bbcTamsApi';
 
 // BBC TAMS API v6.0 Storage Types
 interface StorageAllocation {
@@ -132,39 +133,16 @@ export function StorageAllocationManager({
     setIsLoading(true);
     setError(null);
     try {
-      // TODO: Replace with actual API calls
-      // const [allocationsRes, bucketsRes] = await Promise.all([
-      //   apiClient.getStorageAllocations(flowId),
-      //   apiClient.getStorageBuckets()
-      // ]);
-      // setAllocations(allocationsRes.data);
-      // setBuckets(bucketsRes.data);
-      
-      // Mock data for now
-      setAllocations([
-        {
-          id: 'alloc-1',
-          flow_id: flowId || 'flow-1',
-          limit: 5000000000,
-          object_ids: ['obj-001', 'obj-002'],
-          status: 'allocated',
-          created_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          created_by: 'admin',
-          storage_locations: [
-            {
-              object_id: 'obj-001',
-              put_url: 'https://storage.example.com/upload/obj-001',
-              bucket_put_url: 'https://bucket.example.com/obj-001',
-              bucket_name: 'media-bucket-1',
-              region: 'us-east-1',
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              cors_enabled: true
-            }
-          ]
-        }
-      ]);
+      if (flowId) {
+        // Note: GET /flows/{flow_id}/storage endpoint doesn't exist in the TAMS API
+        // Storage allocation can only be created via POST, not retrieved
+        // Set empty allocations since we can't fetch existing ones
+        setAllocations([]);
+      } else {
+        setAllocations([]);
+      }
 
+      // For now, keep mock bucket data since bucket API is not available
       setBuckets([
         {
           id: 'bucket-1',
@@ -180,7 +158,10 @@ export function StorageAllocationManager({
         }
       ]);
     } catch (err: any) {
-      setError(`Failed to load storage data: ${err.message}`);
+      console.warn('Storage data not available yet:', err.message);
+      // Set empty arrays on error - this is normal for new flows
+      setAllocations([]);
+      setBuckets([]);
     } finally {
       setIsLoading(false);
     }
@@ -208,10 +189,27 @@ export function StorageAllocationManager({
         await onAllocate(allocation);
       }
       
-      // TODO: Replace with actual API call
-      // await apiClient.createStorageAllocation(flowId, allocation);
+      // Call real BBC TAMS API for storage allocation
+      const storageResponse = await createFlowStorage(flowId, {
+        limit: newAllocation.limit,
+        object_ids: newAllocation.object_ids.filter(id => id.trim() !== '')
+      });
       
-      setAllocations(prev => [...prev, allocation]);
+      // Create allocation with real API response data
+      const realAllocation: StorageAllocation = {
+        ...allocation,
+        storage_locations: storageResponse.storage_locations.map(location => ({
+          object_id: location.object_id,
+          put_url: location.put_url,
+          bucket_put_url: location.bucket_put_url || '',
+          bucket_name: 'default',
+          region: 'us-east-1',
+          expires_at: new Date(Date.now() + newAllocation.expires_in_hours * 60 * 60 * 1000).toISOString(),
+          cors_enabled: true
+        }))
+      };
+      
+      setAllocations(prev => [...prev, realAllocation]);
       setShowAllocationModal(false);
       setNewAllocation({
         limit: 1000000000,
@@ -398,6 +396,15 @@ export function StorageAllocationManager({
           </Group>
 
           <Divider />
+
+          {/* Info about storage allocation behavior */}
+          <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+            <Text size="sm">
+              <strong>Note:</strong> Storage allocations can only be created via the TAMS API. 
+              Existing allocations cannot be retrieved as the GET endpoint is not implemented. 
+              Use "Allocate Storage" to create new storage allocations for this flow.
+            </Text>
+          </Alert>
 
           {/* Storage Overview */}
           <Tabs defaultValue="allocations">

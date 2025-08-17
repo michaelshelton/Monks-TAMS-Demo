@@ -6,7 +6,10 @@
  * while maintaining full BBC TAMS compliance for future flexibility.
  */
 
-const API_BASE_URL = 'http://localhost:8000';
+// Use proxy in development, full URL in production
+const API_BASE_URL = import.meta.env.DEV 
+  ? '/api'  // Use Vite dev server proxy
+  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
 
 // BBC TAMS API Configuration
 export const BBC_TAMS_BASE_URL = API_BASE_URL;
@@ -503,6 +506,78 @@ class UnifiedApiClient {
   async restoreFlow(id: string): Promise<any> {
     return this.request(`/flows/${id}/restore`, {
       method: 'POST',
+    });
+  }
+
+  // BBC TAMS Flow Tags Management
+  async getFlowTags(flowId: string): Promise<Record<string, string>> {
+    return this.request(`/flows/${flowId}/tags`);
+  }
+
+  async setFlowTag(flowId: string, tagName: string, tagValue: string): Promise<any> {
+    return this.request(`/flows/${flowId}/tags/${tagName}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value: tagValue }),
+    });
+  }
+
+  async deleteFlowTag(flowId: string, tagName: string): Promise<any> {
+    return this.request(`/flows/${flowId}/tags/${tagName}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // BBC TAMS Flow Collection Management
+  async getFlowCollection(flowId: string): Promise<any> {
+    return this.request(`/flows/${flowId}/flow_collection`);
+  }
+
+  async setFlowCollection(flowId: string, collectionId: string): Promise<any> {
+    return this.request(`/flows/${flowId}/flow_collection`, {
+      method: 'PUT',
+      body: JSON.stringify({ collection_id: collectionId }),
+    });
+  }
+
+  async removeFlowFromCollection(flowId: string): Promise<any> {
+    return this.request(`/flows/${flowId}/flow_collection`, {
+      method: 'DELETE',
+    });
+  }
+
+  // BBC TAMS Flow Read-Only Status Management
+  async getFlowReadOnly(flowId: string): Promise<{ read_only: boolean }> {
+    return this.request(`/flows/${flowId}/read_only`);
+  }
+
+  async setFlowReadOnly(flowId: string, readOnly: boolean): Promise<any> {
+    return this.request(`/flows/${flowId}/read_only`, {
+      method: 'PUT',
+      body: JSON.stringify({ read_only: readOnly }),
+    });
+  }
+
+  // BBC TAMS Flow Description Management
+  async getFlowDescription(flowId: string): Promise<{ description: string }> {
+    return this.request(`/flows/${flowId}/description`);
+  }
+
+  async setFlowDescription(flowId: string, description: string): Promise<any> {
+    return this.request(`/flows/${flowId}/description`, {
+      method: 'PUT',
+      body: JSON.stringify({ description }),
+    });
+  }
+
+  // BBC TAMS Flow Label Management
+  async getFlowLabel(flowId: string): Promise<{ label: string }> {
+    return this.request(`/flows/${flowId}/label`);
+  }
+
+  async setFlowLabel(flowId: string, label: string): Promise<any> {
+    return this.request(`/flows/${flowId}/label`, {
+      method: 'PUT',
+      body: JSON.stringify({ label }),
     });
   }
 

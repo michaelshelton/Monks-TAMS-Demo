@@ -220,7 +220,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
       <Group justify="space-between" align="center" mb="md">
         <Group gap="xs">
           <IconFilter size={20} />
-          <Text fw={500}>BBC TAMS Advanced Filters</Text>
+          <Text fw={500}>TAMS Advanced Filters</Text>
           <Badge variant="light" color="blue" size="sm">v6.0</Badge>
         </Group>
         

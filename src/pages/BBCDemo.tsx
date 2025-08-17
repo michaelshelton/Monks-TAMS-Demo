@@ -1127,6 +1127,8 @@ export default function BBCDemo() {
   });
 
   // Field editor demo state
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   // Demo state removed - not used in current implementation
   
   // BBC filter state
@@ -1143,7 +1145,7 @@ export default function BBCDemo() {
 
   // Mock pagination metadata
   const mockPaginationMeta = {
-    link: '<http://localhost:8000/flows?page=cursor_123&limit=50>; rel="next", <http://localhost:8000/flows?page=cursor_456&limit=50>; rel="prev"',
+    link: `<${API_BASE_URL}/flows?page=cursor_123&limit=50>; rel="next", <${API_BASE_URL}/flows?page=cursor_456&limit=50>; rel="prev"`,
     limit: 50,
     nextKey: 'cursor_789',
     timerange: '0:0_3600:0',
@@ -1333,7 +1335,7 @@ export default function BBCDemo() {
                 <Box>
                   <Text fw={500} mb="xs">🌐 Backend Connection:</Text>
                   <Text size="sm" c="dimmed" mb="xs">
-                    Successfully connected to local backend at <Code>http://localhost:8000</Code>
+                    Successfully connected to live backend at <Code>{API_BASE_URL}</Code>
                   </Text>
                   <Group gap="xs" wrap="wrap" mt="xs">
                     <Badge color="green" variant="light">Flows API ✅</Badge>
@@ -1662,7 +1664,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                   </Text>
                 </Box>
 
-                <FlowCollectionManager />
+                <FlowCollectionManager flowId="demo-flow" />
               </Stack>
             </Card>
           </Tabs.Panel>
@@ -1706,7 +1708,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                     // Operation details viewing handled by component
                   }}
                   autoRefresh={true}
-                  refreshInterval={5000}
+                  refreshInterval={60} // Refresh every minute instead of every 5 seconds
                 />
               </Stack>
             </Card>
@@ -1806,7 +1808,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         onEventSelect={(event) => {
                           // Event selection handled by component
                         }}
-                        refreshInterval={30}
+                        refreshInterval={60} // Refresh every minute instead of every 30 seconds
                       />
                     </Tabs.Panel>
 
@@ -1815,7 +1817,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         onNotificationAction={(notification, action) => {
                           // Notification action handled by component
                         }}
-                        refreshInterval={10}
+                        refreshInterval={60} // Refresh every minute instead of every 10 seconds
                       />
                     </Tabs.Panel>
                   </Tabs>
@@ -1844,7 +1846,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
 
                 <EventHistoryMantine
                   onEventSelect={(event) => console.log('Event selected:', event)}
-                  refreshInterval={30}
+                  refreshInterval={60} // Refresh every minute instead of every 30 seconds
                 />
               </Stack>
             </Card>
@@ -1880,7 +1882,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                 {/* Notification Center Component (rendered globally) */}
                 <NotificationCenterMantine
                   onNotificationAction={(notification, action) => console.log('Notification action:', { notification, action })}
-                  refreshInterval={10}
+                  refreshInterval={60} // Refresh every minute instead of every 10 seconds
                 />
               </Stack>
             </Card>
@@ -2007,7 +2009,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
 
                   <Alert icon={<IconInfoCircle size={16} />} title="Backend Connection" color="blue">
                     <Text size="sm">
-                      This tab connects to the local backend at <Code>http://localhost:8000</Code> to demonstrate 
+                      This tab connects to the live backend at <Code>{API_BASE_URL}</Code> to demonstrate 
                       real BBC TAMS API integration. The backend provides sample data that showcases the 
                       BBC TAMS v6.0 specification implementation.
                     </Text>

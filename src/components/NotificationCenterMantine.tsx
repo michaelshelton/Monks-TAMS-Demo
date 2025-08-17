@@ -93,7 +93,7 @@ interface NotificationCenterMantineProps {
 export const NotificationCenterMantine: React.FC<NotificationCenterMantineProps> = ({
   onNotificationAction,
   onNotificationSelect,
-  refreshInterval = 10
+  refreshInterval = 60 // Refresh every minute instead of every 10 seconds
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([]);

@@ -33,7 +33,8 @@ import {
   Timeline,
   RingProgress,
   Code,
-  Loader
+  Loader,
+  FileInput
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -77,13 +78,23 @@ import {
   IconCode,
   IconContainer,
   IconChartBar,
-  IconUpload
+  IconUpload,
+  IconRadio,
+  IconTags,
+  IconHeart
 } from '@tabler/icons-react';
 import { apiClient } from '../services/api';
 import AdvancedFilter, { FilterOption, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
 import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { cmcdTracker, type CMCDMetrics } from '../services/cmcdService';
+import { StorageAllocationManager } from '../components/StorageAllocationManager';
+import { FlowTagsManager } from '../components/FlowTagsManager';
+import { FlowDescriptionManager } from '../components/FlowDescriptionManager';
+import { FlowCollectionManager } from '../components/FlowCollectionManager';
+import { FlowReadOnlyManager } from '../components/FlowReadOnlyManager';
+import { FlowAnalyticsDashboard } from '../components/FlowAnalyticsDashboard';
+import { FlowHealthMonitor } from '../components/FlowHealthMonitor';
 
 // Mock data structure based on backend API models
 interface FlowDetails {
@@ -309,7 +320,10 @@ export default function FlowDetails() {
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'performance' | 'storage' | 'technical'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'tags' | 'performance' | 'storage' | 'technical'>('overview');
+
+  // Disabled state for operations
+  const [disabled, setDisabled] = useState(false);
 
   // Segments state (flow-scoped)
   interface SegmentItem {
@@ -324,6 +338,9 @@ export default function FlowDetails() {
     get_urls?: Array<{ url: string; label?: string }>;
     tags?: Record<string, string>;
     flow_format?: string;
+    created_at?: string;
+    updated_at?: string;
+    is_live?: boolean;
   }
   const [segments, setSegments] = useState<SegmentItem[]>([]);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
@@ -334,6 +351,15 @@ export default function FlowDetails() {
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const { filters: segFilters, updateFilters: updateSegFilters } = useFilterPersistence('flow_segments');
   const [segSavedPresets, setSegSavedPresets] = useState<FilterPreset[]>([]);
+
+  // Live segments state
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [liveUpdateInterval, setLiveUpdateInterval] = useState<number | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [newSegmentsCount, setNewSegmentsCount] = useState(0);
+  const [showNewSegmentsNotification, setShowNewSegmentsNotification] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadingSegment, setUploadingSegment] = useState(false);
 
   // CMCD tracking state
   const [cmcdMetrics, setCmcdMetrics] = useState<CMCDMetrics[]>([]);
@@ -383,9 +409,30 @@ export default function FlowDetails() {
         key_frame_count: seg.key_frame_count,
         get_urls: seg.get_urls,
         tags: seg.tags,
-        flow_format: seg.flow_format || flow?.format
+        flow_format: seg.flow_format || flow?.format,
+        created_at: seg.created_at,
+        updated_at: seg.updated_at,
+        is_live: seg.is_live
       }));
+      
+      // Check for new segments if in live mode
+      if (isLiveMode && segments.length > 0) {
+        const newSegments = transformed.filter(newSeg => 
+          !segments.some(existingSeg => existingSeg.id === newSeg.id)
+        );
+        if (newSegments.length > 0) {
+          setNewSegmentsCount(prev => prev + newSegments.length);
+          setShowNewSegmentsNotification(true);
+          
+          // Auto-hide notification after 5 seconds
+          setTimeout(() => {
+            setShowNewSegmentsNotification(false);
+          }, 5000);
+        }
+      }
+      
       setSegments(transformed);
+      setLastUpdateTime(new Date());
     } catch (err: any) {
       setSegmentsError('Failed to fetch segments');
       // Error logged by component
@@ -394,9 +441,95 @@ export default function FlowDetails() {
     }
   };
 
+  // Live segment updates
+  const startLiveMode = () => {
+    setIsLiveMode(true);
+    setNewSegmentsCount(0);
+    
+    // Set up polling every 5 seconds for live segments
+    const interval = window.setInterval(() => {
+      fetchSegments();
+    }, 5000);
+    
+    setLiveUpdateInterval(interval);
+  };
+
+  const stopLiveMode = () => {
+    setIsLiveMode(false);
+    if (liveUpdateInterval) {
+      clearInterval(liveUpdateInterval);
+      setLiveUpdateInterval(null);
+    }
+    setNewSegmentsCount(0);
+  };
+
+  const toggleLiveMode = () => {
+    if (isLiveMode) {
+      stopLiveMode();
+    } else {
+      startLiveMode();
+    }
+  };
+
+  // Upload segment functionality
+  const handleUploadSegment = async (file: File, segmentData: any) => {
+    if (!flowId) return;
+    
+    setUploadingSegment(true);
+    try {
+      // Create segment metadata
+      const segment = {
+        object_id: `seg_${Date.now()}`,
+        timerange: segmentData.timerange,
+        sample_offset: segmentData.sample_offset || 0,
+        sample_count: segmentData.sample_count || 0,
+        description: segmentData.description || 'Live uploaded segment',
+        tags: segmentData.tags || {}
+      };
+
+      // Upload segment to backend
+      const response = await apiClient.createFlowSegment(flowId, segment, file);
+      
+      if (response) {
+        // Refresh segments to show the new one
+        await fetchSegments();
+        
+        // Show success notification
+        setShowNewSegmentsNotification(true);
+        setNewSegmentsCount(prev => prev + 1);
+        
+        // Close upload modal
+        setShowUploadModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to upload segment:', error);
+      setSegmentsError('Failed to upload segment');
+    } finally {
+      setUploadingSegment(false);
+    }
+  };
+
+  // Cleanup live mode on unmount
+  useEffect(() => {
+    return () => {
+      if (liveUpdateInterval) {
+        clearInterval(liveUpdateInterval);
+      }
+    };
+  }, [liveUpdateInterval]);
+
   useEffect(() => {
     if (activeTab === 'segments') {
       fetchSegments();
+      // Auto-start live mode for segments to show real-time updates
+      if (!isLiveMode) {
+        startLiveMode();
+      }
+    } else {
+      // Stop live mode when leaving segments tab
+      if (isLiveMode) {
+        stopLiveMode();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, flowId]);
@@ -488,6 +621,19 @@ export default function FlowDetails() {
     }
   };
 
+  // Storage allocation handlers
+  const handleStorageAllocated = async (allocation: any) => {
+    console.log('Storage allocated:', allocation);
+    // TODO: Update flow storage information
+    // This could trigger a refresh of the flow data
+  };
+
+  const handleStorageDeleted = async (allocationId: string) => {
+    console.log('Storage deleted:', allocationId);
+    // TODO: Update flow storage information
+    // This could trigger a refresh of the flow data
+  };
+
   const refreshFlowDetails = async () => {
     if (!flowId) return;
     
@@ -530,6 +676,8 @@ export default function FlowDetails() {
     }
   };
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   if (loading && !flow) {
     return (
       <Container size="xl" px="xl" py="xl">
@@ -565,7 +713,7 @@ export default function FlowDetails() {
           The flow details endpoint is not available. This usually means the backend dependencies are not fully configured.
           <br /><br />
           <Text size="sm" c="dimmed">
-            • Check that the backend is running at http://localhost:8000<br />
+            • Check that the backend is running at {API_BASE_URL}<br />
             • Verify that all required Python packages are installed<br />
             • Check backend logs for dependency errors
           </Text>
@@ -696,15 +844,24 @@ export default function FlowDetails() {
           <Tabs.Tab value="segments" leftSection={<IconTimeline size={16} />}>
             Segments
           </Tabs.Tab>
+          <Tabs.Tab value="tags" leftSection={<IconTags size={16} />}>
+            Tags
+          </Tabs.Tab>
           <Tabs.Tab value="performance" leftSection={<IconActivity size={16} />}>
             Performance
           </Tabs.Tab>
           <Tabs.Tab value="storage" leftSection={<IconStorage size={16} />}>
             Storage
           </Tabs.Tab>
-          <Tabs.Tab value="technical" leftSection={<IconSettings size={16} />}>
-            Technical Details
-          </Tabs.Tab>
+                  <Tabs.Tab value="technical" leftSection={<IconSettings size={16} />}>
+          Technical Details
+        </Tabs.Tab>
+        <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+          Analytics
+        </Tabs.Tab>
+        <Tabs.Tab value="health" leftSection={<IconHeart size={16} />}>
+          Health & Status
+        </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview" pt="xl">
@@ -758,16 +915,63 @@ export default function FlowDetails() {
                   </Grid>
                 </Card>
 
-                {/* Tags */}
+                {/* Description & Label Management */}
+                {flowId ? (
+                  <FlowDescriptionManager
+                    flowId={flowId}
+                    initialDescription={flow.description}
+                    initialLabel={flow.label}
+                    disabled={disabled}
+                    onDescriptionChange={(description) => setFlow({ ...flow, description })}
+                    onLabelChange={(label) => setFlow({ ...flow, label })}
+                  />
+                ) : (
+                  <Card withBorder p="xl">
+                    <Title order={4} mb="md">Description & Label</Title>
+                    <Text size="sm" c="dimmed">Flow ID is required to manage description and label.</Text>
+                  </Card>
+                )}
+
+                {/* Flow Collection Management */}
+                {flowId ? (
+                  <FlowCollectionManager
+                    flowId={flowId}
+                    initialCollection={flow.flow_collection || []}
+                    disabled={disabled}
+                    onCollectionChange={(collection) => setFlow({ ...flow, flow_collection: collection })}
+                  />
+                ) : (
+                  <Card withBorder p="xl">
+                    <Title order={4} mb="md">Flow Collection</Title>
+                    <Text size="sm" c="dimmed">Flow ID is required to manage flow collection.</Text>
+                  </Card>
+                )}
+
+                {/* Current Tags Display */}
                 <Card withBorder p="xl">
-                  <Title order={4} mb="md">Tags</Title>
-                  <Group gap="xs" wrap="wrap">
-                    {Object.entries(flow.tags).map(([key, value]) => (
-                      <Badge key={key} color="blue" variant="light">
-                        {key}: {value}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <Title order={4} mb="md">Current Tags</Title>
+                  {Object.keys(flow.tags || {}).length > 0 ? (
+                    <Group gap="xs" wrap="wrap">
+                      {Object.entries(flow.tags || {}).map(([key, value]) => (
+                        <Badge key={key} color="blue" variant="light" size="lg">
+                          {key}: {value}
+                        </Badge>
+                      ))}
+                    </Group>
+                  ) : (
+                    <Text size="sm" c="dimmed" fs="italic">
+                      No tags defined for this flow. Use the Tags tab to add and manage tags.
+                    </Text>
+                  )}
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconTags size={16} />}
+                    onClick={() => setActiveTab('tags')}
+                    mt="md"
+                  >
+                    Manage Tags
+                  </Button>
                 </Card>
 
                 {/* Recent Segments */}
@@ -873,6 +1077,21 @@ export default function FlowDetails() {
                     <Text size="sm" c="dimmed" mt="md">Quality Score</Text>
                   </Box>
                 </Card>
+
+                {/* Read-Only Status Management */}
+                {flowId ? (
+                  <FlowReadOnlyManager
+                    flowId={flowId}
+                    initialReadOnly={flow.read_only}
+                    disabled={disabled}
+                    onReadOnlyChange={(readOnly) => setFlow({ ...flow, read_only: readOnly })}
+                  />
+                ) : (
+                  <Card withBorder p="xl">
+                    <Title order={4} mb="md">Read-Only Status</Title>
+                    <Text size="sm" c="dimmed">Flow ID is required to manage read-only status.</Text>
+                  </Card>
+                )}
               </Stack>
             </Grid.Col>
           </Grid>
@@ -884,8 +1103,27 @@ export default function FlowDetails() {
               <Group gap="sm">
                 <Title order={4}>Flow Segments</Title>
                 {segmentsLoading && <Loader size="sm" />}
+                {isLiveMode && (
+                  <Badge color="red" variant="filled" leftSection={<IconRadio size={12} />}>
+                    LIVE
+                  </Badge>
+                )}
+                {newSegmentsCount > 0 && (
+                  <Badge color="green" variant="light">
+                    +{newSegmentsCount} new
+                  </Badge>
+                )}
               </Group>
               <Group gap="xs">
+                <Button
+                  variant={isLiveMode ? "filled" : "light"}
+                  color={isLiveMode ? "red" : "blue"}
+                  leftSection={isLiveMode ? <IconRadio size={16} /> : <IconRadio size={16} />}
+                  size="sm"
+                  onClick={toggleLiveMode}
+                >
+                  {isLiveMode ? 'Stop Live' : 'Go Live'}
+                </Button>
                 <Select
                   value={viewMode}
                   onChange={(value) => setViewMode((value as 'timeline' | 'list') || 'timeline')}
@@ -895,9 +1133,40 @@ export default function FlowDetails() {
                 <Button variant="light" leftSection={<IconRefresh size={16} />} size="sm" onClick={fetchSegments} loading={segmentsLoading}>
                   Refresh
                 </Button>
-                <Button leftSection={<IconPlus size={16} />} size="sm">Upload Segment</Button>
+                <Button leftSection={<IconPlus size={16} />} size="sm" onClick={() => setShowUploadModal(true)}>
+                  Upload Segment
+                </Button>
               </Group>
             </Group>
+
+            {/* Live mode info */}
+            {isLiveMode && (
+              <Alert icon={<IconRadio size={16} />} color="red" variant="light" mb="md">
+                <Group justify="space-between" align="center">
+                  <Text size="sm">
+                    <strong>Live Mode Active:</strong> Segments are automatically updating every 5 seconds
+                    {lastUpdateTime && ` • Last update: ${lastUpdateTime.toLocaleTimeString()}`}
+                  </Text>
+                  <Button variant="subtle" size="xs" onClick={stopLiveMode}>
+                    Stop Live
+                  </Button>
+                </Group>
+              </Alert>
+            )}
+
+            {/* New segments notification */}
+            {showNewSegmentsNotification && newSegmentsCount > 0 && (
+              <Alert icon={<IconPlus size={16} />} color="green" variant="light" mb="md" withCloseButton onClose={() => setShowNewSegmentsNotification(false)}>
+                <Group justify="space-between" align="center">
+                  <Text size="sm">
+                    <strong>New Segments Detected!</strong> {newSegmentsCount} new segment{newSegmentsCount > 1 ? 's' : ''} have been added to this flow.
+                  </Text>
+                  <Button variant="subtle" size="xs" onClick={() => setShowNewSegmentsNotification(false)}>
+                    Dismiss
+                  </Button>
+                </Group>
+              </Alert>
+            )}
 
             {segmentsError && (
               <Alert icon={<IconAlertCircle size={16} />} color="red" mb="md" withCloseButton onClose={() => setSegmentsError(null)}>
@@ -944,10 +1213,10 @@ export default function FlowDetails() {
               </Card>
               <Card withBorder p="md">
                 <Group gap="xs">
-                  <IconInfoCircle size={20} color="#7950f2" />
+                  <IconRadio size={20} color="#fa5252" />
                   <Box>
-                    <Text size="xs" c="dimmed">Status Counts</Text>
-                    <Text fw={600}>{new Set(filteredSegments.map(s => s.status)).size} types</Text>
+                    <Text size="xs" c="dimmed">Live Segments</Text>
+                    <Text fw={600}>{filteredSegments.filter(s => s.is_live).length}</Text>
                   </Box>
                 </Group>
               </Card>
@@ -967,6 +1236,16 @@ export default function FlowDetails() {
                     <Group gap="xs" align="center">
                       <Text fw={600}>{flow.label}</Text>
                       <Badge color={getStatusColor(segment.status)} variant="light" size="sm">{segment.status}</Badge>
+                      {segment.is_live && (
+                        <Badge color="red" variant="filled" size="xs" leftSection={<IconRadio size={10} />}>
+                          LIVE
+                        </Badge>
+                      )}
+                      {segment.created_at && isLiveMode && (
+                        <Badge color="green" variant="light" size="xs">
+                          {new Date(segment.created_at).toLocaleTimeString()}
+                        </Badge>
+                      )}
                     </Group>
                   }>
                     <Card withBorder p="md" mt="xs">
@@ -1006,6 +1285,11 @@ export default function FlowDetails() {
                           <Stack gap="xs">
                             <Group gap="xs">{getFormatIcon(segment.flow_format || flow.format)}<Text fw={600} size="sm">{flow.label}</Text></Group>
                             <Text size="xs" c="dimmed">{segment.description}</Text>
+                            {segment.is_live && (
+                              <Badge color="red" variant="filled" size="xs" leftSection={<IconRadio size={10} />}>
+                                LIVE
+                              </Badge>
+                            )}
                           </Stack>
                         </Grid.Col>
                         <Grid.Col span={2}>
@@ -1286,6 +1570,27 @@ export default function FlowDetails() {
           )}
         </Tabs.Panel>
 
+        <Tabs.Panel value="tags" pt="xl">
+          <Stack gap="xl">
+            {flowId ? (
+              <FlowTagsManager 
+                flowId={flowId}
+                disabled={disabled}
+                readOnly={flow.read_only}
+                onTagsChange={(tags: Record<string, string>) => {
+                  // Update flow tags in parent component
+                  setFlow(prev => prev ? { ...prev, tags } : null);
+                  console.log('Flow tags updated:', tags);
+                }}
+              />
+            ) : (
+              <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
+                Flow ID is required to manage flow tags.
+              </Alert>
+            )}
+          </Stack>
+        </Tabs.Panel>
+
         <Tabs.Panel value="performance" pt="xl">
           <Grid>
             <Grid.Col span={6}>
@@ -1360,58 +1665,26 @@ export default function FlowDetails() {
         </Tabs.Panel>
 
         <Tabs.Panel value="storage" pt="xl">
-          <Grid>
-            <Grid.Col span={6}>
-              <Card withBorder p="xl">
-                <Title order={4} mb="md">Storage Overview</Title>
-                <Stack gap="lg">
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Total Segments</Text>
-                    <Text size="lg" fw={600}>{flow.storage?.total_segments || 0}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Total Size</Text>
-                    <Text size="lg" fw={600}>
-                      {flow.storage ? formatFileSize(flow.storage.total_size) : '0 B'}
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Storage Used</Text>
-                    <Progress
-                      value={flow.storage ? (flow.storage.storage_used / flow.storage.storage_limit) * 100 : 0}
-                      color={flow.storage && (flow.storage.storage_used / flow.storage.storage_limit) > 0.8 ? 'red' : 'blue'}
-                      size="lg"
-                    />
-                    <Text size="sm" c="dimmed" mt="xs">
-                      {flow.storage ? formatFileSize(flow.storage.storage_used) : '0 B'} / {flow.storage ? formatFileSize(flow.storage.storage_limit) : '0 B'}
-                    </Text>
-                  </Box>
-                </Stack>
-              </Card>
-            </Grid.Col>
-
-            <Grid.Col span={6}>
-              <Card withBorder p="xl">
-                <Title order={4} mb="md">Time Range</Title>
-                <Stack gap="lg">
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Oldest Segment</Text>
-                    <Text size="sm">{flow.storage ? formatTimestamp(flow.storage.oldest_segment) : 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Newest Segment</Text>
-                    <Text size="sm">{flow.storage ? formatTimestamp(flow.storage.newest_segment) : 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Time Span</Text>
-                    <Text size="sm">
-                      {flow.storage ? formatDuration(flow.storage.oldest_segment, flow.storage.newest_segment) : 'N/A'}
-                    </Text>
-                  </Box>
-                </Stack>
-              </Card>
-            </Grid.Col>
-          </Grid>
+          <Stack gap="xl">
+            <Card withBorder>
+              <Title order={3} mb="md">Storage Allocation Manager</Title>
+              <Text size="sm" c="dimmed" mb="lg">
+                Allocate storage for this flow to enable media uploads. Storage allocation provides pre-signed URLs for direct uploads.
+              </Text>
+              
+              {flowId ? (
+                <StorageAllocationManager 
+                  flowId={flowId}
+                  onAllocate={handleStorageAllocated}
+                  onDelete={handleStorageDeleted}
+                />
+              ) : (
+                <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
+                  Flow ID is required to manage storage allocation.
+                </Alert>
+              )}
+            </Card>
+          </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="technical" pt="xl">
@@ -1476,6 +1749,36 @@ export default function FlowDetails() {
               </Card>
             </Grid.Col>
           </Grid>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="analytics" pt="xl">
+          <Stack gap="xl">
+            {flowId ? (
+              <FlowAnalyticsDashboard 
+                flowId={flowId}
+                disabled={disabled}
+              />
+            ) : (
+              <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
+                Flow ID is required to view analytics.
+              </Alert>
+            )}
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="health" pt="xl">
+          <Stack gap="xl">
+            {flowId ? (
+              <FlowHealthMonitor 
+                flowId={flowId}
+                disabled={disabled}
+              />
+            ) : (
+              <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
+                Flow ID is required to view health status.
+              </Alert>
+            )}
+          </Stack>
         </Tabs.Panel>
       </Tabs>
 
@@ -1558,6 +1861,85 @@ export default function FlowDetails() {
             </Button>
             <Button color="red" onClick={handleDeleteFlow}>
               Delete Flow
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Upload Segment Modal */}
+      <Modal
+        opened={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        title="Upload Live Segment"
+        size="lg"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Upload a new media segment to this flow. The segment will be immediately available in live mode.
+          </Text>
+          
+          <FileInput
+            label="Media File"
+            placeholder="Select media file"
+            accept="video/*,audio/*"
+            required
+            id="segment-file"
+          />
+          
+          <TextInput
+            label="Object ID"
+            placeholder="Auto-generated if empty"
+            description="Unique identifier for this segment"
+          />
+          
+          <Group grow>
+            <TextInput
+              label="Start Time"
+              placeholder="HH:MM:SS"
+              description="Segment start time"
+            />
+            <TextInput
+              label="End Time"
+              placeholder="HH:MM:SS"
+              description="Segment end time"
+            />
+          </Group>
+          
+          <Textarea
+            label="Description"
+            placeholder="Segment description"
+            rows={3}
+          />
+          
+          <TextInput
+            label="Tags"
+            placeholder="key1:value1,key2:value2"
+            description="Comma-separated key-value pairs"
+          />
+          
+          <Group gap="xs" justify="flex-end">
+            <Button variant="light" onClick={() => setShowUploadModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                const fileInput = document.getElementById('segment-file') as HTMLInputElement;
+                if (fileInput?.files?.[0]) {
+                  const file = fileInput.files[0];
+                  const segmentData = {
+                    timerange: '[00:00:00_00:01:00)',
+                    sample_offset: 0,
+                    sample_count: 0,
+                    description: 'Live uploaded segment',
+                    tags: {}
+                  };
+                  handleUploadSegment(file, segmentData);
+                }
+              }}
+              loading={uploadingSegment}
+              disabled={uploadingSegment}
+            >
+              Upload Segment
             </Button>
           </Group>
         </Stack>

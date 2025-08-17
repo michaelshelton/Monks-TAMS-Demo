@@ -346,11 +346,11 @@ export default function Flows() {
       setCurrentCursor(cursor || null);
       setError(null);
     } catch (err) {
-      console.error('BBC TAMS API error:', err);
+      console.error('TAMS API error:', err);
       // Fallback to mock data for demo
       setFlows(mockFootballFlows);
       setBbcPagination({});
-      setError('BBC TAMS API unavailable, using demo data');
+      setError('TAMS API unavailable, using demo data');
     } finally {
       setLoading(false);
     }
@@ -739,7 +739,7 @@ export default function Flows() {
         <Box>
           <Title order={2}>Football Game Content Management</Title>
           <Text c="dimmed" size="sm" mt="xs">
-            Manage football game content flows using BBC TAMS v6.0 API
+            Manage football game content flows using TAMS v6.0 API
           </Text>
         </Box>
         <Group>
@@ -779,11 +779,11 @@ export default function Flows() {
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="BBC TAMS API Demo Mode"
+          title="TAMS API Demo Mode"
           mb="md"
         >
           <Text size="sm">
-            This page demonstrates BBC TAMS v6.0 API integration for football content management. 
+            This page demonstrates TAMS v6.0 API integration for football content management. 
             Flows represent individual football games with their video content, metadata, and relationships.
             {flows.length > 0 && flows[0]?.footballMetadata && ' Click on any flow to view game details and search for specific content.'}
           </Text>
@@ -823,7 +823,7 @@ export default function Flows() {
             variant="outline"
             color="blue"
           >
-            BBC TAMS API
+             TAMS API
           </Chip>
         </Group>
       </Group>
@@ -932,7 +932,7 @@ export default function Flows() {
       {/* BBC TAMS Compliant Filters */}
       <Box mb="lg">
         <Text size="sm" c="dimmed" mb="xs">
-          BBC TAMS Advanced Filters - For technical content filtering (format, codec, tags)
+          TAMS Advanced Filters - For technical content filtering (format, codec, tags)
         </Text>
         <BBCAdvancedFilter
           filters={bbcFilters}

@@ -1,391 +1,252 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
-  Title,
   Text,
-  Stack,
   Group,
   Button,
-  Badge,
-  Box,
-  Divider,
-  Alert,
   Modal,
   TextInput,
-  Select,
-  Textarea,
-  Switch,
+  Stack,
+  Divider,
+  Alert,
+  Loader,
+  Box,
+  Title,
   ActionIcon,
   Tooltip,
+  Badge,
+  Select,
+  MultiSelect,
+  Paper,
   Grid,
-  ScrollArea,
-  Tabs,
-  List,
-  ThemeIcon
+  ScrollArea
 } from '@mantine/core';
 import {
   IconPlus,
   IconEdit,
   IconTrash,
-  IconEye,
+  IconFolder,
+  IconFolderOpen,
   IconLink,
-  IconUnlink,
-  IconFolders,
-  IconVideo,
-  IconMicrophone,
-  IconFileText,
-  IconPhoto,
-  IconSettings,
-  IconInfoCircle,
-  IconAlertCircle,
+  IconX,
   IconCheck,
-  IconX
+  IconInfoCircle,
+  IconHierarchy
 } from '@tabler/icons-react';
+import { getFlowCollection, setFlowCollection, removeFlowFromCollection, getFlows } from '../services/bbcTamsApi';
 
-// BBC TAMS API v6.0 Types
-interface CollectionItem {
-  id: string;
-  role: string;
-  container_mapping?: ContainerMapping;
+interface FlowCollectionManagerProps {
+  flowId: string;
+  initialCollection?: string[];
+  availableFlows?: Array<{ id: string; label: string; description?: string }>;
+  disabled?: boolean;
+  onCollectionChange?: (collection: string[]) => void;
 }
 
-interface ContainerMapping {
-  essence_type: string;
-  mapping_data: Record<string, any>;
-}
-
-interface FlowCollection {
+interface CollectionFlow {
   id: string;
   label: string;
   description?: string;
-  format: string;
-  codec: string;
-  container?: string;
-  flow_collection: CollectionItem[];
-  collected_by?: string[];
-  read_only: boolean;
-  created_by?: string;
-  updated_by?: string;
-  created?: string;
-  updated?: string;
-  tags?: Record<string, string>;
-  // Soft delete fields
-  deleted?: boolean;
-  deleted_at?: string;
-  deleted_by?: string;
+  isInCollection: boolean;
 }
 
-interface FlowCollectionManagerProps {
-  collectionId?: string;
-  onSave?: (collection: FlowCollection) => void;
-  onDelete?: (collectionId: string) => void;
-  disabled?: boolean;
-}
-
-export function FlowCollectionManager({
-  collectionId,
-  onSave,
-  onDelete,
-  disabled = false
+export function FlowCollectionManager({ 
+  flowId, 
+  initialCollection = [], 
+  availableFlows = [],
+  disabled = false,
+  onCollectionChange 
 }: FlowCollectionManagerProps) {
-  // State management
-  const [collection, setCollection] = useState<FlowCollection | null>(null);
-  const [availableFlows, setAvailableFlows] = useState<any[]>([]);
-  const [showAddFlowModal, setShowAddFlowModal] = useState(false);
-  const [showEditFlowModal, setShowEditFlowModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [editingFlow, setEditingFlow] = useState<CollectionItem | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [collection, setCollection] = useState<string[]>(initialCollection);
+  const [flows, setFlows] = useState<CollectionFlow[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedFlows, setSelectedFlows] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Form state for new collection
-  const [newCollection, setNewCollection] = useState({
-    label: '',
-    description: '',
-    format: 'urn:x-nmos:format:multi',
-    codec: 'application/mxf',
-    container: 'application/mxf',
-    read_only: false
-  });
-
-  // Load collection data
+  // Load initial data from API if not provided
   useEffect(() => {
-    if (collectionId) {
-      loadCollection(collectionId);
+    if (flowId) {
+      loadInitialData();
     }
-  }, [collectionId]);
+  }, [flowId]);
 
-  // Load available flows for adding to collection
+  // Update local state when props change
   useEffect(() => {
-    loadAvailableFlows();
+    setCollection(initialCollection);
+  }, [initialCollection]);
+
+  const loadInitialData = async () => {
+    if (initialCollection.length === 0) {
+      setLoading(true);
+      try {
+        const response = await getFlowCollection(flowId);
+        if (response && response.collection_id) {
+          setCollection([response.collection_id]);
+        }
+      } catch (err: any) {
+        console.error('Error loading initial collection:', err);
+        // Use props as fallback
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Initialize flows data
+  useEffect(() => {
+    if (availableFlows.length > 0) {
+      const collectionFlows = availableFlows.map(flow => ({
+        ...flow,
+        isInCollection: initialCollection.includes(flow.id)
+      }));
+      setFlows(collectionFlows);
+    }
+  }, [availableFlows, initialCollection]);
+
+  // Load available flows if not provided
+  useEffect(() => {
+    if (availableFlows.length === 0) {
+      loadAvailableFlows();
+    }
   }, []);
 
-  const loadCollection = async (id: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // TODO: Replace with actual API call
-      // const response = await apiClient.getFlow(id);
-      // setCollection(response);
-      
-      // Mock data for now
-      setCollection({
-        id,
-        label: 'Multi-Essence Demo Collection',
-        description: 'A collection of video, audio, and data flows',
-        format: 'urn:x-nmos:format:multi',
-        codec: 'application/mxf',
-        container: 'application/mxf',
-        flow_collection: [
-          { id: 'flow-1', role: 'Main Video' },
-          { id: 'flow-2', role: 'Stereo Audio' },
-          { id: 'flow-3', role: 'Metadata' }
-        ],
-        read_only: false,
-        created_by: 'admin',
-        created: new Date().toISOString()
-      });
-    } catch (err: any) {
-      setError(`Failed to load collection: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const loadAvailableFlows = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      // TODO: Replace with actual API call
-      // const response = await apiClient.getFlows({ format: '!urn:x-nmos:format:multi' });
-      // setAvailableFlows(response.data);
+      const response = await getFlows();
+      const availableFlows = response.data.map((flow: any) => ({
+        id: flow.id,
+        label: flow.label || flow.id,
+        description: flow.description,
+        isInCollection: collection.includes(flow.id)
+      }));
+      setFlows(availableFlows);
+    } catch (err: any) {
+      setError('Failed to load available flows');
+      console.error('Error loading flows:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddToCollection = async () => {
+    if (selectedFlows.length === 0) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      // Update flow collection
+      const newCollection = [...collection, ...selectedFlows];
+      if (newCollection.length > 0) {
+        await setFlowCollection(flowId, newCollection[0]!); // BBC TAMS supports single collection
+      }
       
-      // Mock data for now
-      setAvailableFlows([
-        { id: 'flow-4', label: 'HD Video', format: 'urn:x-nmos:format:video' },
-        { id: 'flow-5', label: '5.1 Audio', format: 'urn:x-nmos:format:audio' },
-        { id: 'flow-6', label: 'Subtitles', format: 'urn:x-nmos:format:data' }
-      ]);
+      setCollection(newCollection);
+      
+      // Update local flows state
+      setFlows(prev => prev.map(flow => ({
+        ...flow,
+        isInCollection: newCollection.includes(flow.id)
+      })));
+      
+      if (onCollectionChange) {
+        onCollectionChange(newCollection);
+      }
+      
+      setShowAddModal(false);
+      setSelectedFlows([]);
     } catch (err: any) {
-      setError(`Failed to load available flows: ${err.message}`);
+      setError('Failed to add flows to collection');
+      console.error('Error adding flows to collection:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddFlow = (flowId: string, role: string) => {
-    if (!collection) return;
-    
-    const newFlow: CollectionItem = { id: flowId, role };
-    setCollection({
-      ...collection,
-      flow_collection: [...collection.flow_collection, newFlow]
-    });
-    setShowAddFlowModal(false);
-  };
-
-  const handleRemoveFlow = (flowId: string) => {
-    if (!collection) return;
-    
-    setCollection({
-      ...collection,
-      flow_collection: collection.flow_collection.filter(f => f.id !== flowId)
-    });
-  };
-
-  const handleUpdateFlowRole = (flowId: string, newRole: string) => {
-    if (!collection) return;
-    
-    setCollection({
-      ...collection,
-      flow_collection: collection.flow_collection.map(f => 
-        f.id === flowId ? { ...f, role: newRole } : f
-      )
-    });
-  };
-
-  const handleSaveCollection = async () => {
-    if (!collection) return;
-    
-    setIsLoading(true);
+  const handleRemoveFromCollection = async (flowIdToRemove: string) => {
+    setLoading(true);
     setError(null);
     try {
-      if (onSave) {
-        await onSave(collection);
+      const newCollection = collection.filter(id => id !== flowIdToRemove);
+      if (newCollection.length > 0) {
+        await setFlowCollection(flowId, newCollection[0]!);
+      } else {
+        await removeFlowFromCollection(flowId);
       }
-      // TODO: Replace with actual API call
-      // await apiClient.updateFlow(collection.id, collection);
+      
+      setCollection(newCollection);
+      
+      // Update local flows state
+      setFlows(prev => prev.map(flow => ({
+        ...flow,
+        isInCollection: newCollection.includes(flow.id)
+      })));
+      
+      if (onCollectionChange) {
+        onCollectionChange(newCollection);
+      }
     } catch (err: any) {
-      setError(`Failed to save collection: ${err.message}`);
+      setError('Failed to remove flow from collection');
+      console.error('Error removing flow from collection:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleDeleteCollection = async () => {
-    if (!collection) return;
-    
-    setIsLoading(true);
+  const handleClearCollection = async () => {
+    setLoading(true);
     setError(null);
     try {
-      if (onDelete) {
-        await onDelete(collection.id);
+      await removeFlowFromCollection(flowId);
+      
+      setCollection([]);
+      
+      // Update local flows state
+      setFlows(prev => prev.map(flow => ({
+        ...flow,
+        isInCollection: false
+      })));
+      
+      if (onCollectionChange) {
+        onCollectionChange([]);
       }
-      // TODO: Replace with actual API call
-      // await apiClient.deleteFlow(collection.id);
-      setShowDeleteModal(false);
     } catch (err: any) {
-      setError(`Failed to delete collection: ${err.message}`);
+      setError('Failed to clear collection');
+      console.error('Error clearing collection:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const getFlowIcon = (format: string) => {
-    switch (format) {
-      case 'urn:x-nmos:format:video':
-        return <IconVideo size={16} />;
-      case 'urn:x-nmos:format:audio':
-        return <IconMicrophone size={16} />;
-      case 'urn:x-nmos:format:data':
-        return <IconFileText size={16} />;
-      case 'urn:x-tam:format:image':
-        return <IconPhoto size={16} />;
-      case 'urn:x-nmos:format:multi':
-        return <IconFolders size={16} />;
-      default:
-        return <IconFileText size={16} />;
-    }
-  };
+  const filteredFlows = flows.filter(flow => 
+    !collection.includes(flow.id) && 
+    (flow.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     (flow.description && flow.description.toLowerCase().includes(searchQuery.toLowerCase())))
+  );
 
-  const getFlowColor = (format: string) => {
-    switch (format) {
-      case 'urn:x-nmos:format:video':
-        return 'blue';
-      case 'urn:x-nmos:format:audio':
-        return 'green';
-      case 'urn:x-nmos:format:data':
-        return 'orange';
-      case 'urn:x-tam:format:image':
-        return 'purple';
-      case 'urn:x-nmos:format:multi':
-        return 'grape';
-      default:
-        return 'gray';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card withBorder>
-        <Stack gap="md" align="center" py="xl">
-          <Text>Loading collection...</Text>
-        </Stack>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card withBorder>
-        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
-          <Text>{error}</Text>
-        </Alert>
-      </Card>
-    );
-  }
-
-  if (!collection) {
-    return (
-      <Card withBorder>
-        <Stack gap="md">
-          <Title order={3}>Create New Flow Collection</Title>
-          <Text size="sm" c="dimmed">
-            Create a new multi-essence flow collection according to BBC TAMS API v6.0 specification
-          </Text>
-          
-          <Grid>
-            <Grid.Col span={6}>
-              <TextInput
-                label="Collection Label"
-                placeholder="Enter collection name"
-                value={newCollection.label}
-                onChange={(e) => setNewCollection({ ...newCollection, label: e.target.value })}
-                required
-              />
-            </Grid.Col>
-            <Grid.Col span={6}>
-              <Select
-                label="Codec"
-                placeholder="Select codec"
-                data={[
-                  { value: 'application/mxf', label: 'MXF' },
-                  { value: 'video/mp4', label: 'MP4' },
-                  { value: 'application/ts', label: 'MPEG-TS' }
-                ]}
-                value={newCollection.codec}
-                onChange={(value) => setNewCollection({ ...newCollection, codec: value || '' })}
-                required
-              />
-            </Grid.Col>
-            <Grid.Col span={12}>
-              <Textarea
-                label="Description"
-                placeholder="Enter collection description"
-                value={newCollection.description}
-                onChange={(e) => setNewCollection({ ...newCollection, description: e.target.value })}
-                rows={3}
-              />
-            </Grid.Col>
-            <Grid.Col span={6}>
-              <Switch
-                label="Read Only"
-                checked={newCollection.read_only}
-                onChange={(e) => setNewCollection({ ...newCollection, read_only: e.currentTarget.checked })}
-              />
-            </Grid.Col>
-          </Grid>
-
-          <Group justify="flex-end">
-            <Button
-              onClick={() => {
-                const newFlow: FlowCollection = {
-                  id: `collection-${Date.now()}`,
-                  ...newCollection,
-                  flow_collection: [],
-                  created_by: 'admin',
-                  created: new Date().toISOString()
-                };
-                setCollection(newFlow);
-              }}
-              disabled={!newCollection.label || !newCollection.codec}
-            >
-              Create Collection
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
-    );
-  }
+  const collectionFlows = flows.filter(flow => collection.includes(flow.id));
 
   return (
     <>
       <Card withBorder>
         <Stack gap="lg">
-          {/* Collection Header */}
+          {/* Header */}
           <Group justify="space-between" align="flex-start">
             <Box>
-              <Title order={3}>{collection.label}</Title>
-              <Text size="sm" c="dimmed" mb="xs">
-                Multi-Essence Flow Collection
-              </Text>
-              <Group gap="xs">
-                <Badge variant="light" color={getFlowColor(collection.format)} leftSection={getFlowIcon(collection.format)}>
-                  {collection.format.split(':').pop()}
+              <Group gap="sm" align="center">
+                <IconFolder size={20} color="#228be6" />
+                <Title order={4}>Flow Collection</Title>
+                <Badge variant="light" color="blue">
+                  {collection.length} flow{collection.length !== 1 ? 's' : ''}
                 </Badge>
-                <Badge variant="light" color="gray">
-                  {collection.codec}
-                </Badge>
-                {collection.read_only && (
-                  <Badge variant="light" color="red">Read Only</Badge>
-                )}
               </Group>
+              <Text size="sm" c="dimmed" mt="xs">
+                Group related flows together in collections for better organization and management.
+              </Text>
             </Box>
             
             <Group gap="xs">
@@ -393,277 +254,175 @@ export function FlowCollectionManager({
                 variant="light"
                 size="sm"
                 leftSection={<IconPlus size={14} />}
-                onClick={() => setShowAddFlowModal(true)}
-                disabled={disabled || collection.read_only}
+                onClick={() => setShowAddModal(true)}
+                disabled={disabled}
               >
-                Add Flow
+                Add Flows
               </Button>
-              <Button
-                variant="light"
-                size="sm"
-                leftSection={<IconEdit size={14} />}
-                onClick={() => setShowEditFlowModal(true)}
-                disabled={disabled || collection.read_only}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="light"
-                size="sm"
-                color="red"
-                leftSection={<IconTrash size={14} />}
-                onClick={() => setShowDeleteModal(true)}
-                disabled={disabled || collection.read_only}
-              >
-                Delete
-              </Button>
+              {collection.length > 0 && (
+                <Button
+                  variant="light"
+                  color="red"
+                  size="sm"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={handleClearCollection}
+                  disabled={disabled || loading}
+                  loading={loading}
+                >
+                  Clear Collection
+                </Button>
+              )}
             </Group>
           </Group>
 
-          {collection.description && (
-            <Text size="sm">{collection.description}</Text>
-          )}
-
           <Divider />
 
-          {/* Collection Content */}
-          <Tabs defaultValue="flows">
-            <Tabs.List>
-              <Tabs.Tab value="flows" leftSection={<IconFolders size={16} />}>
-                Collection Flows ({collection.flow_collection.length})
-              </Tabs.Tab>
-              <Tabs.Tab value="info" leftSection={<IconInfoCircle size={16} />}>
-                Collection Info
-              </Tabs.Tab>
-            </Tabs.List>
+          {/* Error Display */}
+          {error && (
+            <Alert icon={<IconX size={16} />} color="red" withCloseButton onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-            <Tabs.Panel value="flows" pt="md">
-              {collection.flow_collection.length === 0 ? (
-                <Alert icon={<IconInfoCircle size={16} />} color="blue">
-                  <Text size="sm">No flows in this collection yet. Click "Add Flow" to get started.</Text>
-                </Alert>
-              ) : (
-                <Stack gap="sm">
-                  {collection.flow_collection.map((flow, index) => (
-                    <Card key={flow.id} withBorder variant="light">
-                      <Group justify="space-between" align="center">
-                        <Group gap="sm">
-                          <Badge variant="light" color="blue">
-                            {flow.role}
-                          </Badge>
-                          <Text size="sm" fw={500}>
-                            Flow {flow.id}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            ID: {flow.id}
-                          </Text>
-                        </Group>
-                        
-                        <Group gap="xs">
-                          <ActionIcon
-                            size="sm"
-                            variant="light"
-                            color="blue"
-                            onClick={() => {
-                              setEditingFlow(flow);
-                              setShowEditFlowModal(true);
-                            }}
-                            disabled={disabled || collection.read_only}
-                          >
-                            <IconEdit size={14} />
-                          </ActionIcon>
-                          <ActionIcon
-                            size="sm"
-                            variant="light"
-                            color="red"
-                            onClick={() => handleRemoveFlow(flow.id)}
-                            disabled={disabled || collection.read_only}
-                          >
-                            <IconTrash size={14} />
-                          </ActionIcon>
-                        </Group>
-                      </Group>
-                    </Card>
-                  ))}
-                </Stack>
-              )}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="info" pt="md">
-              <Stack gap="md">
-                <Grid>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Collection ID</Text>
-                    <Text size="sm" c="dimmed">{collection.id}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Format</Text>
-                    <Text size="sm" c="dimmed">{collection.format}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Codec</Text>
-                    <Text size="sm" c="dimmed">{collection.codec}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Container</Text>
-                    <Text size="sm" c="dimmed">{collection.container || 'N/A'}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Created By</Text>
-                    <Text size="sm" c="dimmed">{collection.created_by || 'N/A'}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Created</Text>
-                    <Text size="sm" c="dimmed">
-                      {collection.created ? new Date(collection.created).toLocaleString() : 'N/A'}
-                    </Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Updated By</Text>
-                    <Text size="sm" c="dimmed">{collection.updated_by || 'N/A'}</Text>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="sm" fw={500}>Updated</Text>
-                    <Text size="sm" c="dimmed">
-                      {collection.updated ? new Date(collection.updated).toLocaleString() : 'N/A'}
-                    </Text>
-                  </Grid.Col>
-                </Grid>
-
-                {collection.tags && Object.keys(collection.tags).length > 0 && (
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Tags</Text>
-                    <Group gap="xs">
-                      {Object.entries(collection.tags).map(([key, value]) => (
-                        <Badge key={key} variant="light" size="sm">
-                          {key}: {value}
+          {/* Collection Display */}
+          {collection.length === 0 ? (
+            <Alert icon={<IconFolder size={16} />} color="blue" variant="light">
+              <Text size="sm">No flows in this collection. Click "Add Flows" to get started.</Text>
+            </Alert>
+          ) : (
+            <Stack gap="md">
+              <Text size="sm" fw={500} c="dimmed">Flows in Collection:</Text>
+              {collectionFlows.map((flow) => (
+                <Paper key={flow.id} withBorder p="md">
+                  <Group justify="space-between" align="flex-start">
+                    <Box style={{ flex: 1 }}>
+                      <Group gap="sm" mb="xs">
+                        <IconFolderOpen size={16} color="#40c057" />
+                        <Text size="sm" fw={500}>
+                          {flow.label}
+                        </Text>
+                        <Badge variant="outline" color="blue" size="xs">
+                          {flow.id}
                         </Badge>
-                      ))}
-                    </Group>
-                  </Box>
-                )}
-              </Stack>
-            </Tabs.Panel>
-          </Tabs>
+                      </Group>
+                      {flow.description && (
+                        <Text size="xs" c="dimmed">
+                          {flow.description}
+                        </Text>
+                      )}
+                    </Box>
+                    
+                    <ActionIcon
+                      size="sm"
+                      variant="light"
+                      color="red"
+                      onClick={() => handleRemoveFromCollection(flow.id)}
+                      disabled={disabled || loading}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
+          )}
 
-          {/* Action Buttons */}
+          {/* Refresh Button */}
           <Group justify="flex-end">
             <Button
-              onClick={handleSaveCollection}
-              disabled={disabled || collection.read_only}
-              loading={isLoading}
+              variant="subtle"
+              size="sm"
+              onClick={loadAvailableFlows}
+              loading={loading}
+              disabled={disabled}
             >
-              Save Changes
+              Refresh Flows
             </Button>
           </Group>
         </Stack>
       </Card>
 
-      {/* Add Flow Modal */}
+      {/* Add Flows Modal */}
       <Modal
-        opened={showAddFlowModal}
-        onClose={() => setShowAddFlowModal(false)}
-        title="Add Flow to Collection"
-        size="md"
+        opened={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Add Flows to Collection"
+        size="lg"
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Select a flow to add to this collection and assign it a role.
+            Select flows to add to this collection. Only flows not already in the collection are shown.
           </Text>
           
-          <Select
-            label="Available Flows"
-            placeholder="Select a flow"
-            data={availableFlows.map(flow => ({
-              value: flow.id,
-              label: `${flow.label} (${flow.format.split(':').pop()})`,
-              group: flow.format.split(':').pop()
-            }))}
-            onChange={(value) => {
-              const flow = availableFlows.find(f => f.id === value);
-              if (flow) {
-                handleAddFlow(flow.id, 'New Role');
-              }
-            }}
+          <TextInput
+            label="Search Flows"
+            placeholder="Search by label or description..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            leftSection={<IconInfoCircle size={16} />}
           />
           
-          <Text size="xs" c="dimmed">
-            Note: Only flows that are not already in a collection can be added.
-          </Text>
-        </Stack>
-      </Modal>
-
-      {/* Edit Flow Role Modal */}
-      <Modal
-        opened={showEditFlowModal}
-        onClose={() => setShowEditFlowModal(false)}
-        title="Edit Flow Role"
-        size="md"
-      >
-        <Stack gap="md">
-          {editingFlow && (
-            <>
-              <TextInput
-                label="Flow Role"
-                placeholder="Enter role (e.g., 'Main Video', 'Stereo Audio')"
-                value={editingFlow.role}
-                onChange={(e) => setEditingFlow({ ...editingFlow, role: e.target.value })}
-                required
-              />
-              
-              <Text size="xs" c="dimmed">
-                The role describes the purpose of this flow within the collection.
+          <ScrollArea h={300}>
+            <Stack gap="xs">
+              {filteredFlows.length === 0 ? (
+                <Text size="sm" c="dimmed" ta="center" py="md">
+                  {searchQuery ? 'No flows match your search.' : 'No available flows to add.'}
+                </Text>
+              ) : (
+                filteredFlows.map((flow) => (
+                  <Paper key={flow.id} withBorder p="sm">
+                    <Group justify="space-between" align="flex-start">
+                      <Box style={{ flex: 1 }}>
+                        <Group gap="sm" mb="xs">
+                          <IconFolder size={16} color="#228be6" />
+                          <Text size="sm" fw={500}>
+                            {flow.label}
+                          </Text>
+                          <Badge variant="outline" color="gray" size="xs">
+                            {flow.id}
+                          </Badge>
+                        </Group>
+                        {flow.description && (
+                          <Text size="xs" c="dimmed">
+                            {flow.description}
+                          </Text>
+                        )}
+                      </Box>
+                      
+                      <ActionIcon
+                        size="sm"
+                        variant="light"
+                        color="blue"
+                        onClick={() => setSelectedFlows(prev => [...prev, flow.id])}
+                        disabled={selectedFlows.includes(flow.id)}
+                      >
+                        <IconPlus size={14} />
+                      </ActionIcon>
+                    </Group>
+                  </Paper>
+                ))
+              )}
+            </Stack>
+          </ScrollArea>
+          
+          {selectedFlows.length > 0 && (
+            <Alert icon={<IconCheck size={16} />} color="blue" variant="light">
+              <Text size="sm">
+                {selectedFlows.length} flow{selectedFlows.length !== 1 ? 's' : ''} selected for addition.
               </Text>
-              
-              <Group justify="flex-end">
-                <Button variant="light" onClick={() => setShowEditFlowModal(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (editingFlow) {
-                      handleUpdateFlowRole(editingFlow.id, editingFlow.role);
-                      setShowEditFlowModal(false);
-                      setEditingFlow(null);
-                    }
-                  }}
-                >
-                  Update Role
-                </Button>
-              </Group>
-            </>
+            </Alert>
           )}
-        </Stack>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        opened={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        title="Delete Collection"
-        size="md"
-      >
-        <Stack gap="md">
-          <Alert icon={<IconAlertCircle size={16} />} color="red">
-            <Text fw={500}>Warning: This action cannot be undone!</Text>
-            <Text size="sm">
-              Deleting this collection will remove all flow associations and may affect 
-              other parts of the system that reference these flows.
-            </Text>
-          </Alert>
           
-          <Text size="sm">
-            <strong>Collection:</strong> {collection.label}<br />
-            <strong>Flows:</strong> {collection.flow_collection.length} flows<br />
-            <strong>Format:</strong> {collection.format}
-          </Text>
-          
-          <Group justify="flex-end">
-            <Button variant="light" onClick={() => setShowDeleteModal(false)}>
+          <Group gap="xs" justify="flex-end">
+            <Button variant="light" onClick={() => setShowAddModal(false)}>
               Cancel
             </Button>
-            <Button color="red" onClick={handleDeleteCollection} loading={isLoading}>
-              Delete Collection
+            <Button
+              onClick={handleAddToCollection}
+              loading={loading}
+              disabled={selectedFlows.length === 0}
+            >
+              Add {selectedFlows.length > 0 ? `${selectedFlows.length} Flow${selectedFlows.length !== 1 ? 's' : ''}` : 'Flows'}
             </Button>
           </Group>
         </Stack>

@@ -125,11 +125,6 @@ const BBCPagination: React.FC<BBCPaginationProps> = ({
       {showBBCMetadata && (
         <Box mb="md" p="xs" bg="blue.0" style={{ borderRadius: '4px', border: '1px solid #dee2e6' }}>
           <Stack gap="xs">
-            <Group gap="md" align="center">
-              <IconInfoCircle size={16} color="#228be6" />
-              <Text size="sm" fw={500} color="blue">BBC TAMS Pagination Info</Text>
-            </Group>
-            
             <Group gap="lg" wrap="wrap">
               {paginationMeta.limit && (
                 <Group gap="xs">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Title,
@@ -14,7 +14,12 @@ import {
   Image,
   Select,
   TextInput,
-  Alert
+  Alert,
+  Tabs,
+  Switch,
+  Code,
+  Divider,
+  Collapse
 } from '@mantine/core';
 import { 
   IconPlayerPlay, 
@@ -24,15 +29,21 @@ import {
   IconFilter,
   IconSearch,
   IconRefresh,
-  IconInfoCircle
+  IconInfoCircle,
+  IconBrain,
+  IconSettings,
+  IconDatabase,
+  IconTarget,
+  IconArrowLeft
 } from '@tabler/icons-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import BBCPagination from '../components/BBCPagination';
 import { BBCApiOptions } from '../services/api';
 
-// Search result interface for football content
+// Enhanced search result interface for football content
 interface SearchResult {
   id: string;
-  type: 'segment' | 'flow';
+  type: 'segment' | 'flow' | 'source';
   title: string;
   description?: string;
   gameInfo: {
@@ -62,9 +73,12 @@ interface SearchResult {
   previewUrl?: string;
 }
 
-// Search filters interface
+// Enhanced search filters interface
 interface SearchFilters extends BBCApiOptions {
   query?: string;
+  searchMode?: 'basic' | 'advanced' | 'ai';
+  aiSearchEnabled?: boolean;
+  aiConfidence?: number;
   playerNumber?: string;
   playerName?: string;
   team?: string;
@@ -72,6 +86,15 @@ interface SearchFilters extends BBCApiOptions {
   timerange?: string;
   format?: string;
   quality?: string;
+  searchStrategy?: {
+    sources: boolean;
+    flows: boolean;
+    segments: boolean;
+    searchOrder: 'bbc-tams' | 'custom';
+    customOrder?: ('sources' | 'flows' | 'segments')[];
+    deduplication: boolean;
+    relationshipMapping: boolean;
+  };
 }
 
 // Mock data for football demo
@@ -166,7 +189,7 @@ const mockFootballResults: SearchResult[] = [
       number: '19',
       name: 'Marcus Rashford',
       team: 'Manchester United',
-        position: 'Forward'
+      position: 'Forward'
     },
     timing: {
       start: '00:78:12',
@@ -190,17 +213,41 @@ const mockFootballResults: SearchResult[] = [
 ];
 
 export default function SearchResults() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [results] = useState<SearchResult[]>(mockFootballResults);
-  const [filters, setFilters] = useState<SearchFilters>({
-    query: 'player number 19',
-    playerNumber: '19',
-    playerName: 'Marcus Rashford',
-    team: 'Manchester United'
+  
+  // Parse URL parameters
+  const [filters, setFilters] = useState<SearchFilters>(() => {
+    const params = new URLSearchParams(searchParams);
+    return {
+      query: params.get('query') || 'player number 19',
+      searchMode: (params.get('searchMode') as 'basic' | 'advanced' | 'ai') || 'basic',
+      aiSearchEnabled: params.get('aiSearchEnabled') === 'true',
+      aiConfidence: parseFloat(params.get('aiConfidence') || '0.7'),
+      playerNumber: params.get('playerNumber') || '19',
+      playerName: params.get('playerName') || 'Marcus Rashford',
+      team: params.get('team') || 'Manchester United',
+      timerange: params.get('timerange') || '',
+      format: params.get('format') || '',
+      quality: params.get('quality') || '',
+      searchStrategy: params.get('searchStrategy') ? 
+        JSON.parse(params.get('searchStrategy')!) : {
+          sources: true,
+          flows: true,
+          segments: true,
+          searchOrder: 'bbc-tams' as const,
+          deduplication: true,
+          relationshipMapping: true
+        }
+    };
   });
+
   const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [showSearchDetails, setShowSearchDetails] = useState(false);
 
   // Mock pagination metadata for BBC TAMS
   const mockPaginationMeta = {
@@ -285,11 +332,92 @@ export default function SearchResults() {
       <Stack gap="lg">
         {/* Header */}
         <Box>
-          <Title order={2} mb="xs">Search Results</Title>
-          <Text c="dimmed" size="sm">
-            Found {filteredResults.length} results for "{filters.query}"
-          </Text>
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Title order={2} mb="xs">Search Results</Title>
+              <Text c="dimmed" size="sm">
+                Found {filteredResults.length} results for "{filters.query}"
+              </Text>
+              <Text size="xs" c="dimmed" mt="xs">
+                Search Mode: {filters.searchMode} • AI: {filters.aiSearchEnabled ? 'Enabled' : 'Disabled'}
+                {filters.aiSearchEnabled && ` • Confidence: ${Math.round((filters.aiConfidence || 0) * 100)}%`}
+              </Text>
+            </Box>
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate('/search')}
+            >
+              Back to Search
+            </Button>
+          </Group>
         </Box>
+
+        {/* Search Configuration Summary */}
+        <Card withBorder p="md">
+          <Stack gap="md">
+            <Group justify="space-between" align="center">
+              <Text fw={500}>Search Configuration</Text>
+              <Button
+                variant="light"
+                size="sm"
+                onClick={() => setShowSearchDetails(!showSearchDetails)}
+                leftSection={<IconSettings size={16} />}
+              >
+                {showSearchDetails ? 'Hide' : 'Show'} Details
+              </Button>
+            </Group>
+            
+            <Collapse in={showSearchDetails}>
+              <Stack gap="md">
+                <Divider />
+                
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text fw={500} size="sm" mb="xs">Search Parameters:</Text>
+                    <Group gap="xs" wrap="wrap">
+                      <Badge variant="light" color="blue">{filters.searchMode} mode</Badge>
+                      {filters.playerNumber && <Badge variant="light" color="green">Player {filters.playerNumber}</Badge>}
+                      {filters.playerName && <Badge variant="light" color="green">{filters.playerName}</Badge>}
+                      {filters.team && <Badge variant="light" color="green">{filters.team}</Badge>}
+                      {filters.timerange && <Badge variant="light" color="orange">Timerange: {filters.timerange}</Badge>}
+                    </Group>
+                  </Grid.Col>
+                  
+                  <Grid.Col span={6}>
+                    <Text fw={500} size="sm" mb="xs">Search Strategy:</Text>
+                    <Group gap="xs" wrap="wrap">
+                      {filters.searchStrategy?.sources && <Badge variant="light" color="green">Sources</Badge>}
+                      {filters.searchStrategy?.flows && <Badge variant="light" color="blue">Flows</Badge>}
+                      {filters.searchStrategy?.segments && <Badge variant="light" color="orange">Segments</Badge>}
+                      {filters.searchStrategy?.deduplication && <Badge variant="light" color="purple">Deduplication</Badge>}
+                      {filters.searchStrategy?.relationshipMapping && <Badge variant="light" color="cyan">Relationships</Badge>}
+                    </Group>
+                  </Grid.Col>
+                </Grid>
+
+                {filters.aiSearchEnabled && (
+                  <Box>
+                    <Text fw={500} size="sm" mb="xs">AI Configuration:</Text>
+                    <Group gap="xs">
+                      <Badge variant="light" color="purple" leftSection={<IconBrain size={12} />}>
+                        AI Search Enabled
+                      </Badge>
+                      <Badge variant="light" color="purple">
+                        Confidence: {Math.round((filters.aiConfidence || 0) * 100)}%
+                      </Badge>
+                    </Group>
+                  </Box>
+                )}
+
+                <Box>
+                  <Text fw={500} size="sm" mb="xs">Raw Search Parameters:</Text>
+                  <Code block>{JSON.stringify(filters, null, 2)}</Code>
+                </Box>
+              </Stack>
+            </Collapse>
+          </Stack>
+        </Card>
 
         {/* Search Filters */}
         <Card withBorder p="md">
@@ -301,29 +429,29 @@ export default function SearchResults() {
                 size="sm"
                 onClick={handleSearch}
                 loading={loading}
-                leftSection={<IconSearch size={16} />}
+                leftSection={<IconRefresh size={16} />}
               >
-                Search
+                Refresh Results
               </Button>
             </Group>
             
             <Grid gutter="md">
               <Grid.Col span={3}>
                 <TextInput
-                  label="Player Number"
-                  placeholder="e.g., 19"
-                  value={filters.playerNumber || ''}
-                  onChange={(e) => setFilters(prev => ({ ...prev, playerNumber: e.target.value }))}
-                  size="sm"
+                  label="Query"
+                  placeholder="Search query"
+                  value={filters.query || ''}
+                  onChange={(e) => handleFiltersChange({ ...filters, query: e.target.value })}
+                  leftSection={<IconSearch size={16} />}
                 />
               </Grid.Col>
               <Grid.Col span={3}>
                 <TextInput
-                  label="Player Name"
-                  placeholder="e.g., Marcus Rashford"
-                  value={filters.playerName || ''}
-                  onChange={(e) => setFilters(prev => ({ ...prev, playerName: e.target.value }))}
-                  size="sm"
+                  label="Player Number"
+                  placeholder="e.g., 19"
+                  value={filters.playerNumber || ''}
+                  onChange={(e) => handleFiltersChange({ ...filters, playerNumber: e.target.value })}
+                  leftSection={<IconTag size={16} />}
                 />
               </Grid.Col>
               <Grid.Col span={3}>
@@ -331,160 +459,200 @@ export default function SearchResults() {
                   label="Team"
                   placeholder="e.g., Manchester United"
                   value={filters.team || ''}
-                  onChange={(e) => setFilters(prev => ({ ...prev, team: e.target.value }))}
-                  size="sm"
+                  onChange={(e) => handleFiltersChange({ ...filters, team: e.target.value })}
+                  leftSection={<IconTag size={16} />}
                 />
               </Grid.Col>
               <Grid.Col span={3}>
-                <TextInput
-                  label="Game Date"
-                  placeholder="e.g., 2024-01-15"
-                  value={filters.gameDate || ''}
-                  onChange={(e) => setFilters(prev => ({ ...prev, gameDate: e.target.value }))}
-                  size="sm"
+                <Select
+                  label="Format"
+                  placeholder="Select format"
+                  data={[
+                    { value: 'video/h264', label: 'H.264 Video' },
+                    { value: 'video/h265', label: 'H.265 Video' },
+                    { value: 'audio/aac', label: 'AAC Audio' },
+                    { value: 'data/json', label: 'JSON Data' }
+                  ]}
+                  value={filters.format || ''}
+                  onChange={(value) => handleFiltersChange({ ...filters, format: value || '' })}
+                  clearable
                 />
               </Grid.Col>
             </Grid>
           </Stack>
         </Card>
 
-        {/* Results Summary */}
+        {/* Results Count and Actions */}
         <Group justify="space-between" align="center">
           <Text size="sm" c="dimmed">
             Showing {startIndex + 1}-{Math.min(endIndex, filteredResults.length)} of {filteredResults.length} results
           </Text>
-          <Group gap="xs">
-            <Text size="sm" c="dimmed">Selected:</Text>
-            <Badge variant="filled" color="blue">
-              {selectedResults.size} items
-            </Badge>
-          </Group>
+          
+          {selectedResults.size > 0 && (
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">
+                {selectedResults.size} selected
+              </Text>
+              <Button size="sm" variant="light" color="red">
+                Delete Selected
+              </Button>
+              <Button size="sm" variant="light">
+                Export Selected
+              </Button>
+            </Group>
+          )}
         </Group>
 
-        {/* Results Grid */}
+        {/* Search Results */}
         <Grid gutter="md">
           {paginatedResults.map((result) => (
-            <Grid.Col key={result.id} span={4}>
-              <Card withBorder shadow="sm" radius="md" p="md">
+            <Grid.Col key={result.id} span={6}>
+              <Card 
+                withBorder 
+                p="md" 
+                radius="md"
+                style={{ 
+                  borderColor: selectedResults.has(result.id) ? '#228be6' : undefined,
+                  borderWidth: selectedResults.has(result.id) ? '2px' : '1px'
+                }}
+              >
                 <Stack gap="sm">
-                  {/* Thumbnail */}
-                  <Box style={{ position: 'relative' }}>
-                    <Image
-                      src={result.thumbnail}
-                      alt={result.title}
-                      radius="sm"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => handlePreview(result)}
-                    />
-                    <Group
-                      gap="xs"
-                      style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px'
-                      }}
+                  {/* Result Header */}
+                  <Group justify="space-between" align="flex-start">
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={500} size="sm" lineClamp={2}>
+                        {result.title}
+                      </Text>
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {result.description}
+                      </Text>
+                    </Box>
+                    <ActionIcon
+                      size="sm"
+                      variant="light"
+                      onClick={() => toggleResultSelection(result.id)}
+                      color={selectedResults.has(result.id) ? 'blue' : 'gray'}
                     >
-                      <Badge variant="filled" color="red" size="sm">
-                        {formatDuration(result.timing.duration)}
-                      </Badge>
-                                              <ActionIcon
-                          variant="filled"
-                          color="blue"
-                          size="sm"
-                          onClick={() => handlePreview(result)}
-                        >
-                          <IconPlayerPlay size={12} />
-                        </ActionIcon>
-                    </Group>
-                  </Box>
-
-                  {/* Content Info */}
-                  <Box>
-                    <Text fw={600} size="sm" lineClamp={2}>
-                      {result.title}
-                    </Text>
-                    <Text size="xs" c="dimmed" lineClamp={1}>
-                      {result.description}
-                    </Text>
-                  </Box>
+                      <IconEye size={16} />
+                    </ActionIcon>
+                  </Group>
 
                   {/* Game Info */}
                   <Box>
-                    <Group gap="xs" mb="xs">
-                      <Badge variant="light" color="blue" size="xs">
-                        {result.gameInfo.homeTeam} vs {result.gameInfo.awayTeam}
-                      </Badge>
-                      {result.gameInfo.score && (
-                        <Badge variant="light" color="green" size="xs">
-                          {result.gameInfo.score}
-                        </Badge>
-                      )}
-                    </Group>
+                    <Badge variant="light" color="blue" size="sm" mb="xs">
+                      {result.gameInfo.homeTeam} vs {result.gameInfo.awayTeam}
+                    </Badge>
                     <Text size="xs" c="dimmed">
                       {result.gameInfo.date} • {result.gameInfo.venue}
+                      {result.gameInfo.score && ` • ${result.gameInfo.score}`}
                     </Text>
                   </Box>
 
                   {/* Player Info */}
                   {result.playerInfo && (
                     <Box>
-                      <Group gap="xs" mb="xs">
-                        <Badge variant="light" color="orange" size="xs">
-                          #{result.playerInfo.number}
+                      <Group gap="xs" wrap="wrap">
+                        <Badge variant="light" color="green" size="xs">
+                          #{result.playerInfo.number} {result.playerInfo.name}
                         </Badge>
                         <Badge variant="light" color="gray" size="xs">
                           {result.playerInfo.position}
                         </Badge>
                       </Group>
-                      <Text size="xs" c="dimmed">
-                        {result.playerInfo.name} • {result.playerInfo.team}
-                      </Text>
                     </Box>
                   )}
 
                   {/* Timing */}
                   <Box>
                     <Group gap="xs" align="center">
-                      <IconClock size={12} />
+                      <IconClock size={14} />
                       <Text size="xs" c="dimmed">
-                        {result.timing.start} - {result.timing.end}
+                        {result.timing.start} - {result.timing.end} ({formatDuration(result.timing.duration)})
                       </Text>
                     </Group>
                   </Box>
 
-                  {/* Selection */}
-                  <Button
-                    variant={selectedResults.has(result.id) ? "filled" : "outline"}
-                    size="xs"
-                    fullWidth
-                    onClick={() => toggleResultSelection(result.id)}
-                  >
-                    {selectedResults.has(result.id) ? 'Selected' : 'Select'}
-                  </Button>
+                  {/* Metadata */}
+                  <Box>
+                    <Group gap="xs" wrap="wrap">
+                      <Badge variant="light" color="gray" size="xs">
+                        {result.metadata.format}
+                      </Badge>
+                      <Badge variant="light" color="gray" size="xs">
+                        {result.metadata.quality}
+                      </Badge>
+                      {Object.entries(result.metadata.tags).slice(0, 3).map(([key, value]) => (
+                        <Badge key={key} variant="light" color="gray" size="xs">
+                          {key}: {value}
+                        </Badge>
+                      ))}
+                    </Group>
+                  </Box>
+
+                  {/* Actions */}
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPlayerPlay size={14} />}
+                      onClick={() => handlePreview(result)}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconEye size={14} />}
+                    >
+                      View Details
+                    </Button>
+                  </Group>
                 </Stack>
               </Card>
             </Grid.Col>
           ))}
         </Grid>
 
-        {/* Pagination */}
-        <Box>
-          <BBCPagination
-            paginationMeta={mockPaginationMeta}
-            onPageChange={handlePageChange}
-            onLimitChange={handleLimitChange}
-            showBBCMetadata={true}
-            showLimitSelector={true}
-            showNavigationButtons={true}
-          />
-        </Box>
+        {/* No Results */}
+        {paginatedResults.length === 0 && (
+          <Card withBorder p="xl" ta="center">
+            <Stack gap="md">
+              <IconSearch size={48} color="var(--mantine-color-gray-4)" />
+              <Text size="lg" c="dimmed">No results found</Text>
+              <Text size="sm" c="dimmed">
+                Try adjusting your search filters or search criteria
+              </Text>
+              <Button
+                variant="light"
+                onClick={() => navigate('/search')}
+                leftSection={<IconArrowLeft size={16} />}
+              >
+                Back to Search
+              </Button>
+            </Stack>
+          </Card>
+        )}
 
-        {/* BBC TAMS Info */}
-        <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+        {/* BBC TAMS Pagination */}
+        {filteredResults.length > 0 && (
+          <Card withBorder p="md">
+            <BBCPagination
+              paginationMeta={mockPaginationMeta}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              showBBCMetadata={true}
+              showLimitSelector={true}
+              showNavigationButtons={true}
+            />
+          </Card>
+        )}
+
+        {/* BBC TAMS Search Info */}
+        <Alert icon={<IconInfoCircle size={16} />} title="BBC TAMS Search Results" color="blue">
           <Text size="sm">
-            This search results page demonstrates BBC TAMS v6.0 content discovery capabilities. 
-            In production, it would use real BBC TAMS API endpoints for searching flows and segments 
-            with advanced filtering and cursor-based pagination.
+            These results demonstrate BBC TAMS v6.0 compliant search capabilities with multi-entity support, 
+            advanced filtering, and AI-powered content discovery. The search strategy and filters are applied 
+            according to BBC TAMS specification for optimal content retrieval.
           </Text>
         </Alert>
       </Stack>

@@ -2,41 +2,21 @@
 // Handles cursor-based pagination, Link headers, and metadata parsing
 
 // BBC TAMS API Configuration
-export const BBC_TAMS_BASE_URL = 'http://localhost:8000';
+import { BBCApiResponse, BBCApiOptions, BBCPaginationMeta } from './api';
 
-export interface BBCPaginationMeta {
-  link?: string;
-  limit?: number;
-  nextKey?: string;
-  prevKey?: string;
-  firstKey?: string;
-  lastKey?: string;
-  timerange?: string;
-  count?: number;
-  reverseOrder?: boolean;
-}
+// Re-export interfaces for use by other modules
+export type { BBCApiResponse, BBCApiOptions, BBCPaginationMeta };
 
+// Use proxy in development, full URL in production
+export const BBC_TAMS_BASE_URL = import.meta.env.DEV 
+  ? '/api'  // Use Vite dev server proxy
+  : (import.meta.env.VITE_API_URL || 'http://34.216.9.25:8000');
+
+// BBC TAMS Link Header interface (used by parseLinkHeader function)
 export interface BBCLinkHeader {
   url: string;
   rel: string;
   params?: Record<string, string>;
-}
-
-export interface BBCApiResponse<T> {
-  data: T[];
-  pagination: BBCPaginationMeta;
-  links: BBCLinkHeader[];
-}
-
-export interface BBCApiOptions {
-  page?: string; // Cursor for pagination
-  limit?: number; // Number of items per page
-  timerange?: string; // BBC timerange format
-  format?: string; // Content format filter
-  codec?: string; // Codec filter
-  tags?: Record<string, string>; // Tag filters
-  tagExists?: Record<string, boolean>; // Tag existence filters
-  custom?: Record<string, any>; // Custom filters
 }
 
 // Parse BBC TAMS Link header according to RFC 5988
@@ -307,6 +287,17 @@ export async function getFlowSegments(flowId: string, options: BBCApiOptions = {
 }
 
 // Get sources with BBC TAMS pagination
+export async function getSource(sourceId: string): Promise<any> {
+  try {
+    const response = await bbcTamsGet(`/sources/${sourceId}`);
+    // For single source, return just the data, not the full response structure
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching source:', error);
+    throw error;
+  }
+}
+
 export async function getSources(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
   return bbcTamsGet('/sources', options);
 }
@@ -668,3 +659,361 @@ export function getAllNavigationCursors(response: BBCApiResponse<any>): {
   
   return cursors;
 }
+
+// BBC TAMS Storage API Functions
+
+/**
+ * Create storage allocation for a flow
+ * POST /flows/{flow_id}/storage
+ */
+export async function createFlowStorage(
+  flowId: string, 
+  storageRequest: { limit?: number; object_ids?: string[] }
+): Promise<{
+  storage_locations: Array<{
+    object_id: string;
+    put_url: string;
+    bucket_put_url?: string;
+  }>;
+}> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/storage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(storageRequest),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Storage allocation failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error creating flow storage:', error);
+    throw error;
+  }
+}
+
+// BBC TAMS Flow Tags API Functions
+
+/**
+ * Get flow tags
+ * GET /flows/{flow_id}/tags
+ */
+export async function getFlowTags(flowId: string): Promise<Record<string, string>> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/tags`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow tags: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting flow tags:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update flow tag
+ * PUT /flows/{flow_id}/tags/{name}
+ */
+export async function updateFlowTag(flowId: string, tagName: string, tagValue: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/tags/${encodeURIComponent(tagName)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ value: tagValue }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update flow tag: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error updating flow tag:', error);
+    throw error;
+  }
+}
+
+/**
+ * Set flow tag (alias for updateFlowTag)
+ * PUT /flows/{flow_id}/tags/{name}
+ */
+export async function setFlowTag(flowId: string, tagName: string, tagValue: string): Promise<void> {
+  return updateFlowTag(flowId, tagName, tagValue);
+}
+
+/**
+ * Delete flow tag
+ * DELETE /flows/{flow_id}/tags/{name}
+ */
+export async function deleteFlowTag(flowId: string, tagName: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/tags/${encodeURIComponent(tagName)}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete flow tag: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error deleting flow tag:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update flow read-only status
+ * PUT /flows/{flow_id}/read_only?read_only={boolean}
+ */
+export async function updateFlowReadOnly(flowId: string, readOnly: boolean): Promise<void> {
+  try {
+    const url = `${BBC_TAMS_BASE_URL}/flows/${flowId}/read_only?read_only=${readOnly}`;
+    
+    console.log('Making read-only update request:', {
+      url,
+      method: 'PUT',
+      baseUrl: BBC_TAMS_BASE_URL,
+      flowId,
+      readOnly
+    });
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    console.log('Read-only update response:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response body:', errorText);
+      throw new Error(`Failed to update flow read-only status: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+  } catch (error) {
+    console.error('Error updating flow read-only status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Set flow read-only status (alias for updateFlowReadOnly)
+ * PUT /flows/{flow_id}/read_only
+ */
+export async function setFlowReadOnly(flowId: string, readOnly: boolean): Promise<void> {
+  return updateFlowReadOnly(flowId, readOnly);
+}
+
+/**
+ * Get flow collection
+ * GET /flows/{flow_id}/flow_collection
+ */
+export async function getFlowCollection(flowId: string): Promise<any> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/flow_collection`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow collection: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting flow collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Set flow collection
+ * PUT /flows/{flow_id}/flow_collection
+ */
+export async function setFlowCollection(flowId: string, collectionId: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/flow_collection`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ collection_id: collectionId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set flow collection: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error setting flow collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Remove flow from collection
+ * DELETE /flows/{flow_id}/flow_collection
+ */
+export async function removeFlowFromCollection(flowId: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/flow_collection`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to remove flow from collection: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error removing flow from collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get flow read-only status
+ * GET /flows/{flow_id}/read_only
+ */
+export async function getFlowReadOnly(flowId: string): Promise<{ read_only: boolean }> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/read_only`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow read-only status: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting flow read-only status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get flow description
+ * GET /flows/{flow_id}/description
+ */
+export async function getFlowDescription(flowId: string): Promise<{ description: string }> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/description`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow description: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting flow description:', error);
+    throw error;
+  }
+}
+
+/**
+ * Set flow description
+ * PUT /flows/{flow_id}/description
+ */
+export async function setFlowDescription(flowId: string, description: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/description`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ description }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set flow description: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error setting flow description:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get flow label
+ * GET /flows/{flow_id}/label
+ */
+export async function getFlowLabel(flowId: string): Promise<{ label: string }> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/label`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow label: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting flow label:', error);
+    throw error;
+  }
+}
+
+/**
+ * Set flow label
+ * PUT /flows/{flow_id}/label
+ */
+export async function setFlowLabel(flowId: string, label: string): Promise<void> {
+  try {
+    const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/label`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ label }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set flow label: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error setting flow label:', error);
+    throw error;
+  }
+}
+
+

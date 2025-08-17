@@ -37,10 +37,10 @@ interface MetricsData {
   http_request_duration_seconds: { [key: string]: number[] };
   sources_total: number;
   flows_total: number;
-  segments_total: number;
+  objects_total: number;
   storage_bytes_total: number;
   flow_operations_total: { [key: string]: number };
-  segment_operations_total: { [key: string]: number };
+  object_operations_total: { [key: string]: number };
   source_operations_total: { [key: string]: number };
   errors_total: number;
   vast_query_duration_seconds: number;
@@ -54,7 +54,7 @@ interface SystemMetricsDashboardProps {
   refreshInterval?: number; // in milliseconds
 }
 
-export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetricsDashboardProps) {
+export function SystemMetricsDashboard({ refreshInterval = 60000 }: SystemMetricsDashboardProps) { // Default to 1 minute instead of 30 seconds
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
     },
     sources_total: 45,
     flows_total: 234,
-    segments_total: 1247,
+    objects_total: 1247,
     storage_bytes_total: 107374182400, // 100 GB
     flow_operations_total: {
       'create_success': 156,
@@ -90,7 +90,7 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
       'delete_success': 45,
       'delete_failed': 0
     },
-    segment_operations_total: {
+    object_operations_total: {
       'upload_success': 1247,
       'upload_failed': 12,
       'delete_success': 89,
@@ -117,28 +117,36 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
       setLoading(true);
       setError(null);
       
-      // Use real API call to /metrics
-      const response = await apiClient.getMetrics();
+      // Fetch Prometheus metrics directly using the proxy to avoid CORS issues
+      // Note: /metrics returns Prometheus format, not JSON
+      const response = await fetch('/api/metrics');
       
-      // Transform the API response to match our expected format
-      const apiMetrics = response || {};
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
-      // Create metrics data from API response, with fallbacks to mock data if needed
+      // Get the Prometheus metrics as text
+      const prometheusText = await response.text();
+      
+      // Parse Prometheus metrics to extract useful information
+      const parsedMetrics = parsePrometheusMetrics(prometheusText);
+      
+      // Create metrics data from parsed Prometheus response, with fallbacks to mock data if needed
       const metricsData: MetricsData = {
-        http_requests_total: apiMetrics.http_requests_total || mockMetrics.http_requests_total,
-        http_request_duration_seconds: apiMetrics.http_request_duration_seconds || mockMetrics.http_request_duration_seconds,
-        sources_total: apiMetrics.sources_total || mockMetrics.sources_total,
-        flows_total: apiMetrics.flows_total || mockMetrics.flows_total,
-        segments_total: apiMetrics.segments_total || mockMetrics.segments_total,
-        storage_bytes_total: apiMetrics.storage_bytes_total || mockMetrics.storage_bytes_total,
-        flow_operations_total: apiMetrics.flow_operations_total || mockMetrics.flow_operations_total,
-        segment_operations_total: apiMetrics.segment_operations_total || mockMetrics.segment_operations_total,
-        source_operations_total: apiMetrics.source_operations_total || mockMetrics.source_operations_total,
-        errors_total: apiMetrics.errors_total || mockMetrics.errors_total,
-        vast_query_duration_seconds: apiMetrics.vast_query_duration_seconds || mockMetrics.vast_query_duration_seconds,
-        s3_operation_duration_seconds: apiMetrics.s3_operation_duration_seconds || mockMetrics.s3_operation_duration_seconds,
-        memory_usage_bytes: apiMetrics.memory_usage_bytes || mockMetrics.memory_usage_bytes,
-        active_connections: apiMetrics.active_connections || mockMetrics.active_connections,
+        http_requests_total: parsedMetrics.http_requests_total || mockMetrics.http_requests_total,
+        http_request_duration_seconds: parsedMetrics.http_request_duration_seconds || mockMetrics.http_request_duration_seconds,
+        sources_total: parsedMetrics.sources_total || mockMetrics.sources_total,
+        flows_total: parsedMetrics.flows_total || mockMetrics.flows_total,
+        objects_total: parsedMetrics.objects_total || mockMetrics.objects_total,
+        storage_bytes_total: parsedMetrics.storage_bytes_total || mockMetrics.storage_bytes_total,
+        flow_operations_total: parsedMetrics.flow_operations_total || mockMetrics.flow_operations_total,
+        object_operations_total: parsedMetrics.object_operations_total || mockMetrics.object_operations_total,
+        source_operations_total: parsedMetrics.source_operations_total || mockMetrics.source_operations_total,
+        errors_total: parsedMetrics.errors_total || mockMetrics.errors_total,
+        vast_query_duration_seconds: parsedMetrics.vast_query_duration_seconds || mockMetrics.vast_query_duration_seconds,
+        s3_operation_duration_seconds: parsedMetrics.s3_operation_duration_seconds || mockMetrics.s3_operation_duration_seconds,
+        memory_usage_bytes: parsedMetrics.memory_usage_bytes || mockMetrics.memory_usage_bytes,
+        active_connections: parsedMetrics.active_connections || mockMetrics.active_connections,
         last_updated: new Date().toISOString()
       };
       
@@ -151,13 +159,69 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
         // Fall back to mock data for development
         setMetrics(mockMetrics);
       } else {
-        setError(err.message || 'Failed to fetch metrics');
+        console.warn('Failed to fetch Prometheus metrics, using mock data:', err.message);
+        setError('Using mock data - Failed to fetch live metrics');
         // Fall back to mock data for development
         setMetrics(mockMetrics);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to parse Prometheus metrics format
+  const parsePrometheusMetrics = (prometheusText: string): Partial<MetricsData> => {
+    const metrics: Partial<MetricsData> = {};
+    
+    try {
+      const lines = prometheusText.split('\n');
+      
+      for (const line of lines) {
+        // Skip comments and empty lines
+        if (line.startsWith('#') || !line.trim()) continue;
+        
+        // Parse metric lines (format: metric_name{label="value"} value)
+        const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{([^}]*)\})?\s+([0-9.]+)$/);
+        if (match) {
+          const [, metricName, labels, value] = match;
+          if (!metricName || !value) continue; // Skip if metricName or value is undefined
+          
+          const numValue = parseFloat(value);
+          
+          // Extract useful metrics based on common Prometheus metric names
+          if (metricName.includes('http_requests_total')) {
+            if (!metrics.http_requests_total) metrics.http_requests_total = {};
+            const label = labels ? labels.split('=')[1]?.replace(/"/g, '') || 'unknown' : 'total';
+            metrics.http_requests_total[label] = numValue;
+          } else if (metricName.includes('http_request_duration_seconds')) {
+            if (!metrics.http_request_duration_seconds) metrics.http_request_duration_seconds = {};
+            const label = labels ? labels.split('=')[1]?.replace(/"/g, '') || 'unknown' : 'total';
+            if (!metrics.http_request_duration_seconds[label]) {
+              metrics.http_request_duration_seconds[label] = [];
+            }
+            metrics.http_request_duration_seconds[label].push(numValue);
+          } else if (metricName.includes('sources_total')) {
+            metrics.sources_total = numValue;
+          } else if (metricName.includes('flows_total')) {
+            metrics.flows_total = numValue;
+          } else if (metricName.includes('objects_total')) {
+            metrics.objects_total = numValue;
+          } else if (metricName.includes('storage_bytes_total')) {
+            metrics.storage_bytes_total = numValue;
+          } else if (metricName.includes('errors_total')) {
+            metrics.errors_total = numValue;
+          } else if (metricName.includes('memory_usage_bytes')) {
+            metrics.memory_usage_bytes = numValue;
+          } else if (metricName.includes('active_connections')) {
+            metrics.active_connections = numValue;
+          }
+        }
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse Prometheus metrics:', parseError);
+    }
+    
+    return metrics;
   };
 
   useEffect(() => {
@@ -269,8 +333,8 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
             <Group>
               <IconCloud size={24} color="orange" />
               <Box>
-                <Text size="xs" c="dimmed">Total Segments</Text>
-                <Title order={4}>{metrics.segments_total}</Title>
+                <Text size="xs" c="dimmed">Total Objects</Text>
+                <Title order={4}>{metrics.objects_total}</Title>
               </Box>
             </Group>
           </Card>
@@ -446,11 +510,11 @@ export function SystemMetricsDashboard({ refreshInterval = 30000 }: SystemMetric
         
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card>
-            <Title order={4} mb="md">Segment Operations</Title>
+            <Title order={4} mb="md">Object Operations</Title>
             <Stack gap="md">
-              {Object.entries(metrics.segment_operations_total).map(([operation, count]) => {
+              {Object.entries(metrics.object_operations_total).map(([operation, count]) => {
                 const isSuccess = operation.includes('success');
-                const total = Object.entries(metrics.segment_operations_total)
+                const total = Object.entries(metrics.object_operations_total)
                   .filter(([op]) => {
                     const prefix = operation.split('_')[0];
                     return prefix && op.startsWith(prefix);

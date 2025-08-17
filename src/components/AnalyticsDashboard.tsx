@@ -69,8 +69,8 @@ export default function AnalyticsDashboard({
   useEffect(() => {
     loadAnalytics();
     
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadAnalytics, 30000);
+    // Auto-refresh every minute instead of every 30 seconds
+    const interval = setInterval(loadAnalytics, 60000);
     
     return () => clearInterval(interval);
   }, [compilationId, showMockData]);

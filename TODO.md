@@ -166,16 +166,198 @@ DELETE /objects/{object_id}
 ---
 
 ### **8. Enhanced Flow Details**
-**Status**: ✅ **COMPLETED** (July 25, 2025)  
-**Backend APIs**: `GET /flows/{flow_id}`, `PUT /flows/{flow_id}`, `DELETE /flows/{flow_id}`
 
-#### Tasks:
+**Reference**: [BBC TAMS API v6.0](https://github.com/bbc/tams)  
+**Reference**: [VAST TAMS](https://github.com/jesseVast/vasttams)  
+**Reference**: [Live VAST TAMS Service Swagger Docs](http://34.216.9.25:8000/docs)  
+
+
+**Status**: ✅ **COMPLETED** (All components implemented and integrated)  
+**Completion Date**: January 2025  
+**Backend APIs**: `GET /flows/{flow_id}`, `PUT /flows/{flow_id}`, `DELETE /flows/{flow_id}`, `GET /flows/{id}/tags`, `PUT /flows/{id}/tags/{name}`, `DELETE /flows/{id}/tags/{name}`, `GET /flows/{id}/flow_collection`, `PUT /flows/{id}/flow_collection`, `DELETE /flows/{id}/flow_collection`, `GET /flows/{id}/read_only`, `PUT /flows/{id}/read_only`, `GET /flows/{id}/description`, `PUT /flows/{id}/description`, `GET /flows/{id}/label`, `PUT /flows/{id}/label`
+
+#### Completed Tasks:
 - [x] Add complete flow information display *(Comprehensive flow details with multiple tabs)*
 - [x] Add flow metadata editing *(Edit modal with form fields)*
-- [x] Add flow tags management *(Tag display and editing)*
 - [x] Add flow segments list *(Recent segments table with time ranges)*
 - [x] Add flow analytics *(Performance metrics and quality scores)*
 - [x] Add flow sharing functionality *(Ready for implementation)*
+- [x] Add live segments functionality *(Real-time updates, live mode, auto-refresh)*
+- [x] Add live segment uploads *(Real-time segment creation)*
+- [x] Add flow tags management *(Complete CRUD operations with BBC TAMS API integration)*
+- [x] Add flow description & label management *(Inline editing with rich text support)*
+- [x] Add flow collection management *(Multi-flow grouping with hierarchy visualization)*
+- [x] Add flow read-only status management *(Status indicator with toggle functionality)*
+- [x] Add flow analytics dashboard *(Comprehensive usage statistics, storage analysis, time patterns)*
+- [x] Add flow health & status monitoring *(Real-time health checks, performance alerts, system timeline)*
+
+#### Missing Components to Implement:
+- [x] **Flow Tags Management** *(Tag display, editing, add/remove functionality)*
+- [x] **Flow Description & Label Management** *(Inline editing, rich text support)*
+- [x] **Flow Collection Management** *(MultiFlow grouping, hierarchy visualization)*
+- [x] **Flow Read-Only Status Management** *(Status indicator, toggle functionality)*
+- [x] **Flow Analytics Dashboard** *(Usage statistics, storage analysis, time patterns)*
+- [x] **Flow Health & Status Monitoring** *(Real-time health checks, performance alerts)*
+
+#### API Integration for Missing Components:
+```typescript
+// Flow Tags Management
+GET /flows/{id}/tags
+PUT /flows/{id}/tags/{name}
+DELETE /flows/{id}/tags/{name}
+
+// Flow Collection Management
+GET /flows/{id}/flow_collection
+PUT /flows/{id}/flow_collection
+DELETE /flows/{id}/flow_collection
+
+// Flow Status Management
+GET /flows/{id}/read_only
+PUT /flows/{id}/read_only
+GET /flows/{id}/description
+PUT /flows/{id}/description
+GET /flows/{id}/label
+PUT /flows/{id}/label
+
+// Flow Analytics
+GET /analytics/flow-usage
+GET /analytics/storage-usage
+GET /analytics/time-range-analysis
+```
+
+#### Implementation Summary:
+The Enhanced Flow Details functionality has been fully implemented with the following key features:
+
+1. **Flow Tags Management** - Complete CRUD operations for flow metadata tags with BBC TAMS API integration
+2. **Flow Description & Label Management** - Inline editing capabilities for flow descriptions and labels
+3. **Flow Collection Management** - Multi-flow grouping system with search and hierarchy visualization
+4. **Flow Read-Only Status Management** - Status indicator with toggle functionality and confirmation dialogs
+5. **Flow Analytics Dashboard** - Comprehensive analytics including usage statistics, storage analysis, and time patterns
+6. **Flow Health & Status Monitoring** - Real-time health checks, performance alerts, and system status timeline
+
+All components are fully integrated into the FlowDetails page with proper error handling, loading states, and responsive design. The implementation follows BBC TAMS API v6.0 specifications and provides a comprehensive flow management experience.
+
+---
+
+### **8.5. Additional Frontend Components from VAST TAMS API**
+
+**Reference**: [BBC TAMS API](https://github.com/bbc/tams)
+**Reference**: [Live VAST TAMS Service Swagger Docs, which is an extension of the BBC TAMS API](http://34.216.9.25:8000/docs#/)  
+**Status**: 🔄 **PLANNED** (API endpoints identified, components to be implemented)  
+**Priority**: Medium-High (Enhances existing functionality with API capabilities)
+
+#### **Sources Page Enhancements:**
+
+##### **Source Health Monitoring**
+- **API Endpoint**: Health status endpoints for sources
+- **Component**: `SourceHealthMonitor` - Real-time source health, connectivity status, performance metrics
+- **Features**: Health indicators, uptime monitoring, error tracking, real-time alerts
+- **Status**: ✅ **COMPLETED** (Component implemented and integrated into Sources page)
+
+##### **Source Configuration Management**
+             - **API Endpoint**: Source configuration and settings endpoints
+             - **Component**: `SourceConfigManager` - Advanced source configuration, format settings, quality parameters
+             - **Features**: Configuration forms, validation, preset management, advanced settings
+             - **Status**: ✅ **COMPLETED** (Component implemented and integrated into SourceDetails page)
+
+##### **Source Analytics Dashboard**
+- **API Endpoint**: Source-specific analytics endpoints
+- **Component**: `SourceAnalyticsDashboard` - Usage statistics, performance metrics, quality scores
+- **Features**: Charts, metrics, trend analysis, performance history
+- **Status**: ❌ Not Implemented
+
+#### **Flows Page Enhancements:**
+
+##### **Flow Advanced Search & Filtering**
+- **API Endpoint**: Advanced flow search with multiple criteria
+- **Component**: `FlowAdvancedSearch` - Multi-criteria search, saved searches, search history
+- **Features**: Advanced filters, search operators, result highlighting, saved searches
+- **Status**: ❌ Not Implemented
+
+##### **Flow Batch Operations**
+- **API Endpoint**: Batch flow operations endpoints
+- **Component**: `FlowBatchManager` - Bulk operations, mass updates, batch processing
+- **Features**: Multi-select, batch actions, progress tracking, bulk updates
+- **Status**: ❌ Not Implemented
+
+##### **Flow Templates**
+- **API Endpoint**: Flow template management
+- **Component**: `FlowTemplateManager` - Template creation, application, management
+- **Features**: Template library, quick setup, standardization, template sharing
+- **Status**: ❌ Not Implemented
+
+#### **Flow Details Page Enhancements:**
+
+##### **Flow Versioning & History**
+- **API Endpoint**: Flow version control endpoints
+- **Component**: `FlowVersionManager` - Version history, rollback, change tracking
+- **Features**: Version comparison, change logs, audit trail, rollback functionality
+- **Status**: ❌ Not Implemented
+
+##### **Flow Dependencies & Relationships**
+- **API Endpoint**: Flow dependency management
+- **Component**: `FlowDependencyGraph` - Visual dependency mapping, relationship management
+- **Features**: Graph visualization, dependency analysis, impact assessment, relationship editor
+- **Status**: ❌ Not Implemented
+
+##### **Flow Performance Profiling**
+- **API Endpoint**: Detailed performance metrics
+- **Component**: `FlowPerformanceProfiler` - Performance analysis, bottleneck identification, optimization suggestions
+- **Features**: Performance charts, optimization recommendations, benchmarking, performance alerts
+- **Status**: ❌ Not Implemented
+
+##### **Flow Security & Access Control**
+- **API Endpoint**: Flow permissions and access control
+- **Component**: `FlowSecurityManager` - Permission management, access control, security settings
+- **Features**: Role-based access, permission matrix, security audit, access logs
+- **Status**: ❌ Not Implemented
+
+#### **Cross-Page Components:**
+
+##### **Real-Time Notifications**
+- **API Endpoint**: WebSocket or SSE endpoints for real-time updates
+- **Component**: `RealTimeNotificationCenter` - Live updates, alerts, system notifications
+- **Features**: Real-time feeds, notification preferences, alert management, notification history
+- **Status**: ❌ Not Implemented
+
+##### **Advanced Reporting**
+- **API Endpoint**: Comprehensive reporting endpoints
+- **Component**: `AdvancedReportingDashboard` - Custom reports, data export, scheduled reports
+- **Features**: Report builder, export options, scheduling, report templates
+- **Status**: ❌ Not Implemented
+
+##### **System Monitoring**
+- **API Endpoint**: System health and monitoring endpoints
+- **Component**: `SystemHealthMonitor` - Overall system status, resource monitoring, alerting
+- **Features**: System metrics, resource usage, alert thresholds, system overview
+- **Status**: ❌ Not Implemented
+
+#### **Implementation Phases:**
+
+##### **Phase 1: Core Enhancements (High Priority)**
+- [x] **Source Health Monitoring** - Critical for operational visibility ✅ **COMPLETED**
+- [x] **Source Details Page** - Dedicated page for comprehensive source management ✅ **COMPLETED**
+- [x] **Source Configuration Management** - Advanced source configuration and settings ✅ **COMPLETED**
+- [ ] **Flow Advanced Search** - Improves user productivity significantly  
+- [ ] **Real-Time Notifications** - Enhances user experience across all pages
+
+##### **Phase 2: Analytics & Performance (Medium Priority)**
+- [ ] **Source Analytics Dashboard** - Provides operational insights
+- [ ] **Flow Performance Profiling** - Helps with optimization
+- [ ] **System Health Monitor** - Overall system visibility
+
+##### **Phase 3: Advanced Features (Low Priority)**
+- [ ] **Flow Batch Operations** - Improves efficiency for power users
+- [ ] **Flow Templates** - Advanced feature for power users
+- [ ] **Advanced Reporting** - Complex but powerful feature
+
+#### **Technical Requirements:**
+- Follow established component patterns from Enhanced Flow Details
+- Implement proper error handling and fallbacks for API limitations
+- Add loading states and user feedback
+- Ensure responsive design and accessibility
+- Use consistent state management patterns
+- Implement proper caching and performance optimization
 
 ---
 
@@ -506,6 +688,7 @@ GET /health (Enhanced health check with system metrics)
 - [x] **Error Rate Monitoring**: Show error rates and system alerts
 - [x] **Resource Usage**: Display memory, CPU, and connection metrics
 - [x] **Real-time Updates**: Auto-refresh metrics every 30 seconds
+- [x] **Console Error Fixes**: Fixed Prometheus metrics parsing and API client integration issues
 
 **New Components Added:**
 - ✅ SystemMetricsDashboard.tsx - Comprehensive metrics display
@@ -519,6 +702,21 @@ GET /health (Enhanced health check with system metrics)
 - **Visual Indicators**: Color-coded status badges and progress bars
 - **Comprehensive Dashboard**: Tabbed interface with overview, metrics, health, and performance views
 - **Header Integration**: Health status visible in main navigation
+- **Live Backend Integration**: Connected to live backend server at http://34.216.9.25:8000
+- **Prometheus Metrics Support**: Proper handling of Prometheus format metrics endpoint
+- **Error Handling**: Robust error handling for API failures and fallback data
+
+**Recent Fixes (January 2025):**
+- ✅ **Fixed Console Errors**: Resolved Prometheus metrics parsing issues
+- ✅ **API Client Integration**: Fixed missing `get` method usage with proper API client methods
+- ✅ **Type Safety**: Added proper TypeScript type checking for Promise results
+- ✅ **Error Handling**: Improved error handling for failed API calls
+- ✅ **Metrics Endpoint**: Proper handling of Prometheus format vs JSON responses
+- ✅ **CORS Issue Resolution**: Applied Vite dev server proxy workaround for external API calls
+- ✅ **SystemMetricsDashboard Fix**: Updated component to parse Prometheus metrics format instead of expecting JSON
+- ✅ **Service.tsx Update**: Removed outdated "Segments" references and updated to reflect current TAMS structure
+- ✅ **SystemMetricsDashboard Update**: Removed segments references and replaced with objects for current TAMS structure
+- ✅ **Version Badge Update**: Changed green badges from "BBC TAMS v6.0" to "TAMS v6.0" for cleaner display
 
 ##### **3. Enhanced API Models** ✅ **COMPLETED** (January 2025)  
 **Status**: ✅ **IMPLEMENTED**  

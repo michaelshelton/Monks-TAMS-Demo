@@ -51,6 +51,7 @@ import {
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
 import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
+import { useNavigate } from 'react-router-dom';
 import { 
   validateTAMSEntity, 
   VALID_CONTENT_FORMATS, 
@@ -61,6 +62,7 @@ import {
 import { apiClient } from '../services/api';
 import { getSources, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/bbcTamsApi';
 import BBCPagination from '../components/BBCPagination';
+import { SourceHealthMonitor } from '../components/SourceHealthMonitor';
 
 // Football-specific metadata interface
 interface FootballGameMetadata {
@@ -222,6 +224,7 @@ const getFormatLabel = (format: string) => {
 };
 
 export default function Sources() {
+  const navigate = useNavigate();
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,7 +232,7 @@ export default function Sources() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false); // New state for showing deleted items
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -237,7 +240,6 @@ export default function Sources() {
   // BBC TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [useBbcApi, setUseBbcApi] = useState(true); // Toggle between BBC TAMS and legacy API
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('sources');
@@ -434,38 +436,16 @@ export default function Sources() {
     }
   };
 
-  // Legacy API fetch (fallback)
-  const fetchSourcesLegacy = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getSources({
-        page: currentPage.toString(),
-        limit: 10,
-        custom: { show_deleted: showDeleted }
-      });
-      setSources(response.data);
-    } catch (err) {
-      setError('Failed to fetch sources');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (useBbcApi) {
-      fetchSourcesBbcTams();
-    } else {
-      fetchSourcesLegacy();
-    }
-  }, [useBbcApi, showDeleted, filters]);
+    fetchSourcesBbcTams();
+  }, [showDeleted, filters]);
 
   // Initialize with demo data for better demo experience
   useEffect(() => {
-    if (sources.length === 0 && !loading) {
+    if (sources.length === 0 && !loading && !error) {
       setSources(mockFootballGames);
     }
-  }, [sources.length, loading]);
+  }, [sources.length, loading, error]);
 
   // Handle BBC TAMS pagination
   const handleBbcPageChange = (cursor: string | null) => {
@@ -559,16 +539,17 @@ export default function Sources() {
     }
   };
 
-  const paginatedSources = filteredSources.slice((currentPage - 1) * 10, currentPage * 10);
+  // For demo data, show all filtered sources (BBC TAMS API handles pagination)
+  const paginatedSources = filteredSources;
 
   return (
     <Container size="xl" px="xl" py="xl">
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Football Games Discovery</Title>
+          <Title order={2}>Sports Content Discovery - Sources</Title>
           <Text c="dimmed" size="sm" mt="xs">
-            Discover and manage football games using BBC TAMS v6.0 API
+            Discover and manage sports content sources using TAMS v6.0 API
           </Text>
         </Box>
         <Group>
@@ -576,11 +557,7 @@ export default function Sources() {
             variant="light"
             leftSection={<IconRefresh size={16} />}
             onClick={() => {
-              if (useBbcApi) {
-                fetchSourcesBbcTams();
-              } else {
-                fetchSourcesLegacy();
-              }
+              fetchSourcesBbcTams();
               setError(null);
             }}
             loading={loading}
@@ -611,7 +588,7 @@ export default function Sources() {
       )}
 
       {/* Demo Mode Info */}
-      {!error && useBbcApi && (
+      {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
@@ -653,14 +630,6 @@ export default function Sources() {
               Clear All Filters
             </Button>
           )}
-          <Chip
-            checked={useBbcApi}
-            onChange={(checked) => setUseBbcApi(checked)}
-            variant="outline"
-            color="blue"
-          >
-            BBC TAMS API
-          </Chip>
         </Group>
       </Group>
 
@@ -799,6 +768,15 @@ export default function Sources() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs">
+                      <Tooltip label="View Details Page">
+                        <ActionIcon
+                          variant="subtle"
+                          color="green"
+                          onClick={() => navigate(`/source-details/${source.id}`)}
+                        >
+                          <IconEye size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                       <Tooltip label="View Game Details">
                         <ActionIcon
                           variant="subtle"
@@ -849,7 +827,7 @@ export default function Sources() {
         </Table>
         
         {/* BBC TAMS Pagination */}
-        {useBbcApi && bbcPagination && Object.keys(bbcPagination).length > 0 ? (
+        {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
           <Group justify="center" mt="lg">
             <BBCPagination
               paginationMeta={bbcPagination}
@@ -863,17 +841,29 @@ export default function Sources() {
             />
           </Group>
         ) : (
-          /* Legacy Pagination */
+          /* Fallback Pagination for Demo Data */
           filteredSources.length > 0 && (
             <Group justify="center" mt="lg">
               <Pagination 
                 total={Math.ceil(filteredSources.length / 10)} 
-                value={currentPage} 
-                onChange={setCurrentPage}
+                value={1} 
+                onChange={() => {}} // No-op for demo data
               />
             </Group>
           )
         )}
+      </Card>
+
+      {/* Source Health Monitoring */}
+      <Card withBorder mt="lg">
+        <Title order={4} mb="md">Source Health & Performance</Title>
+        <Text size="sm" c="dimmed" mb="lg">
+          Monitor the health status, performance metrics, and system alerts for all sources
+        </Text>
+        <SourceHealthMonitor 
+          autoRefresh={true}
+          refreshInterval={30000}
+        />
       </Card>
 
       {/* Create Source Modal */}
