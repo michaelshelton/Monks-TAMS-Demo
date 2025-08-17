@@ -127,7 +127,7 @@ export default function Observability() {
         apiClient.getHealth().catch(() => ({ status: 'unhealthy', response_time: 0 })), // Will use /health for now
         // Note: getMetrics() returns Prometheus format, not JSON, so we'll handle it specially
         // Use the Vite dev server proxy to avoid CORS issues
-        fetch('/api/metrics').then(res => res.ok ? { status: 'healthy', response_time: 0 } : { status: 'unhealthy', response_time: 0 })
+        fetch(import.meta.env.DEV ? '/api/metrics' : '/api/proxy/metrics').then(res => res.ok ? { status: 'healthy', response_time: 0 } : { status: 'unhealthy', response_time: 0 })
       ];
 
       const healthResults = await Promise.allSettled(healthPromises);

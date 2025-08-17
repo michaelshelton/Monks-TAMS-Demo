@@ -119,7 +119,7 @@ export function SystemMetricsDashboard({ refreshInterval = 60000 }: SystemMetric
       
       // Fetch Prometheus metrics directly using the proxy to avoid CORS issues
       // Note: /metrics returns Prometheus format, not JSON
-      const response = await fetch('/api/metrics');
+      const response = await fetch(import.meta.env.DEV ? '/api/metrics' : '/api/proxy/metrics');
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

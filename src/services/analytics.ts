@@ -155,7 +155,7 @@ class AnalyticsService {
       throw new Error('Hydrolix endpoint not configured');
     }
 
-    const response = await fetch('/api/analytics/cmcd', {
+    const response = await fetch(import.meta.env.DEV ? '/api/analytics/cmcd' : '/api/proxy/analytics/cmcd', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
