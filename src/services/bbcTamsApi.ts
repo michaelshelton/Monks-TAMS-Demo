@@ -7,10 +7,10 @@ import { BBCApiResponse, BBCApiOptions, BBCPaginationMeta } from './api';
 // Re-export interfaces for use by other modules
 export type { BBCApiResponse, BBCApiOptions, BBCPaginationMeta };
 
-// Use proxy in development, full URL in production
+// Use proxy in development, Vercel proxy in production
 export const BBC_TAMS_BASE_URL = import.meta.env.DEV 
   ? '/api'  // Use Vite dev server proxy
-  : (import.meta.env.VITE_API_URL || 'http://34.216.9.25:8000');
+  : '/api/proxy'; // Use Vercel proxy in production
 
 // BBC TAMS Link Header interface (used by parseLinkHeader function)
 export interface BBCLinkHeader {

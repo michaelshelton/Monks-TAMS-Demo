@@ -6,10 +6,10 @@
  * while maintaining full BBC TAMS compliance for future flexibility.
  */
 
-// Use proxy in development, full URL in production
+// Use proxy in development, Vercel proxy in production
 const API_BASE_URL = import.meta.env.DEV 
   ? '/api'  // Use Vite dev server proxy
-  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+  : '/api/proxy'; // Use Vercel proxy in production
 
 // BBC TAMS API Configuration
 export const BBC_TAMS_BASE_URL = API_BASE_URL;
