@@ -533,7 +533,7 @@ export default function SourceDetails() {
             <SourceHealthMonitor 
               sourceId={sourceId || ''}
               autoRefresh={true}
-              refreshInterval={30000}
+              refreshInterval={7200000}
             />
           </Stack>
         </Tabs.Panel>

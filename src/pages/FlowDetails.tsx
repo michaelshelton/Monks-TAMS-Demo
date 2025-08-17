@@ -446,10 +446,10 @@ export default function FlowDetails() {
     setIsLiveMode(true);
     setNewSegmentsCount(0);
     
-    // Set up polling every 5 seconds for live segments
+    // Set up polling every 2 hours for live segments instead of every 5 seconds
     const interval = window.setInterval(() => {
       fetchSegments();
-    }, 5000);
+    }, 7200000);
     
     setLiveUpdateInterval(interval);
   };

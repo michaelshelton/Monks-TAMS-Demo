@@ -73,7 +73,7 @@ export function FlowHealthMonitor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(30); // seconds
+  const [refreshInterval, setRefreshInterval] = useState(7200); // 2 hours in seconds
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [performanceAlerts, setPerformanceAlerts] = useState<PerformanceAlert[]>([]);
   const [overallHealth, setOverallHealth] = useState<'healthy' | 'warning' | 'critical' | 'unknown'>('unknown');

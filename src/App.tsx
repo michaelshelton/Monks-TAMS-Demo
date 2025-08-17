@@ -134,7 +134,7 @@ function AppLayout() {
         
         {/* Right: Health Status Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <HealthStatusIndicator showDetails={false} refreshInterval={60000} />
+          <HealthStatusIndicator showDetails={false} refreshInterval={7200000} />
         </div>
       </AppShell.Header>
       

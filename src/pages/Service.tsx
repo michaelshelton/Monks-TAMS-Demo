@@ -1031,13 +1031,13 @@ export default function Service() {
             {/* Real-time Health Monitoring */}
             <Card withBorder p="xl">
               <Title order={4} mb="lg">Real-Time System Health</Title>
-              <HealthStatusIndicator showDetails={true} refreshInterval={60000} /> {/* Refresh every minute instead of every 15 seconds */}
+              <HealthStatusIndicator showDetails={true} refreshInterval={7200000} /> {/* Refresh every 2 hours instead of every minute */}
             </Card>
             
             {/* System Metrics Dashboard */}
             <Card withBorder p="xl">
               <Title order={4} mb="lg">System Performance Metrics</Title>
-              <SystemMetricsDashboard refreshInterval={60000} /> {/* Refresh every minute instead of every 30 seconds */}
+              <SystemMetricsDashboard refreshInterval={7200000} /> {/* Refresh every 2 hours instead of every minute */}
             </Card>
 
             {/* Health Status Overview */}

@@ -70,7 +70,7 @@ export default function AnalyticsDashboard({
     loadAnalytics();
     
     // Auto-refresh every minute instead of every 30 seconds
-    const interval = setInterval(loadAnalytics, 60000);
+    const interval = setInterval(loadAnalytics, 7200000); // 2 hours
     
     return () => clearInterval(interval);
   }, [compilationId, showMockData]);

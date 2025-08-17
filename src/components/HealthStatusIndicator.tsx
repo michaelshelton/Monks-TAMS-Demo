@@ -55,7 +55,7 @@ interface HealthStatusIndicatorProps {
 }
 
 export function HealthStatusIndicator({ 
-  refreshInterval = 60000, // Refresh every minute instead of every 30 seconds 
+  refreshInterval = 7200000, // Refresh every 2 hours instead of every minute 
   showDetails = false 
 }: HealthStatusIndicatorProps) {
   const [health, setHealth] = useState<HealthData | null>(null);

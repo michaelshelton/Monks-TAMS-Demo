@@ -294,7 +294,7 @@ export default function Observability() {
 
   useEffect(() => {
     fetchLiveData();
-    const interval = setInterval(fetchLiveData, 60000); // Refresh every minute instead of every 30 seconds
+          const interval = setInterval(fetchLiveData, 7200000); // Refresh every 2 hours instead of every minute
     return () => clearInterval(interval);
   }, []);
 
@@ -597,14 +597,14 @@ export default function Observability() {
         </Tabs.Panel>
 
         <Tabs.Panel value="metrics" pt="lg">
-          <SystemMetricsDashboard refreshInterval={60000} /> {/* Refresh every minute instead of every 30 seconds */}
+          <SystemMetricsDashboard refreshInterval={7200000} /> {/* Refresh every 2 hours instead of every minute */}
         </Tabs.Panel>
 
         <Tabs.Panel value="health" pt="lg">
           <Stack gap="lg">
             <Card>
               <Title order={4} mb="md">System Health Overview</Title>
-              <HealthStatusIndicator showDetails={true} refreshInterval={60000} /> {/* Refresh every minute instead of every 15 seconds */}
+              <HealthStatusIndicator showDetails={true} refreshInterval={7200000} /> {/* Refresh every 2 hours instead of every minute */}
             </Card>
             
             <Alert icon={<IconInfoCircle size={16} />} color="blue">

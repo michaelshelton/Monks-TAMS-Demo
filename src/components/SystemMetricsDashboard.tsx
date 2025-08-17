@@ -54,7 +54,7 @@ interface SystemMetricsDashboardProps {
   refreshInterval?: number; // in milliseconds
 }
 
-export function SystemMetricsDashboard({ refreshInterval = 60000 }: SystemMetricsDashboardProps) { // Default to 1 minute instead of 30 seconds
+export function SystemMetricsDashboard({ refreshInterval = 7200000 }: SystemMetricsDashboardProps) { // Default to 2 hours instead of 1 minute
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

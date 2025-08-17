@@ -96,7 +96,7 @@ export function AsyncOperationMonitor({
   onViewDetails,
   disabled = false,
   autoRefresh = true,
-  refreshInterval = 60 // Refresh every minute instead of every 5 seconds
+      refreshInterval = 7200 // Refresh every 2 hours instead of every minute
 }: AsyncOperationMonitorProps) {
   // State management
   const [operations, setOperations] = useState<AsyncOperation[]>([]);

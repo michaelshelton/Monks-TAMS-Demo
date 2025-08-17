@@ -505,10 +505,7 @@ export default function Sources() {
     }
   };
 
-  const handleView = (source: Source) => {
-    setSelectedSource(source);
-    setShowEditModal(true); // Reusing edit modal for view
-  };
+
 
   const handleEdit = (source: Source) => {
     setSelectedSource(source);
@@ -598,7 +595,7 @@ export default function Sources() {
           <Text size="sm">
             This page demonstrates BBC TAMS v6.0 API integration for football content discovery. 
             The API automatically handles cursor-based pagination, tag filtering, and metadata management.
-            {sources.length > 0 && sources[0]?.footballMetadata && ' Click on any game to view detailed information.'}
+            Use the View button to navigate to detailed source information pages.
           </Text>
         </Alert>
       )}
@@ -777,15 +774,6 @@ export default function Sources() {
                           <IconEye size={16} />
                         </ActionIcon>
                       </Tooltip>
-                      <Tooltip label="View Game Details">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => handleView(source)}
-                        >
-                          <IconEye size={16} />
-                        </ActionIcon>
-                      </Tooltip>
                       {!source.deleted ? (
                         <>
                           <Tooltip label="Edit Game">
@@ -862,7 +850,7 @@ export default function Sources() {
         </Text>
         <SourceHealthMonitor 
           autoRefresh={true}
-          refreshInterval={30000}
+          refreshInterval={7200000}
         />
       </Card>
 
@@ -900,17 +888,7 @@ export default function Sources() {
         />
       )}
 
-      {/* Football Game Preview Modal */}
-      {selectedSource && (
-        <FootballGamePreviewModal
-          source={selectedSource}
-          opened={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedSource(null);
-          }}
-        />
-      )}
+
     </Container>
   );
 }
@@ -1280,166 +1258,4 @@ function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalP
   );
 } 
 
-// Football Game Preview Modal Component
-interface FootballGamePreviewModalProps {
-  source: Source;
-  opened: boolean;
-  onClose: () => void;
-}
-
-function FootballGamePreviewModal({ source, opened, onClose }: FootballGamePreviewModalProps) {
-  return (
-    <Modal opened={opened} onClose={onClose} title="Football Game Details" size="lg">
-      <Stack gap="lg">
-        {/* Game Header */}
-        <Card withBorder p="md">
-          <Group justify="space-between" align="flex-start">
-            <Box>
-              <Title order={3} mb="xs">{source.label}</Title>
-              <Text c="dimmed" mb="md">{source.description}</Text>
-              
-              {/* Teams */}
-              {source.footballMetadata && (
-                <Group gap="lg" mb="md">
-                  <Box>
-                    <Text size="sm" c="dimmed" mb="xs">Home Team</Text>
-                    <Badge size="lg" variant="light" color="blue">
-                      {source.footballMetadata.homeTeam}
-                    </Badge>
-                  </Box>
-                  <Text size="xl" fw={700} c="dimmed">vs</Text>
-                  <Box>
-                    <Text size="sm" c="dimmed" mb="xs">Away Team</Text>
-                    <Badge size="lg" variant="light" color="red">
-                      {source.footballMetadata.awayTeam}
-                    </Badge>
-                  </Box>
-                </Group>
-              )}
-            </Box>
-            
-            {/* Game Status */}
-            <Badge 
-              size="lg" 
-              color={source.deleted ? 'red' : 'green'}
-              variant="light"
-            >
-              {source.deleted ? 'Deleted' : 'Active'}
-            </Badge>
-          </Group>
-        </Card>
-
-        {/* Game Details Grid */}
-        {source.footballMetadata && (
-          <SimpleGrid cols={2} spacing="md">
-            <Card withBorder p="md">
-              <Group gap="xs" mb="xs">
-                <IconCalendar size={16} />
-                <Text fw={500}>Game Date</Text>
-              </Group>
-              <Text>{source.footballMetadata.gameDate}</Text>
-            </Card>
-            
-            <Card withBorder p="md">
-              <Group gap="xs" mb="xs">
-                <IconMapPin size={16} />
-                <Text fw={500}>Venue</Text>
-              </Group>
-              <Text>{source.footballMetadata.venue}</Text>
-            </Card>
-            
-            <Card withBorder p="md">
-              <Group gap="xs" mb="xs">
-                <IconActivity size={16} />
-                <Text fw={500}>Score</Text>
-              </Group>
-              <Text fw={700} size="lg">{source.footballMetadata.score}</Text>
-            </Card>
-            
-            <Card withBorder p="md">
-              <Group gap="xs" mb="xs">
-                <IconActivity size={16} />
-                <Text fw={500}>Duration</Text>
-              </Group>
-              <Text>{source.footballMetadata.duration}</Text>
-            </Card>
-          </SimpleGrid>
-        )}
-
-        {/* League Information */}
-        {source.footballMetadata && (
-          <Card withBorder p="md">
-            <Group gap="xs" mb="xs">
-              <IconActivity size={16} />
-              <Text fw={500}>League & Season</Text>
-            </Group>
-            <Group gap="md">
-              <Badge size="md" variant="light" color="green">
-                {source.footballMetadata.league}
-              </Badge>
-              <Badge size="md" variant="light" color="blue">
-                Season {source.footballMetadata.season}
-              </Badge>
-            </Group>
-          </Card>
-        )}
-
-        {/* Highlights */}
-        {source.footballMetadata?.highlights && source.footballMetadata.highlights.length > 0 && (
-          <Card withBorder p="md">
-            <Text fw={500} mb="md">Key Highlights</Text>
-            <SimpleGrid cols={1} spacing="xs">
-              {source.footballMetadata.highlights.map((highlight, index) => (
-                <Badge key={index} size="sm" variant="light" color="gray" fullWidth>
-                  {highlight}
-                </Badge>
-              ))}
-            </SimpleGrid>
-          </Card>
-        )}
-
-        {/* Technical Information */}
-        <Card withBorder p="md">
-          <Text fw={500} mb="md">Technical Details</Text>
-          <SimpleGrid cols={2} spacing="md">
-            <Box>
-              <Text size="sm" c="dimmed">Format</Text>
-              <Text>{getFormatLabel(source.format)}</Text>
-            </Box>
-            <Box>
-              <Text size="sm" c="dimmed">Created</Text>
-              <Text>{source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}</Text>
-            </Box>
-            <Box>
-              <Text size="sm" c="dimmed">Updated</Text>
-              <Text>{source.updated ? new Date(source.updated).toLocaleDateString() : 'Never'}</Text>
-            </Box>
-            <Box>
-              <Text size="sm" c="dimmed">Source ID</Text>
-              <Text size="xs" style={{ fontFamily: 'monospace' }}>{source.id}</Text>
-            </Box>
-          </SimpleGrid>
-        </Card>
-
-        {/* Tags */}
-        {source.tags && Object.keys(source.tags).length > 0 && (
-          <Card withBorder p="md">
-            <Text fw={500} mb="md">Tags & Metadata</Text>
-            <Group gap="xs">
-              {Object.entries(source.tags).map(([key, value]) => (
-                <Badge key={key} size="sm" variant="light" color="blue">
-                  {key}: {value}
-                </Badge>
-              ))}
-            </Group>
-          </Card>
-        )}
-
-        {/* Actions */}
-        <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>Close</Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-} 
+ 

@@ -85,7 +85,7 @@ export function SourceHealthMonitor({
   sourceId, 
   disabled = false, 
   autoRefresh = true, 
-  refreshInterval = 30000 
+      refreshInterval = 7200000 
 }: SourceHealthMonitorProps) {
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null);

@@ -229,11 +229,11 @@ export default function HydrolixAnalytics({
 
       loadRealAnalytics();
       
-      // Set up real-time updates every 5 seconds
+      // Set up updates every 2 hours instead of every 5 seconds
       const interval = setInterval(() => {
         setLastUpdate(new Date());
         loadRealAnalytics();
-      }, 5000);
+      }, 7200000);
 
       return () => clearInterval(interval);
     }

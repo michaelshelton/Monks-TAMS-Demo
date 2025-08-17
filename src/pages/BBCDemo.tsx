@@ -1710,7 +1710,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                     // Operation details viewing handled by component
                   }}
                   autoRefresh={true}
-                  refreshInterval={60} // Refresh every minute instead of every 5 seconds
+                  refreshInterval={7200} // Refresh every 2 hours instead of every minute
                 />
               </Stack>
             </Card>
@@ -1810,7 +1810,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         onEventSelect={(event) => {
                           // Event selection handled by component
                         }}
-                        refreshInterval={60} // Refresh every minute instead of every 30 seconds
+                        refreshInterval={7200} // Refresh every 2 hours instead of every minute
                       />
                     </Tabs.Panel>
 
@@ -1819,7 +1819,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                         onNotificationAction={(notification, action) => {
                           // Notification action handled by component
                         }}
-                        refreshInterval={60} // Refresh every minute instead of every 10 seconds
+                        refreshInterval={7200} // Refresh every 2 hours instead of every minute
                       />
                     </Tabs.Panel>
                   </Tabs>
@@ -1848,7 +1848,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
 
                 <EventHistoryMantine
                   onEventSelect={(event) => console.log('Event selected:', event)}
-                  refreshInterval={60} // Refresh every minute instead of every 30 seconds
+                  refreshInterval={7200} // Refresh every 2 hours instead of every minute
                 />
               </Stack>
             </Card>
@@ -1884,7 +1884,7 @@ const prevLink = response.links.find(link => link.rel === 'prev');`}
                 {/* Notification Center Component (rendered globally) */}
                 <NotificationCenterMantine
                   onNotificationAction={(notification, action) => console.log('Notification action:', { notification, action })}
-                  refreshInterval={60} // Refresh every minute instead of every 10 seconds
+                  refreshInterval={7200} // Refresh every 2 hours instead of every minute
                 />
               </Stack>
             </Card>
