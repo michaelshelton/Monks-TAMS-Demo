@@ -13,9 +13,11 @@ import Upload from './pages/Upload';
 import VideoCompilation from './pages/VideoCompilation';
 import Observability from './pages/Observability';
 import DeletionRequests from './pages/DeletionRequests';
-import BBCDemo from './pages/BBCDemo';
+import HLSTestPage from './pages/HLSTestPage';
+import VastTamsWorkflow from './pages/VastTamsWorkflow';
 import { Webhooks } from './pages/Webhooks';
-import { HealthStatusIndicator } from './components/HealthStatusIndicator';
+import FlowCollections from './pages/FlowCollections';
+import { BackendProvider } from './contexts/BackendContext';
 
 const theme = createTheme({
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
@@ -24,14 +26,19 @@ const theme = createTheme({
 });
 
 const navLinks = [
+  // Home
+  { label: 'Home', to: '/', group: 'core' },
+  
+  // VAST TAMS Core Workflow
+  { label: 'TAMS Workflow', to: '/vast-tams-workflow', group: 'core' },
+  
   // Content Management (BBC TAMS Core)
   { label: 'Sources', to: '/sources', group: 'content' },
   { label: 'Flows', to: '/flows', group: 'content' },
-  { label: 'Upload', to: '/upload', group: 'content' },
+  { label: 'Flow Collections', to: '/flow-collections', group: 'content' },
   
   // Discovery & Search (VAST TAMS Extensions)
   { label: 'Search', to: '/search', group: 'discovery' },
-  { label: 'Video Compilation', to: '/video-compilation', group: 'discovery' },
   
   // System & Monitoring (Mixed BBC TAMS + Extensions)
   { label: 'Service', to: '/service', group: 'system' },
@@ -41,7 +48,7 @@ const navLinks = [
   
   // Administration (BBC TAMS Core + Demo)
   { label: 'Deletion Requests', to: '/deletion-requests', group: 'admin' },
-  { label: 'BBC TAMS Demo', to: '/bbc-demo', group: 'admin' },
+  
 ];
 
 function AppFooter() {
@@ -52,23 +59,6 @@ function AppFooter() {
       fontSize: rem(12),
       opacity: 0.7,
       transition: 'opacity 0.2s ease',
-      cursor: 'pointer',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.7';
-    }}
-    title="Click to toggle footer visibility"
-    onClick={(e) => {
-      const footer = e.currentTarget;
-      if (footer.style.display === 'none') {
-        footer.style.display = 'block';
-        footer.style.opacity = '0.7';
-      } else {
-        footer.style.display = 'none';
-      }
     }}
     >
       © 2025 Monks + VAST TAMS Demo
@@ -92,6 +82,7 @@ function AppLayout() {
   return (
     <AppShell padding="md">
       <AppShell.Header h={60} p="md" withBorder={false} style={{ position: 'static' }}>
+        
         {/* Center: Grouped Navigation */}
         <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           {Object.entries(groupedNavLinks).map(([groupKey, groupLinks], groupIndex) => (
@@ -132,10 +123,6 @@ function AppLayout() {
           ))}
         </div>
         
-        {/* Right: Health Status Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <HealthStatusIndicator showDetails={false} refreshInterval={7200000} />
-        </div>
       </AppShell.Header>
       
       <AppShell.Main m="xl">
@@ -145,6 +132,7 @@ function AppLayout() {
           <Route path="/source-details/:sourceId" element={<SourceDetails />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/flow-details/:flowId" element={<FlowDetails />} />
+          <Route path="/flow-collections" element={<FlowCollections />} />
           <Route path="/search" element={<Search />} />
           <Route path="/search-results" element={<SearchResults />} />
           <Route path="/upload" element={<Upload />} />
@@ -154,7 +142,9 @@ function AppLayout() {
           <Route path="/service" element={<Service />} />
           <Route path="/webhooks" element={<Webhooks />} />
           <Route path="/deletion-requests" element={<DeletionRequests />} />
-          <Route path="/bbc-demo" element={<BBCDemo />} />
+          <Route path="/hls-test" element={<HLSTestPage />} />
+          
+          <Route path="/vast-tams-workflow" element={<VastTamsWorkflow />} />
         </Routes>
         
         {/* Footer at bottom of content */}
@@ -169,9 +159,11 @@ function AppLayout() {
 export default function App() {
   return (
     <MantineProvider theme={theme} withCssVariables>
-      <Router>
-        <AppLayout />
-      </Router>
+      <BackendProvider>
+        <Router>
+          <AppLayout />
+        </Router>
+      </BackendProvider>
     </MantineProvider>
   );
 } 

@@ -24,9 +24,11 @@ import {
   IconShare,
   IconInfoCircle
 } from '@tabler/icons-react';
+import { VastTamsSegment } from '../services/vastTamsApi';
+import { getSegmentPlaybackUrl, hasValidVideoUrls, validateVastTamsSegment } from '../utils/vastTamsUtils';
 
 interface VideoPlayerProps {
-  videoUrl: string;
+  videoUrl?: string;
   title: string;
   description?: string | undefined;
   metadata?: {
@@ -37,6 +39,8 @@ interface VideoPlayerProps {
   } | undefined;
   onClose?: () => void;
   showControls?: boolean;
+  // VAST TAMS support
+  vastTamsSegment?: VastTamsSegment;
 }
 
 export default function VideoPlayer({ 
@@ -45,7 +49,8 @@ export default function VideoPlayer({
   description, 
   metadata, 
   onClose,
-  showControls = true 
+  showControls = true,
+  vastTamsSegment
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,10 +64,32 @@ export default function VideoPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [buffering, setBuffering] = useState(false);
 
+  // Determine the video URL to use
+  const getVideoUrl = (): string | null => {
+    // Priority: VAST TAMS segment > legacy videoUrl
+    if (vastTamsSegment) {
+      if (!validateVastTamsSegment(vastTamsSegment)) {
+        setError('Invalid VAST TAMS segment data');
+        return null;
+      }
+      
+      if (!hasValidVideoUrls(vastTamsSegment)) {
+        setError('No valid video URLs found in VAST TAMS segment');
+        return null;
+      }
+      
+      return getSegmentPlaybackUrl(vastTamsSegment);
+    }
+    
+    return videoUrl || null;
+  };
+
+  const effectiveVideoUrl = getVideoUrl();
+
   // Handle video load
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !effectiveVideoUrl) return;
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
@@ -178,17 +205,21 @@ export default function VideoPlayer({
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title,
-          text: description || '',
-          url: videoUrl
-        });
+        if (videoUrl) {
+          await navigator.share({
+            title,
+            text: description || '',
+            url: videoUrl
+          });
+        }
       } catch (error) {
         console.log('Share cancelled');
       }
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(videoUrl);
+      if (videoUrl) {
+        navigator.clipboard.writeText(videoUrl);
+      }
     }
   };
 
@@ -212,7 +243,14 @@ export default function VideoPlayer({
         {/* Video Header */}
         <Group justify="space-between" align="flex-start">
           <Box style={{ flex: 1 }}>
-            <Text fw={500} size="lg" mb="xs">{title}</Text>
+            <Group gap="xs" mb="xs">
+              <Text fw={500} size="lg">{title}</Text>
+              {vastTamsSegment && (
+                <Badge size="sm" color="blue" variant="light">
+                  VAST TAMS
+                </Badge>
+              )}
+            </Group>
             {description && (
               <Text size="sm" c="dimmed" lineClamp={2}>{description}</Text>
             )}
@@ -254,7 +292,7 @@ export default function VideoPlayer({
         <Box style={{ position: 'relative' }}>
           <video
             ref={videoRef}
-            src={videoUrl}
+            src={effectiveVideoUrl || undefined}
             style={{ 
               width: '100%', 
               maxHeight: '400px',

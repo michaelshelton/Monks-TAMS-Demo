@@ -7,7 +7,6 @@ import {
   Table,
   Text,
   Badge,
-  ActionIcon,
   Modal,
   Stack,
   TextInput,
@@ -30,15 +29,12 @@ import {
 } from '@mantine/core';
 import {
   IconPlus,
-  IconEdit,
-  IconTrash,
   IconSearch,
   IconFilter,
   IconVideo,
   IconMusic,
   IconDatabase,
   IconPhoto,
-  IconEye,
   IconDots,
   IconSettings,
   IconRefresh,
@@ -50,7 +46,6 @@ import {
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
-import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { useNavigate } from 'react-router-dom';
 import { 
   validateTAMSEntity, 
@@ -59,26 +54,10 @@ import {
   sanitizeForBackend,
   formatValidationErrors 
 } from '../utils/enhancedValidation';
-import { apiClient } from '../services/api';
-import { getSources, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/bbcTamsApi';
+import { apiClient, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
 import BBCPagination from '../components/BBCPagination';
-import { SourceHealthMonitor } from '../components/SourceHealthMonitor';
 
-// Football-specific metadata interface
-interface FootballGameMetadata {
-  sport: string;
-  league: string;
-  venue: string;
-  season: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  gameDate?: string;
-  score?: string;
-  duration?: string;
-  highlights?: string[];
-}
-
-// Enhanced Source interface with football metadata
+// Enhanced Source interface
 interface Source {
   id: string;
   format: string;
@@ -95,103 +74,9 @@ interface Source {
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
-  // Football-specific metadata
-  footballMetadata?: FootballGameMetadata;
 }
 
-// Mock football games for demonstration (will be replaced with BBC TAMS API)
-const mockFootballGames: Source[] = [
-  {
-    id: 'game-001',
-    format: 'urn:x-nmos:format:video',
-    label: 'Manchester United vs Liverpool',
-    description: 'Premier League match with full game coverage and highlights',
-    created: '2024-01-15T15:00:00Z',
-    updated: '2024-01-15T17:00:00Z',
-    tags: {
-      'sport': 'football',
-      'league': 'Premier League',
-      'venue': 'Old Trafford',
-      'season': '2024',
-      'home_team': 'Manchester United',
-      'away_team': 'Liverpool',
-      'score': '2-1',
-      'duration': '90:00'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'Premier League',
-      venue: 'Old Trafford',
-      season: '2024',
-      homeTeam: 'Manchester United',
-      awayTeam: 'Liverpool',
-      gameDate: '2024-01-15',
-      score: '2-1',
-      duration: '90:00',
-      highlights: ['Player 19 Goal', 'Player 19 Assist', 'Player 19 Free Kick']
-    }
-  },
-  {
-    id: 'game-002',
-    format: 'urn:x-nmos:format:video',
-    label: 'Arsenal vs Chelsea',
-    description: 'Premier League derby with tactical analysis',
-    created: '2024-01-20T15:00:00Z',
-    updated: '2024-01-20T17:00:00Z',
-    tags: {
-      'sport': 'football',
-      'league': 'Premier League',
-      'venue': 'Emirates Stadium',
-      'season': '2024',
-      'home_team': 'Arsenal',
-      'away_team': 'Chelsea',
-      'score': '1-1',
-      'duration': '90:00'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'Premier League',
-      venue: 'Emirates Stadium',
-      season: '2024',
-      homeTeam: 'Arsenal',
-      awayTeam: 'Chelsea',
-      gameDate: '2024-01-20',
-      score: '1-1',
-      duration: '90:00',
-      highlights: ['Player 10 Goal', 'Player 22 Save']
-    }
-  },
-  {
-    id: 'game-003',
-    format: 'urn:x-nmos:format:video',
-    label: 'Barcelona vs Real Madrid',
-    description: 'El Clásico - La Liga classic match',
-    created: '2024-01-25T15:00:00Z',
-    updated: '2024-01-25T17:00:00Z',
-    tags: {
-      'sport': 'football',
-      'league': 'La Liga',
-      'venue': 'Camp Nou',
-      'season': '2024',
-      'home_team': 'Barcelona',
-      'away_team': 'Real Madrid',
-      'score': '3-2',
-      'duration': '90:00'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'La Liga',
-      venue: 'Camp Nou',
-      season: '2024',
-      homeTeam: 'Barcelona',
-      awayTeam: 'Real Madrid',
-      gameDate: '2024-01-25',
-      score: '3-2',
-      duration: '90:00',
-      highlights: ['Player 9 Hat-trick', 'Player 7 Goal']
-    }
-  }
-];
+// VAST TAMS Sources - fetched from real backend API
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -230,8 +115,6 @@ export default function Sources() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false); // New state for showing deleted items
@@ -245,7 +128,7 @@ export default function Sources() {
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('sources');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
 
-  // Define filter options with football-specific filters
+  // Define filter options for media sources
   const filterOptions: any[] = [
     {
       key: 'search',
@@ -265,42 +148,32 @@ export default function Sources() {
       ]
     },
     {
-      key: 'sport',
-      label: 'Sport',
+      key: 'category',
+      label: 'Category',
       type: 'select',
       options: [
-        { value: 'football', label: 'Football' },
-        { value: 'hockey', label: 'Hockey' },
-        { value: 'basketball', label: 'Basketball' },
-        { value: 'tennis', label: 'Tennis' },
-        { value: 'cricket', label: 'Cricket' }
+        { value: 'technology', label: 'Technology' },
+        { value: 'education', label: 'Education' },
+        { value: 'entertainment', label: 'Entertainment' },
+        { value: 'business', label: 'Business' },
+        { value: 'news', label: 'News' }
       ]
     },
     {
-      key: 'league',
-      label: 'League',
+      key: 'content_type',
+      label: 'Content Type',
       type: 'select',
       options: [
-        { value: 'Premier League', label: 'Premier League' },
-        { value: 'La Liga', label: 'La Liga' },
-        { value: 'Bundesliga', label: 'Bundesliga' },
-        { value: 'Serie A', label: 'Serie A' }
+        { value: 'conference', label: 'Conference' },
+        { value: 'podcast', label: 'Podcast' },
+        { value: 'training', label: 'Training' },
+        { value: 'presentation', label: 'Presentation' },
+        { value: 'webinar', label: 'Webinar' }
       ]
     },
     {
-      key: 'venue',
-      label: 'Venue',
-      type: 'select',
-      options: [
-        { value: 'Old Trafford', label: 'Old Trafford' },
-        { value: 'Emirates Stadium', label: 'Emirates Stadium' },
-        { value: 'Camp Nou', label: 'Camp Nou' },
-        { value: 'Santiago Bernabéu', label: 'Santiago Bernabéu' }
-      ]
-    },
-    {
-      key: 'season',
-      label: 'Season',
+      key: 'year',
+      label: 'Year',
       type: 'select',
       options: [
         { value: '2024', label: '2024' },
@@ -328,7 +201,7 @@ export default function Sources() {
     }
   ];
 
-  // Filter sources with football-specific logic
+  // Filter sources with generic media logic
   const filteredSources = sources.filter(source => {
     // Search filter
     const searchTerm = filters.search?.toLowerCase();
@@ -340,29 +213,21 @@ export default function Sources() {
     const formatFilter = filters.format;
     const matchesFormat = !formatFilter || source.format === formatFilter;
 
-    // Sport filter
-    const sportFilter = filters.sport;
-    const matchesSport = !sportFilter || 
-      source.tags?.['sport'] === sportFilter ||
-      source.footballMetadata?.sport === sportFilter;
+    // Category filter
+    const categoryFilter = filters.category;
+    const matchesCategory = !categoryFilter || 
+      source.tags?.['category'] === categoryFilter;
 
-    // League filter
-    const leagueFilter = filters.league;
-    const matchesLeague = !leagueFilter || 
-      source.tags?.['league'] === leagueFilter ||
-      source.footballMetadata?.league === leagueFilter;
+    // Content type filter
+    const contentTypeFilter = filters.content_type;
+    const matchesContentType = !contentTypeFilter || 
+      source.tags?.['content_type'] === contentTypeFilter ||
+      source.tags?.['event_type'] === contentTypeFilter;
 
-    // Venue filter
-    const venueFilter = filters.venue;
-    const matchesVenue = !venueFilter || 
-      source.tags?.['venue'] === venueFilter ||
-      source.footballMetadata?.venue === venueFilter;
-
-    // Season filter
-    const seasonFilter = filters.season;
-    const matchesSeason = !seasonFilter || 
-      source.tags?.['season'] === seasonFilter ||
-      source.footballMetadata?.season === seasonFilter;
+    // Year filter
+    const yearFilter = filters.year;
+    const matchesYear = !yearFilter || 
+      source.tags?.['year'] === yearFilter;
 
     // Created date filter
     const createdFilter = filters.created;
@@ -396,14 +261,16 @@ export default function Sources() {
     const deletedFilter = filters.deleted;
     const matchesDeleted = !deletedFilter || (source.deleted === deletedFilter);
 
-    return matchesSearch && matchesFormat && matchesSport && matchesLeague && 
-           matchesVenue && matchesSeason && matchesCreated && matchesTags && matchesDeleted;
+    return matchesSearch && matchesFormat && matchesCategory && matchesContentType && 
+           matchesYear && matchesCreated && matchesTags && matchesDeleted;
   });
 
-  // Fetch sources using BBC TAMS API
-  const fetchSourcesBbcTams = async (cursor?: string) => {
+  // Fetch sources using VAST TAMS API
+  const fetchSourcesVastTams = async (cursor?: string) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const options: BBCApiOptions = {
         limit: 10,
         custom: { show_deleted: showDeleted }
@@ -413,44 +280,51 @@ export default function Sources() {
         options.page = cursor;
       }
 
-      // Apply filters to BBC TAMS API
+      // Apply filters to VAST TAMS API
       if (filters.format) options.format = filters.format;
-      if (filters.sport) options.tags = { ...options.tags, sport: filters.sport };
-      if (filters.league) options.tags = { ...options.tags, league: filters.league };
-      if (filters.venue) options.tags = { ...options.tags, venue: filters.venue };
-      if (filters.season) options.tags = { ...options.tags, season: filters.season };
+      if (filters.category) options.tags = { ...options.tags, category: filters.category };
+      if (filters.content_type) options.tags = { ...options.tags, content_type: filters.content_type };
+      if (filters.year) options.tags = { ...options.tags, year: filters.year };
 
-      const response = await getSources(options);
+      console.log('Fetching sources from VAST TAMS API with options:', options);
+      const response = await apiClient.getSources(options);
+      console.log('VAST TAMS API response:', response);
+      
       setSources(response.data);
       setBbcPagination(response.pagination);
       setCurrentCursor(cursor || null);
       setError(null);
-    } catch (err) {
-      console.error('BBC TAMS API error:', err);
-      // Fallback to mock data for demo
-      setSources(mockFootballGames);
+    } catch (err: any) {
+      console.error('VAST TAMS API error:', err);
+      
+      // Set appropriate error message based on error type
+      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
+        setError('VAST TAMS backend temporarily unavailable - please try again later');
+      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
+        setError('Network connection issue - please check your connection and try again');
+      } else if (err?.message?.includes('404')) {
+        setError('VAST TAMS API endpoint not found - please check backend configuration');
+      } else {
+        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+      }
+      
+      // Clear sources on error
+      setSources([]);
       setBbcPagination({});
-      setError('BBC TAMS API unavailable, using demo data');
+      setCurrentCursor(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSourcesBbcTams();
+    fetchSourcesVastTams();
   }, [showDeleted, filters]);
 
-  // Initialize with demo data for better demo experience
-  useEffect(() => {
-    if (sources.length === 0 && !loading && !error) {
-      setSources(mockFootballGames);
-    }
-  }, [sources.length, loading, error]);
-
-  // Handle BBC TAMS pagination
-  const handleBbcPageChange = (cursor: string | null) => {
+  // Handle VAST TAMS pagination
+  const handleVastTamsPageChange = (cursor: string | null) => {
     if (cursor) {
-      fetchSourcesBbcTams(cursor);
+      fetchSourcesVastTams(cursor);
     }
   };
 
@@ -468,73 +342,6 @@ export default function Sources() {
     }
   };
 
-  const handleUpdateSource = async (updatedSource: Source) => {
-    try {
-      setLoading(true);
-      const response = await apiClient.updateSource(updatedSource.id, updatedSource);
-      setSources(prev => prev.map(s => s.id === updatedSource.id ? response.data : s));
-      setShowEditModal(false);
-      setSelectedSource(null);
-    } catch (err) {
-      setError('Failed to update source');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = (source: Source) => {
-    setSelectedSource(source);
-    setShowDeleteModal(true);
-  };
-
-  const handleDeleteConfirm = async (options: DeleteOptions) => {
-    if (selectedSource) {
-      try {
-        setLoading(true);
-        await apiClient.deleteSource(selectedSource.id, options);
-        setSources(prev => prev.filter(s => s.id !== selectedSource.id));
-        setShowDeleteModal(false);
-        setSelectedSource(null);
-      } catch (err) {
-        setError('Failed to delete source');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-
-
-  const handleEdit = (source: Source) => {
-    setSelectedSource(source);
-    setShowEditModal(true);
-  };
-
-  const handleRestore = async (source: Source) => {
-    try {
-      setLoading(true);
-      await apiClient.restoreSource(source.id);
-      setSources(prev => prev.map(s => 
-        s.id === source.id 
-          ? { 
-              ...s, 
-              deleted: false, 
-              deleted_at: null, 
-              deleted_by: null 
-            }
-          : s
-      ));
-      setShowDeleteModal(false);
-      setSelectedSource(null);
-    } catch (err) {
-      setError('Failed to restore source');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // For demo data, show all filtered sources (BBC TAMS API handles pagination)
   const paginatedSources = filteredSources;
@@ -544,9 +351,9 @@ export default function Sources() {
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Sports Content Discovery - Sources</Title>
+          <Title order={2}>Media Sources</Title>
           <Text c="dimmed" size="sm" mt="xs">
-            Discover and manage sports content sources using TAMS v6.0 API
+            Original media inputs and content containers in the TAMS workflow
           </Text>
         </Box>
         <Group>
@@ -554,7 +361,7 @@ export default function Sources() {
             variant="light"
             leftSection={<IconRefresh size={16} />}
             onClick={() => {
-              fetchSourcesBbcTams();
+              fetchSourcesVastTams();
               setError(null);
             }}
             loading={loading}
@@ -565,7 +372,7 @@ export default function Sources() {
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
           >
-            Add Game
+            Add Source
           </Button>
         </Group>
       </Group>
@@ -575,7 +382,7 @@ export default function Sources() {
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color="red" 
-          title="Error"
+          title="VAST TAMS Connection Error"
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -584,35 +391,24 @@ export default function Sources() {
         </Alert>
       )}
 
-      {/* Demo Mode Info */}
+      {/* VAST TAMS Info */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="BBC TAMS API Demo Mode"
+          title="What are Sources in TAMS?"
           mb="md"
         >
-          <Text size="sm">
-            This page demonstrates BBC TAMS v6.0 API integration for football content discovery. 
-            The API automatically handles cursor-based pagination, tag filtering, and metadata management.
-            Use the View button to navigate to detailed source information pages.
+          <Text size="sm" mb="xs">
+            <strong>Sources</strong> represent the original media inputs in the TAMS system - think of them as the "containers" 
+            that hold your media content before it gets processed into flows and segments.
+          </Text>
+          <Text size="sm" mb="xs">
+            Each source contains metadata like format (video/audio/data), description, tags, and creation information. 
+            Sources are the first step in the TAMS workflow - they define what content is available to be processed.
           </Text>
         </Alert>
       )}
-
-      {/* Football Demo Features */}
-      <Card withBorder mb="md">
-        <Group gap="md" align="center">
-          <IconActivity size={24} color="#228be6" />
-          <Box>
-            <Text fw={500} size="sm">Football Demo Features</Text>
-            <Text size="xs" c="dimmed">
-              • Sport-specific filtering (football, basketball, tennis) • League-based organization (Premier League, La Liga) • 
-              Venue tracking • Season management • Game metadata (teams, scores, duration) • BBC TAMS v6.0 compliance
-            </Text>
-          </Box>
-        </Group>
-      </Card>
 
       {/* Filter Controls */}
       <Group justify="space-between" mb="md">
@@ -645,32 +441,36 @@ export default function Sources() {
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Game Information</Table.Th>
+              <Table.Th>Source Information</Table.Th>
               <Table.Th>Format</Table.Th>
-              <Table.Th>Game Date</Table.Th>
-              <Table.Th>Venue & League</Table.Th>
-              <Table.Th>Score & Duration</Table.Th>
+              <Table.Th>Created Date</Table.Th>
+              <Table.Th>Category & Type</Table.Th>
+              <Table.Th>Duration</Table.Th>
               <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {loading ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center">
+                <Table.Td colSpan={6} ta="center">
                   <Loader />
                 </Table.Td>
               </Table.Tr>
             ) : error ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center" c="red">
+                <Table.Td colSpan={6} ta="center" c="red">
                   {error}
                 </Table.Td>
               </Table.Tr>
             ) : paginatedSources.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center">
-                  <Text c="dimmed">No football games found matching your filters</Text>
+                <Table.Td colSpan={6} ta="center">
+                  <Text c="dimmed">
+                    {sources.length === 0 
+                      ? "No sources available from VAST TAMS backend" 
+                      : "No sources found matching your filters"
+                    }
+                  </Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
@@ -687,8 +487,19 @@ export default function Sources() {
                       {getFormatIcon(source.format)}
                       <Box>
                         <Group gap="xs" align="center">
-                          <Text fw={500} size="sm">
-                            {source.label || 'Unnamed Game'}
+                          <Text 
+                            fw={500} 
+                            size="sm" 
+                            style={{ cursor: 'pointer', color: 'var(--mantine-color-blue-6)' }}
+                            onClick={() => navigate(`/source-details/${source.id}`)}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.textDecoration = 'underline';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.textDecoration = 'none';
+                            }}
+                          >
+                            {source.label || 'Unnamed Source'}
                           </Text>
                           {source.deleted && (
                             <Badge size="xs" color="red">DELETED</Badge>
@@ -697,16 +508,19 @@ export default function Sources() {
                         <Text size="xs" c="dimmed">
                           {source.description || 'No description'}
                         </Text>
-                        {/* Football Teams */}
-                        {source.footballMetadata && (
+                        {/* Source Tags */}
+                        {source.tags && (
                           <Group gap="xs" mt="xs">
-                            <Badge size="xs" variant="light" color="blue">
-                              {source.footballMetadata.homeTeam}
-                            </Badge>
-                            <Text size="xs" c="dimmed">vs</Text>
-                            <Badge size="xs" variant="light" color="red">
-                              {source.footballMetadata.awayTeam}
-                            </Badge>
+                            {source.tags.category && (
+                              <Badge size="xs" variant="light" color="blue">
+                                {source.tags.category}
+                              </Badge>
+                            )}
+                            {source.tags.content_type && (
+                              <Badge size="xs" variant="light" color="green">
+                                {source.tags.content_type}
+                              </Badge>
+                            )}
                           </Group>
                         )}
                       </Box>
@@ -721,8 +535,7 @@ export default function Sources() {
                     <Group gap="xs" align="center">
                       <IconCalendar size={14} />
                       <Text size="sm">
-                        {source.footballMetadata?.gameDate || 
-                         (source.created ? new Date(source.created).toLocaleDateString() : 'Unknown')}
+                        {source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}
                       </Text>
                     </Group>
                   </Table.Td>
@@ -731,11 +544,11 @@ export default function Sources() {
                       <Group gap="xs" align="center">
                         <IconMapPin size={14} />
                         <Text size="sm" fw={500}>
-                          {source.footballMetadata?.venue || source.tags?.['venue'] || 'Unknown Venue'}
+                          {source.tags?.['category'] || 'Unknown Category'}
                         </Text>
                       </Group>
                       <Badge size="xs" variant="light" color="green">
-                        {source.footballMetadata?.league || source.tags?.['league'] || 'Unknown League'}
+                        {source.tags?.['content_type'] || source.tags?.['event_type'] || 'Unknown Type'}
                       </Badge>
                     </Stack>
                   </Table.Td>
@@ -744,12 +557,14 @@ export default function Sources() {
                       <Group gap="xs" align="center">
                         <IconActivity size={14} />
                         <Text size="sm" fw={500}>
-                          {source.footballMetadata?.score || source.tags?.['score'] || 'N/A'}
+                          {source.tags?.['duration'] || 'Unknown'}
                         </Text>
                       </Group>
-                      <Text size="xs" c="dimmed">
-                        {source.footballMetadata?.duration || source.tags?.['duration'] || 'Unknown'}
-                      </Text>
+                      {source.tags?.['year'] && (
+                        <Text size="xs" c="dimmed">
+                          Year: {source.tags.year}
+                        </Text>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>
@@ -763,96 +578,37 @@ export default function Sources() {
                       </Badge>
                     )}
                   </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Tooltip label="View Details Page">
-                        <ActionIcon
-                          variant="subtle"
-                          color="green"
-                          onClick={() => navigate(`/source-details/${source.id}`)}
-                        >
-                          <IconEye size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      {!source.deleted ? (
-                        <>
-                          <Tooltip label="Edit Game">
-                            <ActionIcon
-                              variant="subtle"
-                              color="blue"
-                              onClick={() => handleEdit(source)}
-                            >
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Delete Game">
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              onClick={() => handleDelete(source)}
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </>
-                      ) : (
-                        <Tooltip label="Restore Game">
-                          <ActionIcon
-                            variant="subtle"
-                            color="green"
-                            onClick={() => handleRestore(source)}
-                          >
-                            <IconRefresh size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                    </Group>
-                  </Table.Td>
                 </Table.Tr>
               ))
             )}
           </Table.Tbody>
         </Table>
         
-        {/* BBC TAMS Pagination */}
+        {/* VAST TAMS Pagination */}
         {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
           <Group justify="center" mt="lg">
             <BBCPagination
               paginationMeta={bbcPagination}
-              onPageChange={handleBbcPageChange}
+              onPageChange={handleVastTamsPageChange}
               onLimitChange={(limit) => {
-                // Handle limit change for BBC TAMS API
-                fetchSourcesBbcTams();
+                // Handle limit change for VAST TAMS API
+                fetchSourcesVastTams();
               }}
               showBBCMetadata={true}
               showLimitSelector={true}
             />
           </Group>
         ) : (
-          /* Fallback Pagination for Demo Data */
-          filteredSources.length > 0 && (
+          /* No pagination when no data */
+          sources.length === 0 && !loading && (
             <Group justify="center" mt="lg">
-              <Pagination 
-                total={Math.ceil(filteredSources.length / 10)} 
-                value={1} 
-                onChange={() => {}} // No-op for demo data
-              />
+              <Text c="dimmed">No sources available</Text>
             </Group>
           )
         )}
       </Card>
 
-      {/* Source Health Monitoring */}
-      <Card withBorder mt="lg">
-        <Title order={4} mb="md">Source Health & Performance</Title>
-        <Text size="sm" c="dimmed" mb="lg">
-          Monitor the health status, performance metrics, and system alerts for all sources
-        </Text>
-        <SourceHealthMonitor 
-          autoRefresh={true}
-          refreshInterval={7200000}
-        />
-      </Card>
+
 
       {/* Create Source Modal */}
       <CreateSourceModal 
@@ -861,32 +617,6 @@ export default function Sources() {
         onSubmit={handleCreateSource}
       />
 
-      {/* Edit Source Modal */}
-      {selectedSource && (
-        <EditSourceModal
-          source={selectedSource}
-          opened={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedSource(null);
-          }}
-          onSubmit={handleUpdateSource}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {selectedSource && (
-        <EnhancedDeleteModal
-          opened={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Delete Football Game"
-          itemName={selectedSource.label || 'Unnamed Game'}
-          itemType="source"
-          showCascadeOption={true}
-          defaultDeletedBy="admin"
-        />
-      )}
 
 
     </Container>
@@ -905,14 +635,13 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
     label: '',
     description: '',
     format: 'urn:x-nmos:format:video',
-    // Football-specific fields
-    homeTeam: '',
-    awayTeam: '',
-    venue: '',
-    league: '',
-    season: '2024',
-    score: '',
-    duration: ''
+    // Generic media fields
+    category: '',
+    contentType: '',
+    year: '2024',
+    duration: '',
+    speaker: '',
+    venue: ''
   });
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -929,31 +658,18 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
     // Clear validation errors
     setValidationErrors([]);
     
-    // Create source with football metadata
+    // Create source with generic metadata
     const sourceData = {
       label: formData.label,
       description: formData.description,
       format: formData.format,
       tags: {
-        sport: 'football',
-        home_team: formData.homeTeam,
-        away_team: formData.awayTeam,
-        venue: formData.venue,
-        league: formData.league,
-        season: formData.season,
-        score: formData.score,
-        duration: formData.duration
-      },
-      footballMetadata: {
-        sport: 'football',
-        homeTeam: formData.homeTeam,
-        awayTeam: formData.awayTeam,
-        venue: formData.venue,
-        league: formData.league,
-        season: formData.season,
-        score: formData.score,
+        category: formData.category,
+        content_type: formData.contentType,
+        year: formData.year,
         duration: formData.duration,
-        highlights: []
+        speaker: formData.speaker,
+        venue: formData.venue
       }
     };
     
@@ -962,18 +678,17 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
       label: '', 
       description: '', 
       format: 'urn:x-nmos:format:video',
-      homeTeam: '',
-      awayTeam: '',
-      venue: '',
-      league: '',
-      season: '2024',
-      score: '',
-      duration: ''
+      category: '',
+      contentType: '',
+      year: '2024',
+      duration: '',
+      speaker: '',
+      venue: ''
     });
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Create New Football Game" size="md">
+    <Modal opened={opened} onClose={onClose} title="Create New Media Source" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           {/* Validation Errors */}
@@ -984,8 +699,8 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           )}
           
           <TextInput
-            label="Game Title"
-            placeholder="e.g., Manchester United vs Liverpool"
+            label="Source Title"
+            placeholder="e.g., Conference Presentation 2024"
             value={formData.label}
             onChange={(e) => setFormData({ ...formData, label: e.currentTarget.value })}
             required
@@ -993,26 +708,26 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           
           <Textarea
             label="Description"
-            placeholder="Enter game description"
+            placeholder="Enter source description"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
             rows={3}
           />
 
-          {/* Football-specific fields */}
+          {/* Generic media fields */}
           <SimpleGrid cols={2}>
             <TextInput
-              label="Home Team"
-              placeholder="e.g., Manchester United"
-              value={formData.homeTeam}
-              onChange={(e) => setFormData({ ...formData, homeTeam: e.currentTarget.value })}
+              label="Category"
+              placeholder="e.g., Technology"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.currentTarget.value })}
               required
             />
             <TextInput
-              label="Away Team"
-              placeholder="e.g., Liverpool"
-              value={formData.awayTeam}
-              onChange={(e) => setFormData({ ...formData, awayTeam: e.currentTarget.value })}
+              label="Content Type"
+              placeholder="e.g., Conference"
+              value={formData.contentType}
+              onChange={(e) => setFormData({ ...formData, contentType: e.currentTarget.value })}
               required
             />
           </SimpleGrid>
@@ -1020,39 +735,39 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           <SimpleGrid cols={2}>
             <TextInput
               label="Venue"
-              placeholder="e.g., Old Trafford"
+              placeholder="e.g., Convention Center"
               value={formData.venue}
               onChange={(e) => setFormData({ ...formData, venue: e.currentTarget.value })}
               required
             />
             <TextInput
-              label="League"
-              placeholder="e.g., Premier League"
-              value={formData.league}
-              onChange={(e) => setFormData({ ...formData, league: e.currentTarget.value })}
+              label="Year"
+              placeholder="e.g., 2024"
+              value={formData.year}
+              onChange={(e) => setFormData({ ...formData, year: e.currentTarget.value })}
               required
             />
           </SimpleGrid>
 
           <SimpleGrid cols={2}>
             <TextInput
-              label="Season"
+              label="Speaker"
               placeholder="e.g., 2024"
-              value={formData.season}
-              onChange={(e) => setFormData({ ...formData, season: e.currentTarget.value })}
+              value={formData.speaker}
+              onChange={(e) => setFormData({ ...formData, speaker: e.currentTarget.value })}
               required
             />
             <TextInput
-              label="Score"
-              placeholder="e.g., 2-1"
-              value={formData.score}
-              onChange={(e) => setFormData({ ...formData, score: e.currentTarget.value })}
+              label="Duration"
+              placeholder="e.g., 45:00"
+              value={formData.duration}
+              onChange={(e) => setFormData({ ...formData, duration: e.currentTarget.value })}
             />
           </SimpleGrid>
 
           <TextInput
             label="Duration"
-            placeholder="e.g., 90:00"
+            placeholder="e.g., 45:00"
             value={formData.duration}
             onChange={(e) => setFormData({ ...formData, duration: e.currentTarget.value })}
           />
@@ -1071,7 +786,7 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
           
           <Group justify="flex-end" gap="sm">
             <Button variant="light" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Create Game</Button>
+            <Button type="submit">Create Source</Button>
           </Group>
         </Stack>
       </form>
@@ -1079,183 +794,5 @@ function CreateSourceModal({ opened, onClose, onSubmit }: CreateSourceModalProps
   );
 }
 
-interface EditSourceModalProps {
-  source: Source;
-  opened: boolean;
-  onClose: () => void;
-  onSubmit: (source: Source) => void;
-}
-
-function EditSourceModal({ source, opened, onClose, onSubmit }: EditSourceModalProps) {
-  const [formData, setFormData] = useState({
-    label: source.label || '',
-    description: source.description || '',
-    format: source.format,
-    // Football-specific fields
-    homeTeam: source.footballMetadata?.homeTeam || source.tags?.['home_team'] || '',
-    awayTeam: source.footballMetadata?.awayTeam || source.tags?.['away_team'] || '',
-    venue: source.footballMetadata?.venue || source.tags?.['venue'] || '',
-    league: source.footballMetadata?.league || source.tags?.['league'] || '',
-    season: source.footballMetadata?.season || source.tags?.['season'] || '2024',
-    score: source.footballMetadata?.score || source.tags?.['score'] || '',
-    duration: source.footballMetadata?.duration || source.tags?.['duration'] || ''
-  });
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Enhanced validation
-    const validation = validateTAMSEntity('source', formData);
-    if (!validation.isValid) {
-      setValidationErrors(validation.errors);
-      return;
-    }
-    
-    // Clear validation errors
-    setValidationErrors([]);
-    
-    // Update source with football metadata
-    const updatedSource = {
-      ...source,
-      label: formData.label,
-      description: formData.description,
-      format: formData.format,
-      updated: new Date().toISOString(),
-      updated_by: 'admin',
-      tags: {
-        ...source.tags,
-        sport: 'football',
-        home_team: formData.homeTeam,
-        away_team: formData.awayTeam,
-        venue: formData.venue,
-        league: formData.league,
-        season: formData.season,
-        score: formData.score,
-        duration: formData.duration
-      },
-      footballMetadata: {
-        sport: 'football',
-        homeTeam: formData.homeTeam,
-        awayTeam: formData.awayTeam,
-        venue: formData.venue,
-        league: formData.league,
-        season: formData.season,
-        score: formData.score,
-        duration: formData.duration,
-        highlights: source.footballMetadata?.highlights || []
-      }
-    };
-    
-    onSubmit(updatedSource);
-  };
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Edit Football Game" size="md">
-      <form onSubmit={handleSubmit}>
-        <Stack gap="md">
-          {/* Validation Errors */}
-          {validationErrors.length > 0 && (
-            <Alert icon={<IconAlertCircle size={16} />} color="red" title="Validation Errors">
-              <Text size="sm">{formatValidationErrors(validationErrors)}</Text>
-            </Alert>
-          )}
-          
-          <TextInput
-            label="Game Title"
-            placeholder="e.g., Manchester United vs Liverpool"
-            value={formData.label}
-            onChange={(e) => setFormData({ ...formData, label: e.currentTarget.value })}
-            required
-          />
-          
-          <Textarea
-            label="Description"
-            placeholder="Enter game description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
-            rows={3}
-          />
-
-          {/* Football-specific fields */}
-          <SimpleGrid cols={2}>
-            <TextInput
-              label="Home Team"
-              placeholder="e.g., Manchester United"
-              value={formData.homeTeam}
-              onChange={(e) => setFormData({ ...formData, homeTeam: e.currentTarget.value })}
-              required
-            />
-            <TextInput
-              label="Away Team"
-              placeholder="e.g., Liverpool"
-              value={formData.awayTeam}
-              onChange={(e) => setFormData({ ...formData, awayTeam: e.currentTarget.value })}
-              required
-            />
-          </SimpleGrid>
-
-          <SimpleGrid cols={2}>
-            <TextInput
-              label="Venue"
-              placeholder="e.g., Old Trafford"
-              value={formData.venue}
-              onChange={(e) => setFormData({ ...formData, venue: e.currentTarget.value })}
-              required
-            />
-            <TextInput
-              label="League"
-              placeholder="e.g., Premier League"
-              value={formData.league}
-              onChange={(e) => setFormData({ ...formData, league: e.currentTarget.value })}
-              required
-            />
-          </SimpleGrid>
-
-          <SimpleGrid cols={2}>
-            <TextInput
-              label="Season"
-              placeholder="e.g., 2024"
-              value={formData.season}
-              onChange={(e) => setFormData({ ...formData, season: e.currentTarget.value })}
-              required
-            />
-            <TextInput
-              label="Score"
-              placeholder="e.g., 2-1"
-              value={formData.score}
-              onChange={(e) => setFormData({ ...formData, score: e.currentTarget.value })}
-            />
-          </SimpleGrid>
-
-          <TextInput
-            label="Duration"
-            placeholder="e.g., 90:00"
-            value={formData.duration}
-            onChange={(e) => setFormData({ ...formData, duration: e.currentTarget.value })}
-          />
-          
-          <Select
-            label="Format"
-            data={[
-              { value: 'urn:x-nmos:format:video', label: 'Video' },
-              { value: 'urn:x-nmos:format:audio', label: 'Audio' },
-              { value: 'urn:x-nmos:format:data', label: 'Data' },
-              { value: 'urn:x-tam:format:image', label: 'Image' }
-            ]}
-            value={formData.format}
-            onChange={(value) => setFormData({ ...formData, format: value || 'urn:x-nmos:format:video' })}
-            required
-          />
-          
-          <Group justify="flex-end" gap="sm">
-            <Button variant="light" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Update Game</Button>
-          </Group>
-        </Stack>
-      </form>
-    </Modal>
-  );
-} 
 
  

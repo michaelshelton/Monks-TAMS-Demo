@@ -1,4 +1,5 @@
 
+import React, { useState, useEffect } from 'react';
 import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid } from '@mantine/core';
 import { 
   IconClock, 
@@ -16,48 +17,12 @@ import {
   IconPlayerPlay,
   IconCheck
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../services/api';
 
-const liveStats = [
-  { label: 'Active Sources', value: '12', icon: <IconVideo size={20} />, color: 'blue' },
-  { label: 'Live Flows', value: '8', icon: <IconBroadcast size={20} />, color: 'green' },
-  { label: 'Segments Today', value: '1,247', icon: <IconTimeline size={20} />, color: 'orange' },
-  { label: 'Storage Used', value: '2.4TB', icon: <IconDatabase size={20} />, color: 'purple' }
-];
+// Live stats will be loaded dynamically from API
 
-const quickActions = [
-  {
-    title: 'Live Sources',
-    description: 'View real-time media inputs',
-    icon: <IconBroadcast size={32} />,
-    color: 'blue',
-    link: '/sources',
-    badge: '12 Active'
-  },
-  {
-    title: 'Media Flows',
-    description: 'Monitor processing streams',
-    icon: <IconBroadcast size={32} />,
-    color: 'green',
-    link: '/flows',
-    badge: '8 Running'
-  },
-  {
-    title: 'Time Navigation',
-    description: 'Jump to any moment instantly',
-    icon: <IconTarget size={32} />,
-    color: 'orange',
-    link: '/segments',
-    badge: 'Live Demo'
-  },
-  {
-    title: 'Analytics',
-    description: 'Real-time performance metrics',
-    icon: <IconTrendingUp size={32} />,
-    color: 'teal',
-    link: '/analytics',
-    badge: 'Live Data'
-  }
-];
+// Quick actions will be generated dynamically with real data
 
 const demoHighlights = [
   {
@@ -83,6 +48,120 @@ const demoHighlights = [
 ];
 
 export default function Landing() {
+  const navigate = useNavigate();
+  const [systemData, setSystemData] = useState<{
+    sources: number;
+    flows: number;
+    segments: number;
+    health: any;
+    loading: boolean;
+    error: string | null;
+  }>({
+    sources: 0,
+    flows: 0,
+    segments: 0,
+    health: null,
+    loading: true,
+    error: null
+  });
+
+  // Load system data on component mount
+  useEffect(() => {
+    loadSystemData();
+  }, []);
+
+  const loadSystemData = async () => {
+    setSystemData(prev => ({ ...prev, loading: true, error: null }));
+    
+    try {
+      console.log('🔄 Loading landing page system data...');
+      
+      // Load health status
+      const health = await apiClient.getHealth();
+      console.log('✅ Health loaded:', health);
+      
+      // Load basic counts
+      const [sourcesResponse, flowsResponse] = await Promise.all([
+        apiClient.getSources({ limit: 10 }),
+        apiClient.getFlows({ limit: 10 })
+      ]);
+      
+      console.log('📊 Sources response:', sourcesResponse);
+      console.log('📊 Flows response:', flowsResponse);
+      
+      // Calculate counts
+      const sourcesCount = sourcesResponse.pagination?.count || sourcesResponse.data?.length || 0;
+      const flowsCount = flowsResponse.pagination?.count || flowsResponse.data?.length || 0;
+      
+      // Get segment count from first flow if available
+      let segmentsCount = 0;
+      if (flowsResponse.data && flowsResponse.data.length > 0) {
+        try {
+          const firstFlow = flowsResponse.data[0];
+          const segmentsResponse = await apiClient.getFlowSegments(firstFlow.id, { limit: 10 });
+          segmentsCount = segmentsResponse.pagination?.count || segmentsResponse.data?.length || 0;
+        } catch (segmentError) {
+          console.warn('⚠️ Could not load segment count:', segmentError);
+        }
+      }
+      
+      setSystemData({
+        sources: sourcesCount,
+        flows: flowsCount,
+        segments: segmentsCount,
+        health,
+        loading: false,
+        error: null
+      });
+      
+    } catch (error) {
+      console.error('❌ Error loading system data:', error);
+      setSystemData(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to load system data'
+      }));
+    }
+  };
+
+
+
+  // Generate quick actions with real data
+  const quickActions = [
+    {
+      title: 'Live Sources',
+      description: 'View real-time media inputs',
+      icon: <IconBroadcast size={32} />,
+      color: 'blue',
+      link: '/sources',
+      badge: `${systemData.sources} Active`
+    },
+    {
+      title: 'Media Flows',
+      description: 'Monitor processing streams',
+      icon: <IconBroadcast size={32} />,
+      color: 'green',
+      link: '/flows',
+      badge: `${systemData.flows} Running`
+    },
+    {
+      title: 'TAMS Workflow',
+      description: 'Interactive demo walkthrough',
+      icon: <IconTarget size={32} />,
+      color: 'orange',
+      link: '/vast-tams-workflow',
+      badge: 'Live Demo'
+    },
+    {
+      title: 'Analytics',
+      description: 'Real-time performance metrics',
+      icon: <IconTrendingUp size={32} />,
+      color: 'teal',
+      link: '/analytics',
+      badge: 'Live Data'
+    }
+  ];
+
   return (
     <Box>
       {/* Hero Section - Demo Focus */}
@@ -101,47 +180,28 @@ export default function Landing() {
               no more scrubbing through hours of content to find what you need.
             </Text>
             <Group justify="center" gap="md">
-              <Button size="lg" rightSection={<IconArrowRight size={20} />} color="blue">
-                Start Interactive Demo
+              <Button 
+                size="lg" 
+                rightSection={<IconArrowRight size={20} />} 
+                color="blue"
+                onClick={() => navigate('/vast-tams-workflow')}
+              >
+                Start Walkthrough
               </Button>
-              <Button size="lg" variant="outline" color="white">
-                Watch Demo Video
+              <Button 
+                size="lg" 
+                variant="outline" 
+                color="white"
+                onClick={() => navigate('/sources')}
+              >
+                Explore Sources
               </Button>
             </Group>
           </Stack>
         </Container>
       </Box>
 
-      {/* Live Stats Dashboard */}
-      <Container size="xl" px="xl" py="xl">
-        <Stack gap="xl">
-          <Box ta="center">
-            <Title order={2} mb="md">
-              Live System Status
-            </Title>
-            <Text size="lg" c="dimmed">
-              Real-time metrics from our TAMS demo environment
-            </Text>
-          </Box>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xl">
-            {liveStats.map((stat, i) => (
-              <Card key={i} withBorder p="md" ta="center">
-                <Group justify="center" mb="xs">
-                  <Box style={{ color: `var(--mantine-color-${stat.color}-6)` }}>
-                    {stat.icon}
-                  </Box>
-                </Group>
-                <Text size="xl" fw={700} mb="xs">
-                  {stat.value}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  {stat.label}
-                </Text>
-              </Card>
-            ))}
-          </SimpleGrid>
-        </Stack>
-      </Container>
+
 
       {/* Quick Actions - Demo Navigation */}
       <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
@@ -177,8 +237,7 @@ export default function Landing() {
                       variant="light" 
                       size="sm" 
                       rightSection={<IconArrowRight size={16} />}
-                      component="a"
-                      href={action.link}
+                      onClick={() => navigate(action.link)}
                       color={action.color}
                     >
                       Explore
@@ -255,8 +314,7 @@ export default function Landing() {
                   <Button 
                     variant="light" 
                     rightSection={<IconArrowRight size={16} />}
-                    component="a"
-                    href="/segments"
+                    onClick={() => navigate('/vast-tams-workflow')}
                   >
                     Try Timeline Demo
                   </Button>
@@ -278,8 +336,7 @@ export default function Landing() {
                   <Button 
                     variant="light" 
                     rightSection={<IconArrowRight size={16} />}
-                    component="a"
-                    href="/search"
+                    onClick={() => navigate('/search')}
                   >
                     Try Search Demo
                   </Button>
@@ -290,79 +347,180 @@ export default function Landing() {
         </Container>
       </Box>
 
-      {/* Technology Demo */}
+      {/* VAST TAMS Features */}
       <Container size="xl" px="xl" py="xl">
         <Stack gap="xl">
           <Box ta="center">
             <Title order={2} mb="md">
-              Powered by VAST Data Platform
+              TAMS Features
             </Title>
             <Text size="lg" c="dimmed">
-              Built on the world's fastest data platform for unlimited scale and performance
+              Time-Addressable Media Store with advanced capabilities
             </Text>
           </Box>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
-            <Card withBorder p="md" ta="center">
-              <IconBolt size={32} style={{ color: 'var(--mantine-color-green-6)' }} />
-              <Text fw={500} mt="sm">Sub-Second Access</Text>
-              <Text size="sm" c="dimmed">Any moment, instantly</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-green-6)' }}>
+                  <IconCheck size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    BBC TAMS v6.0 Compliance
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Full specification compliance with BBC TAMS API
+                  </Text>
+                </div>
+              </Group>
             </Card>
-            <Card withBorder p="md" ta="center">
-              <IconDatabase size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
-              <Text fw={500} mt="sm">Petabyte Scale</Text>
-              <Text size="sm" c="dimmed">Unlimited storage</Text>
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
+                  <IconTimeline size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    Time-Addressable Media
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Jump to any moment in your media with precise time ranges
+                  </Text>
+                </div>
+              </Group>
             </Card>
-            <Card withBorder p="md" ta="center">
-              <IconActivity size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
-              <Text fw={500} mt="sm">Real-Time Processing</Text>
-              <Text size="sm" c="dimmed">Live stream indexing</Text>
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-purple-6)' }}>
+                  <IconTarget size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    Dual URL Support
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    GET and HEAD presigned URLs for flexible media access
+                  </Text>
+                </div>
+              </Group>
             </Card>
-            <Card withBorder p="md" ta="center">
-              <IconShield size={32} style={{ color: 'var(--mantine-color-purple-6)' }} />
-              <Text fw={500} mt="sm">Enterprise Ready</Text>
-              <Text size="sm" c="dimmed">Production hardened</Text>
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-red-6)' }}>
+                  <IconActivity size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    Real-time Webhooks
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Event-driven notifications for media operations
+                  </Text>
+                </div>
+              </Group>
+            </Card>
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-orange-6)' }}>
+                  <IconDatabase size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    Soft Delete & Restore
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Advanced deletion with recovery capabilities
+                  </Text>
+                </div>
+              </Group>
+            </Card>
+            <Card p="md" withBorder>
+              <Group>
+                <Box style={{ color: 'var(--mantine-color-teal-6)' }}>
+                  <IconActivity size={20} />
+                </Box>
+                <div>
+                  <Text fw={600} mb="xs">
+                    Analytics & Monitoring
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Real-time usage analytics and performance metrics
+                  </Text>
+                </div>
+              </Group>
             </Card>
           </SimpleGrid>
         </Stack>
       </Container>
 
-      {/* Demo CTA */}
-      <Box py="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      {/* Technology Demo */}
+      <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
         <Container size="xl" px="xl">
-          <Stack align="center" gap="xl">
-            <Box ta="center" maw={700}>
-              <Title order={2} mb="lg" c="white">
-                Ready to Experience TAMS?
+          <Stack gap="xl">
+            <Box ta="center">
+              <Title order={2} mb="md">
+                Powered by VAST Data Platform
               </Title>
-              <Text size="lg" mb="xl" c="white" opacity={0.9}>
-                Start exploring the interactive demo areas to see how TAMS can transform your media workflows.
+              <Text size="lg" c="dimmed">
+                Built on the world's fastest data platform for unlimited scale and performance
               </Text>
             </Box>
-            <Group gap="md">
-              <Button size="xl" rightSection={<IconPlayerPlay size={24} />} color="white" variant="filled">
-                Start Interactive Demo
-              </Button>
-              <Button size="xl" variant="outline" color="white" rightSection={<IconArrowRight size={24} />}>
-                Explore Features
-              </Button>
-            </Group>
-            <Group gap="lg" mt="xl">
-              <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'white' }} />
-                <Text size="sm" c="white">Live Demo Data</Text>
-              </Group>
-              <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'white' }} />
-                <Text size="sm" c="white">Interactive Features</Text>
-              </Group>
-              <Group gap="xs">
-                <IconCheck size={16} style={{ color: 'white' }} />
-                <Text size="sm" c="white">Real-Time Metrics</Text>
-              </Group>
-            </Group>
+            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
+              <Card withBorder p="md" ta="center">
+                <IconBolt size={32} style={{ color: 'var(--mantine-color-green-6)' }} />
+                <Text fw={500} mt="sm">Sub-Second Access</Text>
+                <Text size="sm" c="dimmed">Any moment, instantly</Text>
+              </Card>
+              <Card withBorder p="md" ta="center">
+                <IconDatabase size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
+                <Text fw={500} mt="sm">Petabyte Scale</Text>
+                <Text size="sm" c="dimmed">Unlimited storage</Text>
+              </Card>
+              <Card withBorder p="md" ta="center">
+                <IconActivity size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
+                <Text fw={500} mt="sm">Real-Time Processing</Text>
+                <Text size="sm" c="dimmed">Live stream indexing</Text>
+              </Card>
+              <Card withBorder p="md" ta="center">
+                <IconShield size={32} style={{ color: 'var(--mantine-color-purple-6)' }} />
+                <Text fw={500} mt="sm">Enterprise Ready</Text>
+                <Text size="sm" c="dimmed">Production hardened</Text>
+              </Card>
+            </SimpleGrid>
           </Stack>
         </Container>
       </Box>
+
+      {/* Call to Action */}
+      <Container size="xl" px="xl" py="xl">
+        <Card p="xl" withBorder style={{ backgroundColor: 'var(--mantine-color-blue-0)' }}>
+          <Stack align="center" ta="center">
+            <Title order={3} c="blue">
+              Ready to Explore TAMS?
+            </Title>
+            <Text size="lg" c="dimmed" maw={600}>
+              Start with our interactive workflow demo to see all TAMS features in action
+            </Text>
+            <Group>
+              <Button
+                size="lg"
+                rightSection={<IconArrowRight size={16} />}
+                onClick={() => navigate('/vast-tams-workflow')}
+              >
+                Start Workflow Demo
+              </Button>
+              <Button
+                size="lg"
+                variant="light"
+                onClick={() => navigate('/sources')}
+              >
+                Explore Sources
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+      </Container>
+
     </Box>
   );
 } 

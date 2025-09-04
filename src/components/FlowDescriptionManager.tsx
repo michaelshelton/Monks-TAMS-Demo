@@ -50,8 +50,8 @@ export function FlowDescriptionManager({
   const [error, setError] = useState<string | null>(null);
   const [showDescriptionModal, setShowDescriptionModal] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
-  const [editingDescription, setEditingDescription] = useState(initialDescription);
-  const [editingLabel, setEditingLabel] = useState(initialLabel);
+  const [editingDescription, setEditingDescription] = useState(initialDescription || '');
+  const [editingLabel, setEditingLabel] = useState(initialLabel || '');
 
   // Load initial data from API if not provided
   useEffect(() => {
@@ -72,11 +72,11 @@ export function FlowDescriptionManager({
       try {
         if (!initialDescription) {
           const descResponse = await getFlowDescription(flowId);
-          setDescription(descResponse.description);
+          setDescription(descResponse.description || '');
         }
         if (!initialLabel) {
           const labelResponse = await getFlowLabel(flowId);
-          setLabel(labelResponse.label);
+          setLabel(labelResponse.label || '');
         }
       } catch (err: any) {
         console.error('Error loading initial data:', err);
@@ -88,14 +88,14 @@ export function FlowDescriptionManager({
   };
 
   const handleUpdateDescription = async () => {
-    if (!editingDescription.trim()) return;
+    if (!editingDescription || !editingDescription.trim()) return;
     
     setLoading(true);
     setError(null);
     try {
-      await setFlowDescription(flowId, editingDescription.trim());
+      await setFlowDescription(flowId, editingDescription?.trim() || '');
       
-      const newDescription = editingDescription.trim();
+      const newDescription = editingDescription?.trim() || '';
       setDescription(newDescription);
       if (onDescriptionChange) {
         onDescriptionChange(newDescription);
@@ -111,14 +111,14 @@ export function FlowDescriptionManager({
   };
 
   const handleUpdateLabel = async () => {
-    if (!editingLabel.trim()) return;
+    if (!editingLabel || !editingLabel.trim()) return;
     
     setLoading(true);
     setError(null);
     try {
-      await setFlowLabel(flowId, editingLabel.trim());
+      await setFlowLabel(flowId, editingLabel?.trim() || '');
       
-      const newLabel = editingLabel.trim();
+      const newLabel = editingLabel?.trim() || '';
       setLabel(newLabel);
       if (onLabelChange) {
         onLabelChange(newLabel);
@@ -257,7 +257,7 @@ export function FlowDescriptionManager({
             <Button
               onClick={handleUpdateDescription}
               loading={loading}
-              disabled={!editingDescription.trim()}
+              disabled={!editingDescription || !editingDescription.trim()}
             >
               Update Description
             </Button>
@@ -292,7 +292,7 @@ export function FlowDescriptionManager({
             <Button
               onClick={handleUpdateLabel}
               loading={loading}
-              disabled={!editingLabel.trim()}
+              disabled={!editingLabel || !editingLabel.trim()}
             >
               Update Label
             </Button>

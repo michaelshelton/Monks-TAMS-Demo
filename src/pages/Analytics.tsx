@@ -17,7 +17,6 @@ import {
   Button,
   Alert,
   Loader,
-  Tabs,
   Divider
 } from '@mantine/core';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
@@ -48,17 +47,10 @@ import {
   IconQrcode,
   IconDeviceMobile,
   IconAlertCircle,
-  IconInfoCircle,
   IconCheck,
-  IconX,
-  IconGauge,
-  IconServer,
-  IconNetwork,
-  IconShield
+  IconX
 } from '@tabler/icons-react';
-import { apiClient } from '../services/api';
-import { HealthStatusIndicator } from '../components/HealthStatusIndicator';
-import { SystemMetricsDashboard } from '../components/SystemMetricsDashboard';
+import { apiClient, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
 
 ChartJS.register(
   CategoryScale, 
@@ -72,16 +64,7 @@ ChartJS.register(
   Legend
 );
 
-// BBC TAMS Compliance Metrics
-const bbcTamsComplianceMetrics = {
-  apiCoverage: 100,
-  formatCompliance: 100,
-  paginationCompliance: 100,
-  eventSystemCompliance: 100,
-  timeOperationsCompliance: 100,
-  cmcdImplementation: 100,
-  overallCompliance: 100
-};
+
 
 // Mock analytics data for overall application
 const mockFlowUsageData = {
@@ -161,15 +144,7 @@ const mockQRCodeUsageData = {
   ],
 };
 
-// BBC TAMS Performance Metrics
-const bbcTamsPerformanceMetrics = {
-  apiResponseTime: 45,
-  searchPerformance: 92,
-  paginationEfficiency: 98,
-  eventProcessing: 87,
-  timeOperations: 94,
-  cmcdCollection: 96
-};
+
 
 const mockTopFlows = [
   {
@@ -330,61 +305,88 @@ export default function Analytics() {
   const [timeRangeData, setTimeRangeData] = useState<any>(null);
   const [topFlows, setTopFlows] = useState<any[]>([]);
   const [recentCompilations, setRecentCompilations] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  
+  // BBC TAMS API state
+  const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
 
-  // Fetch analytics data from API
-  useEffect(() => {
-    const fetchAnalyticsData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch all analytics data in parallel
-        const [flowUsage, storageUsage, timeRange] = await Promise.all([
-          apiClient.getFlowUsageAnalytics().catch(err => {
-            console.warn('Flow usage analytics not available:', err);
-            return null;
-          }),
-          apiClient.getStorageUsageAnalytics().catch(err => {
-            console.warn('Storage usage analytics not available:', err);
-            return null;
-          }),
-          apiClient.getTimeRangeAnalytics().catch(err => {
-            console.warn('Time range analytics not available:', err);
-            return null;
-          })
-        ]);
-        
-        setFlowUsageData(flowUsage);
-        setStorageUsageData(storageUsage);
-        setTimeRangeData(timeRange);
-        
-        // Check if any analytics endpoints are available
-        if (!flowUsage && !storageUsage && !timeRange) {
-          setError('Analytics API endpoints are not available yet. The backend is still being configured.');
-        }
-        
-        // For now, we'll use mock data for top flows and recent compilations
-        // since these endpoints don't exist yet
-        setTopFlows(mockTopFlows);
-        setRecentCompilations(mockRecentCompilations);
-        
-      } catch (err: any) {
-        setError('Failed to fetch analytics data');
-        console.error(err);
-      } finally {
-        setLoading(false);
+  // Fetch analytics data using VAST TAMS API
+  const fetchAnalyticsDataVastTams = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching analytics from VAST TAMS API...');
+      
+      // Fetch all analytics data in parallel
+      const [flowUsage, storageUsage, timeRange] = await Promise.all([
+        apiClient.getFlowUsageAnalytics().catch(err => {
+          console.warn('Flow usage analytics not available:', err);
+          return null;
+        }),
+        apiClient.getStorageUsageAnalytics().catch(err => {
+          console.warn('Storage usage analytics not available:', err);
+          return null;
+        }),
+        apiClient.getTimeRangeAnalytics().catch(err => {
+          console.warn('Time range analytics not available:', err);
+          return null;
+        })
+      ]);
+      
+      console.log('VAST TAMS Analytics API responses:', { flowUsage, storageUsage, timeRange });
+      
+      setFlowUsageData(flowUsage);
+      setStorageUsageData(storageUsage);
+      setTimeRangeData(timeRange);
+      
+      // Check if any analytics endpoints are available
+      if (!flowUsage && !storageUsage && !timeRange) {
+        setError('VAST TAMS analytics endpoints are not available yet. The backend is still being configured.');
       }
-    };
+      
+      // For now, we'll use mock data for top flows and recent compilations
+      // since these endpoints don't exist yet
+      setTopFlows(mockTopFlows);
+      setRecentCompilations(mockRecentCompilations);
+      
+    } catch (err: any) {
+      console.error('VAST TAMS Analytics API error:', err);
+      
+      // Set appropriate error message based on error type
+      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
+        setError('VAST TAMS backend temporarily unavailable - please try again later');
+      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
+        setError('Network connection issue - please check your connection and try again');
+      } else if (err?.message?.includes('404')) {
+        setError('VAST TAMS analytics endpoints not found - please check backend configuration');
+      } else {
+        setError(`VAST TAMS analytics error: ${err?.message || 'Unknown error'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchAnalyticsData();
+  // Fetch analytics data on component mount
+  useEffect(() => {
+    fetchAnalyticsDataVastTams();
   }, []);
 
   // Prepare chart data from API or fall back to mock data
   const chartData = {
-    flowUsage: flowUsageData || mockFlowUsageData,
-    storageUsage: storageUsageData || mockStorageUsageData,
-    videoCompilation: timeRangeData || mockVideoCompilationData,
+    flowUsage: flowUsageData ? {
+      labels: flowUsageData.labels || mockFlowUsageData.labels,
+      datasets: flowUsageData.datasets || mockFlowUsageData.datasets
+    } : mockFlowUsageData,
+    storageUsage: storageUsageData ? {
+      labels: storageUsageData.labels || mockStorageUsageData.labels,
+      datasets: storageUsageData.datasets || mockStorageUsageData.datasets
+    } : mockStorageUsageData,
+    videoCompilation: timeRangeData ? {
+      labels: timeRangeData.labels || mockVideoCompilationData.labels,
+      datasets: timeRangeData.datasets || mockVideoCompilationData.datasets
+    } : mockVideoCompilationData,
     qrCodeUsage: mockQRCodeUsageData // No API endpoint for this yet
   };
 
@@ -479,10 +481,11 @@ export default function Analytics() {
     </Table.Tr>
   ));
 
+  // Dynamic stats based on real data when available
   const stats = [
     {
       title: 'Total Flows',
-      value: '12',
+      value: flowUsageData?.total_flows?.toString() || '12',
       change: '+12%',
       changeType: 'positive',
       icon: <IconActivity size={24} />,
@@ -490,23 +493,24 @@ export default function Analytics() {
     },
     {
       title: 'Active Segments',
-      value: '3,247',
+      value: timeRangeData?.total_segments?.toString() || '3,247',
       change: '+8%',
       changeType: 'positive',
       icon: <IconUsers size={24} />,
       color: '#40c057',
     },
     {
-      title: 'Video Compilations',
-      value: '156',
-      change: '+25%',
+      title: 'Storage Used',
+      value: storageUsageData?.total_size_bytes ? 
+        `${(storageUsageData.total_size_bytes / (1024 * 1024 * 1024)).toFixed(1)} GB` : '8.4 GB',
+      change: '+15%',
       changeType: 'positive',
-      icon: <IconVideo size={24} />,
+      icon: <IconDatabase size={24} />,
       color: '#fd7e14',
     },
     {
-      title: 'QR Code Scans',
-      value: '2,847',
+      title: 'Total Objects',
+      value: storageUsageData?.total_objects?.toString() || '2,847',
       change: '+18%',
       changeType: 'positive',
       icon: <IconQrcode size={24} />,
@@ -515,103 +519,39 @@ export default function Analytics() {
   ];
 
   const handleRefresh = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch all analytics data in parallel
-      const [flowUsage, storageUsage, timeRange] = await Promise.all([
-        apiClient.getFlowUsageAnalytics().catch(err => {
-          console.warn('Flow usage analytics not available:', err);
-          return null;
-        }),
-        apiClient.getStorageUsageAnalytics().catch(err => {
-          console.warn('Storage usage analytics not available:', err);
-          return null;
-        }),
-        apiClient.getTimeRangeAnalytics().catch(err => {
-          console.warn('Time range analytics not available:', err);
-          return null;
-        })
-      ]);
-      
-      setFlowUsageData(flowUsage);
-      setStorageUsageData(storageUsage);
-      setTimeRangeData(timeRange);
-      
-      // Check if any analytics endpoints are available
-      if (!flowUsage && !storageUsage && !timeRange) {
-        setError('Analytics API endpoints are not available yet. The backend is still being configured.');
-      }
-      
-    } catch (err: any) {
-      setError('Failed to refresh analytics data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    await fetchAnalyticsDataVastTams();
   };
 
   return (
     <Container size="xl" px="xl" py="xl">
-      <Box mb="xl">
-        <Group justify="space-between" align="flex-end">
-          <Box>
-            <Title order={2} mb="md">
-              TAMS Analytics Dashboard
-            </Title>
-            <Text size="lg" c="dimmed">
-              Monitor performance, compliance, and usage patterns across your TAMS v6.0 implementation
-            </Text>
-          </Box>
-          <Group gap="sm">
-            <Button 
-              leftSection={<IconRefresh size={16} />}
-              variant="light"
-              loading={loading}
-              onClick={handleRefresh}
-            >
-              Refresh
-            </Button>
-          </Group>
+      <Group justify="space-between" mb="lg">
+        <Box>
+          <Title order={2}>Analytics Dashboard</Title>
+          <Text c="dimmed" size="sm" mt="xs">
+            Monitor performance, compliance, and usage patterns across your VAST TAMS implementation
+          </Text>
+        </Box>
+        <Group>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => {
+              fetchAnalyticsDataVastTams();
+              setError(null);
+            }}
+            loading={loading}
+          >
+            Refresh
+          </Button>
         </Group>
-      </Box>
-
-      {/* Info Box */}
-      <Alert
-        icon={<IconInfoCircle size={20} />}
-        title="What is this page?"
-        color="blue"
-        variant="light"
-        mb="lg"
-      >
-        <Text size="sm">
-          The TAMS Analytics Dashboard provides comprehensive insights into your TAMS application's performance, 
-          including BBC TAMS v6.0 compliance metrics, real-time performance monitoring, and system health overview.
-        </Text>
-        <Text size="sm" mt="xs">
-          This page includes:
-        </Text>
-        <Text size="sm" mt="xs">
-          • <strong>BBC TAMS Compliance</strong> - 100% specification adherence monitoring<br/>
-          • <strong>Performance Metrics</strong> - Real-time API performance and efficiency tracking<br/>
-          • <strong>System Health</strong> - CPU, memory, network, and storage monitoring<br/>
-          • <strong>Storage Overview</strong> - Total storage allocation and usage patterns<br/>
-          • <strong>Error Rates</strong> - System-wide error percentages and quality metrics<br/>
-          • <strong>Real-time Monitoring</strong> - Live system health and performance updates
-        </Text>
-        <Text size="sm" mt="xs">
-          <strong>Note:</strong> For flow-specific analytics and time-based filtering, use the Flows page which includes 
-          BBC TAMS timerange filtering capabilities.
-        </Text>
-      </Alert>
+      </Group>
 
       {/* Error Alert */}
       {error && (
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color={error.includes('not available yet') ? 'yellow' : 'red'} 
-          title={error.includes('not available yet') ? 'Backend Not Ready' : 'Error'}
+          title={error.includes('not available yet') ? 'VAST TAMS Backend Not Ready' : 'VAST TAMS Connection Error'}
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -619,18 +559,19 @@ export default function Analytics() {
           {error}
           {error.includes('not available yet') && (
             <Text size="sm" mt="xs">
-              This page will work once the backend analytics API is fully configured. 
+              This page will work once the VAST TAMS backend analytics API is fully configured. 
               For now, you can use the Sources and Flows pages which are already working.
             </Text>
           )}
         </Alert>
       )}
 
+
       {/* Loading State */}
       {loading && (
         <Box ta="center" py="xl">
           <Loader size="lg" />
-          <Text mt="md" c="dimmed">Loading BBC TAMS analytics data...</Text>
+          <Text mt="md" c="dimmed">Loading VAST TAMS analytics data...</Text>
         </Box>
       )}
 
@@ -638,7 +579,7 @@ export default function Analytics() {
       {loading ? (
         <Box ta="center" py="xl">
           <Loader size="lg" />
-          <Text mt="md" c="dimmed">Loading BBC TAMS analytics data...</Text>
+          <Text mt="md" c="dimmed">Loading VAST TAMS analytics data...</Text>
         </Box>
       ) : error ? (
         <Box ta="center" py="xl" c="red">
@@ -646,56 +587,7 @@ export default function Analytics() {
         </Box>
       ) : (
         <>
-          {/* BBC TAMS Compliance Overview */}
-          <Card withBorder p="xl" mb="xl">
-            <Group justify="space-between" align="center" mb="lg">
-              <Box>
-                <Title order={4} mb="xs">
-                  BBC TAMS v6.0 Compliance Status
-                </Title>
-                <Text size="sm" c="dimmed">
-                  Overall compliance: {bbcTamsComplianceMetrics.overallCompliance}%
-                </Text>
-              </Box>
-              <Badge color="green" variant="light" size="lg">
-                <IconCheck size={16} style={{ marginRight: 8 }} />
-                FULLY COMPLIANT
-              </Badge>
-            </Group>
-            
-            <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md">
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">API Coverage</Text>
-                <Progress value={bbcTamsComplianceMetrics.apiCoverage} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.apiCoverage}%</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">Format Compliance</Text>
-                <Progress value={bbcTamsComplianceMetrics.formatCompliance} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.formatCompliance}%</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">Pagination</Text>
-                <Progress value={bbcTamsComplianceMetrics.paginationCompliance} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.paginationCompliance}%</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">Event System</Text>
-                <Progress value={bbcTamsComplianceMetrics.eventSystemCompliance} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.eventSystemCompliance}%</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">Time Operations</Text>
-                <Progress value={bbcTamsComplianceMetrics.timeOperationsCompliance} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.timeOperationsCompliance}%</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="sm" c="dimmed" mb="xs">CMCD Implementation</Text>
-                <Progress value={bbcTamsComplianceMetrics.cmcdImplementation} color="green" size="lg" />
-                <Text size="xs" mt="xs">{bbcTamsComplianceMetrics.cmcdImplementation}%</Text>
-              </Box>
-            </SimpleGrid>
-          </Card>
+
 
           {/* Statistics */}
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg" mb="xl">
@@ -740,26 +632,10 @@ export default function Analytics() {
             ))}
           </SimpleGrid>
 
-          {/* Tabs for different analytics views */}
-          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'overview')} mb="xl">
-            <Tabs.List>
-              <Tabs.Tab value="overview" leftSection={<IconGauge size={16} />}>
-                Overview
-              </Tabs.Tab>
-              <Tabs.Tab value="performance" leftSection={<IconTrendingUp size={16} />}>
-                Performance
-              </Tabs.Tab>
-              <Tabs.Tab value="system" leftSection={<IconServer size={16} />}>
-                System Health
-              </Tabs.Tab>
-              <Tabs.Tab value="compliance" leftSection={<IconShield size={16} />}>
-                Compliance
-              </Tabs.Tab>
-            </Tabs.List>
+          {/* Analytics Overview - No tabs needed, just show overview content */}
 
-            <Tabs.Panel value="overview" pt="xl">
-              {/* Charts Grid */}
-              <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
+          {/* Charts Grid */}
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
                 {/* Flow Usage Chart */}
                 <Card withBorder p="xl">
                   <Group justify="space-between" align="center" mb="lg">
@@ -771,9 +647,9 @@ export default function Analytics() {
                         Active flows by type and time period
                       </Text>
                     </Box>
-                    <Badge color="blue" variant="light">
+                    <Badge color={flowUsageData ? "green" : "blue"} variant="light">
                       <IconTrendingUp size={14} style={{ marginRight: 4 }} />
-                      Live Data
+                      {flowUsageData ? "Live Data" : "Demo Data"}
                     </Badge>
                   </Group>
                   <Line data={chartData.flowUsage} options={chartOptions} />
@@ -790,9 +666,12 @@ export default function Analytics() {
                         Storage allocation by media type
                       </Text>
                     </Box>
-                    <Badge color="green" variant="light">
+                    <Badge color={storageUsageData ? "green" : "blue"} variant="light">
                       <IconDatabase size={14} style={{ marginRight: 4 }} />
-                      8.4 GB Total
+                      {storageUsageData ? 
+                        `${(storageUsageData.total_size_bytes / (1024 * 1024 * 1024)).toFixed(1)} GB Total` : 
+                        "8.4 GB Total"
+                      }
                     </Badge>
                   </Group>
                   <Doughnut data={chartData.storageUsage} options={doughnutOptions} />
@@ -812,9 +691,9 @@ export default function Analytics() {
                         Daily compilation activity
                       </Text>
                     </Box>
-                    <Badge color="orange" variant="light">
+                    <Badge color={timeRangeData ? "green" : "orange"} variant="light">
                       <IconVideo size={14} style={{ marginRight: 4 }} />
-                      156 Total
+                      {timeRangeData?.total_segments || "156"} Total
                     </Badge>
                   </Group>
                   <Bar data={chartData.videoCompilation} options={barOptions} />
@@ -907,268 +786,6 @@ export default function Analytics() {
                 </Table.Tbody>
               </Table>
             </Card>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="performance" pt="xl">
-            {/* BBC TAMS Performance Metrics */}
-            <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
-              <Card withBorder p="xl">
-                <Title order={4} mb="lg">BBC TAMS Performance</Title>
-                <Stack gap="md">
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">API Response Time</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.apiResponseTime}ms</Text>
-                    </Group>
-                    <Progress value={100 - bbcTamsPerformanceMetrics.apiResponseTime} color="blue" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Search Performance</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.searchPerformance}%</Text>
-                    </Group>
-                    <Progress value={bbcTamsPerformanceMetrics.searchPerformance} color="green" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Pagination Efficiency</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.paginationEfficiency}%</Text>
-                    </Group>
-                    <Progress value={bbcTamsPerformanceMetrics.paginationEfficiency} color="green" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Event Processing</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.eventProcessing}%</Text>
-                    </Group>
-                    <Progress value={bbcTamsPerformanceMetrics.eventProcessing} color="green" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Time Operations</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.timeOperations}%</Text>
-                    </Group>
-                    <Progress value={bbcTamsPerformanceMetrics.timeOperations} color="green" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">CMCD Collection</Text>
-                      <Text size="sm" fw={600}>{bbcTamsPerformanceMetrics.cmcdCollection}%</Text>
-                    </Group>
-                    <Progress value={bbcTamsPerformanceMetrics.cmcdCollection} color="green" />
-                  </Box>
-                </Stack>
-              </Card>
-
-              <Card withBorder p="xl">
-                <Title order={4} mb="lg">System Performance</Title>
-                <Stack gap="md">
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">CPU Usage</Text>
-                      <Text size="sm" fw={600}>45%</Text>
-                    </Group>
-                    <Progress value={45} color="blue" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Memory Usage</Text>
-                      <Text size="sm" fw={600}>62%</Text>
-                    </Group>
-                    <Progress value={62} color="green" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Network I/O</Text>
-                      <Text size="sm" fw={600}>78%</Text>
-                    </Group>
-                    <Progress value={78} color="orange" />
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Storage I/O</Text>
-                      <Text size="sm" fw={600}>34%</Text>
-                    </Group>
-                    <Progress value={34} color="purple" />
-                  </Box>
-                </Stack>
-              </Card>
-            </SimpleGrid>
-
-            {/* Error Rates */}
-            <Card withBorder p="xl">
-              <Title order={4} mb="lg">Error Rates & Quality Metrics</Title>
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-                <Box>
-                  <Group justify="space-between" mb="xs">
-                    <Text size="sm">API Errors</Text>
-                    <Text size="sm" fw={600}>0.2%</Text>
-                  </Group>
-                  <Progress value={0.2} color="green" />
-                </Box>
-                <Box>
-                  <Group justify="space-between" mb="xs">
-                    <Text size="sm">Upload Failures</Text>
-                    <Text size="sm" fw={600}>1.5%</Text>
-                  </Group>
-                  <Progress value={1.5} color="yellow" />
-                </Box>
-                <Box>
-                  <Group justify="space-between" mb="xs">
-                    <Text size="sm">Processing Errors</Text>
-                    <Text size="sm" fw={600}>0.8%</Text>
-                  </Group>
-                  <Progress value={0.8} color="orange" />
-                  </Box>
-                <Box>
-                  <Group justify="space-between" mb="xs">
-                    <Text size="sm">Network Timeouts</Text>
-                    <Text size="sm" fw={600}>0.1%</Text>
-                  </Group>
-                  <Progress value={0.1} color="green" />
-                </Box>
-              </SimpleGrid>
-            </Card>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="system" pt="xl">
-            {/* System Health Dashboard */}
-            <SystemMetricsDashboard />
-          </Tabs.Panel>
-
-          <Tabs.Panel value="compliance" pt="xl">
-            {/* BBC TAMS Compliance Details */}
-            <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
-              <Card withBorder p="xl">
-                <Title order={4} mb="lg">BBC TAMS v6.0 Specification Compliance</Title>
-                <Stack gap="md">
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">API Endpoints</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">All required endpoints implemented</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Response Formats</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">BBC TAMS response schema compliance</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Pagination</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Cursor-based pagination with Link headers</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Event System</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Webhook and event stream mechanisms</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Time Operations</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Timerange filtering and temporal operations</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">CMCD Implementation</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>100%</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Common Media Client Data collection</Text>
-                  </Box>
-                </Stack>
-              </Card>
-
-              <Card withBorder p="xl">
-                <Title order={4} mb="lg">VAST TAMS Extensions</Title>
-                <Stack gap="md">
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Enhanced Analytics</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>Available</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Advanced metrics and performance data</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Soft Delete</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>Available</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Advanced deletion workflows</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Health Monitoring</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>Available</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Real-time system status</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">Performance Optimization</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>Available</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">VAST-specific query optimizations</Text>
-                  </Box>
-                  <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="sm">CMCD Analytics</Text>
-                      <Group gap="xs">
-                        <IconCheck size={16} color="green" />
-                        <Text size="sm" fw={600}>Available</Text>
-                      </Group>
-                    </Group>
-                    <Text size="xs" c="dimmed">Enhanced media client data collection</Text>
-                  </Box>
-                </Stack>
-              </Card>
-            </SimpleGrid>
-
-            {/* Health Status Indicator */}
-            <Card withBorder p="xl">
-              <Title order={4} mb="lg">Real-Time System Health</Title>
-              <HealthStatusIndicator />
-            </Card>
-          </Tabs.Panel>
-        </Tabs>
       </>
     )}
   </Container>

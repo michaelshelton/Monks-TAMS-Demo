@@ -28,6 +28,7 @@ import { getFlowTags, updateFlowTag, deleteFlowTag } from '../services/bbcTamsAp
 
 interface FlowTagsManagerProps {
   flowId: string;
+  initialTags?: Record<string, string>;
   disabled?: boolean;
   readOnly?: boolean;
   onTagsChange?: (tags: Record<string, string>) => void;
@@ -40,8 +41,8 @@ interface TagEditState {
   isEditing: boolean;
 }
 
-export function FlowTagsManager({ flowId, disabled = false, readOnly = false, onTagsChange }: FlowTagsManagerProps) {
-  const [tags, setTags] = useState<Record<string, string>>({});
+export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, readOnly = false, onTagsChange }: FlowTagsManagerProps) {
+  const [tags, setTags] = useState<Record<string, string>>(initialTags);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -51,12 +52,22 @@ export function FlowTagsManager({ flowId, disabled = false, readOnly = false, on
   const [deletingTag, setDeletingTag] = useState<string>('');
   const [newTag, setNewTag] = useState({ name: '', value: '' });
 
-  // Load tags on component mount
+  // Initialize tags from props and load from API if needed
   useEffect(() => {
     if (flowId) {
-      loadTags();
+      // If we have initial tags, use them and notify parent
+      if (Object.keys(initialTags).length > 0) {
+        setTags(initialTags);
+        if (onTagsChange) {
+          onTagsChange(initialTags);
+        }
+        console.log('Using initial tags from flow data:', initialTags);
+      } else {
+        // No initial tags, try to load from API
+        loadTags();
+      }
     }
-  }, [flowId]);
+  }, [flowId, initialTags]);
 
   const loadTags = async () => {
     setLoading(true);
@@ -77,18 +88,15 @@ export function FlowTagsManager({ flowId, disabled = false, readOnly = false, on
       
       // Check if it's a backend not available error
       if (err.message && err.message.includes('404')) {
-        setError('Backend not available - Flow tags endpoint is not responding. Using demo data for testing.');
-        // Set demo data for testing
-        const demoTags = {
-          environment: 'production',
-          location: 'ob-van-1',
-          resolution: '2160p',
-          priority: 'high',
-          category: 'news'
-        };
-        setTags(demoTags);
-        if (onTagsChange) {
-          onTagsChange(demoTags);
+        console.log('Flow tags endpoint not available, using initial tags or empty state');
+        // Don't set error if we have initial tags, just use them
+        if (Object.keys(initialTags).length > 0) {
+          setTags(initialTags);
+          if (onTagsChange) {
+            onTagsChange(initialTags);
+          }
+        } else {
+          setError('Flow tags endpoint not available. Tags cannot be loaded from the backend.');
         }
       } else {
         setError(`Failed to load flow tags: ${err.message}`);

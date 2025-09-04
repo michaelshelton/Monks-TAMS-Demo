@@ -10,7 +10,6 @@ import {
   Box,
   Button,
   Table,
-  ActionIcon,
   Modal,
   TextInput,
   Select,
@@ -29,17 +28,13 @@ import {
 } from '@mantine/core';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
-import { 
+import {
   IconVideo, 
   IconMusic, 
   IconDatabase, 
   IconPhoto, 
   IconPlus, 
-  IconEdit, 
-  IconTrash, 
-  IconEye,
   IconFilter,
-  IconSearch,
   IconDots,
   IconTag,
   IconClock,
@@ -53,28 +48,11 @@ import {
   IconLink
 } from '@tabler/icons-react';
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
-import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { apiClient } from '../services/api';
-import { getFlows, getSources, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/bbcTamsApi';
+import { BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
 import BBCPagination from '../components/BBCPagination';
 
-// Football game metadata interface
-interface FootballGameMetadata {
-  sport: string;
-  league: string;
-  venue: string;
-  season: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  gameDate?: string;
-  score?: string;
-  duration?: string;
-  highlights?: string[];
-  highlightsCount?: number;
-  sourceId?: string;
-}
-
-// Enhanced Flow interface with football metadata
+// Enhanced Flow interface
 interface Flow {
   id: string;
   source_id: string;
@@ -105,124 +83,12 @@ interface Flow {
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
-  // Football-specific metadata
-  footballMetadata?: FootballGameMetadata;
+  // Collection fields
+  collection_id?: string;
+  collection_label?: string;
 }
 
-// Mock football game flows for demonstration
-const mockFootballFlows: Flow[] = [
-  {
-    id: 'flow-001',
-    source_id: 'game-001',
-    format: 'urn:x-nmos:format:video',
-    codec: 'video/h264',
-    label: 'Manchester United vs Liverpool - Full Match',
-    description: 'Complete Premier League match coverage with multiple camera angles',
-    created: '2024-01-15T15:00:00Z',
-    updated: '2024-01-15T17:00:00Z',
-    status: 'active',
-    views: 1250,
-    duration: '90:00',
-    tags: {
-      'sport': 'football',
-      'league': 'Premier League',
-      'venue': 'Old Trafford',
-      'season': '2024',
-      'home_team': 'Manchester United',
-      'away_team': 'Liverpool',
-      'score': '2-1',
-      'highlights_count': '3'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'Premier League',
-      venue: 'Old Trafford',
-      season: '2024',
-      homeTeam: 'Manchester United',
-      awayTeam: 'Liverpool',
-      gameDate: '2024-01-15',
-      score: '2-1',
-      duration: '90:00',
-      highlights: ['Player 19 Goal', 'Player 19 Assist', 'Player 19 Free Kick'],
-      highlightsCount: 3,
-      sourceId: 'game-001'
-    }
-  },
-  {
-    id: 'flow-002',
-    source_id: 'game-002',
-    format: 'urn:x-nmos:format:video',
-    codec: 'video/h264',
-    label: 'Arsenal vs Chelsea - Tactical Analysis',
-    description: 'Premier League derby with tactical breakdown and highlights',
-    created: '2024-01-20T15:00:00Z',
-    updated: '2024-01-20T17:00:00Z',
-    status: 'active',
-    views: 890,
-    duration: '90:00',
-    tags: {
-      'sport': 'football',
-      'league': 'Premier League',
-      'venue': 'Emirates Stadium',
-      'season': '2024',
-      'home_team': 'Arsenal',
-      'away_team': 'Chelsea',
-      'score': '1-1',
-      'highlights_count': '2'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'Premier League',
-      venue: 'Emirates Stadium',
-      season: '2024',
-      homeTeam: 'Arsenal',
-      awayTeam: 'Chelsea',
-      gameDate: '2024-01-20',
-      score: '1-1',
-      duration: '90:00',
-      highlights: ['Player 10 Goal', 'Player 22 Save'],
-      highlightsCount: 2,
-      sourceId: 'game-002'
-    }
-  },
-  {
-    id: 'flow-003',
-    source_id: 'game-003',
-    format: 'urn:x-nmos:format:video',
-    codec: 'video/h265',
-    label: 'Barcelona vs Real Madrid - El Clásico',
-    description: 'La Liga classic match with full coverage and analysis',
-    created: '2024-01-25T15:00:00Z',
-    updated: '2024-01-25T17:00:00Z',
-    status: 'active',
-    views: 2100,
-    duration: '90:00',
-    tags: {
-      'sport': 'football',
-      'league': 'La Liga',
-      'venue': 'Camp Nou',
-      'season': '2024',
-      'home_team': 'Barcelona',
-      'away_team': 'Real Madrid',
-      'score': '3-2',
-      'highlights_count': '4'
-    },
-    footballMetadata: {
-      sport: 'football',
-      league: 'La Liga',
-      venue: 'Camp Nou',
-      season: '2024',
-      homeTeam: 'Barcelona',
-      awayTeam: 'Real Madrid',
-      gameDate: '2024-01-25',
-      score: '3-2',
-      duration: '90:00',
-      highlights: ['Player 9 Hat-trick', 'Player 7 Goal'],
-      highlightsCount: 4,
-      sourceId: 'game-003'
-    }
-  }
-];
+// VAST TAMS Flows - fetched from real backend API
 
 // BBC TAMS content formats and codecs
 const BBC_CONTENT_FORMATS = [
@@ -289,16 +155,12 @@ export default function Flows() {
   const [sources, setSources] = useState<Array<{ id: string; label?: string }>>([]);
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // BBC TAMS API state
+  // VAST TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [useBbcApi, setUseBbcApi] = useState(true); // Toggle between BBC TAMS and legacy API
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters, setFilter } = useFilterPersistence('flows');
@@ -316,8 +178,8 @@ export default function Flows() {
     limit: 50
   });
 
-  // Fetch flows using BBC TAMS API
-  const fetchFlowsBbcTams = async (cursor?: string) => {
+  // Fetch flows using VAST TAMS API
+  const fetchFlowsVastTams = async (cursor?: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -331,98 +193,72 @@ export default function Flows() {
         options.page = cursor;
       }
 
-      // Apply filters to BBC TAMS API
+      // Apply filters to VAST TAMS API
       if (filters.format) options.format = filters.format;
-      if (filters.sport) options.tags = { ...options.tags, sport: filters.sport };
-      if (filters.league) options.tags = { ...options.tags, league: filters.league };
-      if (filters.venue) options.tags = { ...options.tags, venue: filters.venue };
-      if (filters.season) options.tags = { ...options.tags, season: filters.season };
-      if (filters.homeTeam) options.tags = { ...options.tags, home_team: filters.homeTeam };
-      if (filters.awayTeam) options.tags = { ...options.tags, away_team: filters.awayTeam };
+      if (filters.category) options.tags = { ...options.tags, category: filters.category };
+      if (filters.content_type) options.tags = { ...options.tags, content_type: filters.content_type };
+      if (filters.year) options.tags = { ...options.tags, year: filters.year };
 
-      const response = await getFlows(options);
+      console.log('Fetching flows from VAST TAMS API with options:', options);
+      const response = await apiClient.getFlows(options);
+      console.log('VAST TAMS flows API response:', response);
+      
       setFlows(response.data);
       setBbcPagination(response.pagination);
       setCurrentCursor(cursor || null);
       setError(null);
-    } catch (err) {
-      console.error('TAMS API error:', err);
-      // Fallback to mock data for demo
-      setFlows(mockFootballFlows);
+    } catch (err: any) {
+      console.error('VAST TAMS flows API error:', err);
+      
+      // Set appropriate error message based on error type
+      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
+        setError('VAST TAMS backend temporarily unavailable - please try again later');
+      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
+        setError('Network connection issue - please check your connection and try again');
+      } else if (err?.message?.includes('404')) {
+        setError('VAST TAMS API endpoint not found - please check backend configuration');
+      } else {
+        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+      }
+      
+      // Clear flows on error
+      setFlows([]);
       setBbcPagination({});
-      setError('TAMS API unavailable, using demo data');
+      setCurrentCursor(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Legacy API fetch (fallback)
-  const fetchFlowsLegacy = async () => {
+  // Fetch sources for the create flow modal
+  const fetchSources = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch flows and sources in parallel
-      const [flowsResponse, sourcesResponse] = await Promise.all([
-        apiClient.getFlows(),
-        apiClient.getSources()
-      ]);
-      
-      setFlows(flowsResponse.data);
-      setSources(sourcesResponse.data);
+      const response = await apiClient.getSources();
+      setSources(response.data);
     } catch (err) {
-      setError('Failed to fetch flows and sources');
-      console.error(err);
-    } finally {
-      setLoading(false);
+      console.warn('Failed to fetch sources for flow creation:', err);
     }
   };
 
   // Fetch flows and sources on component mount
   useEffect(() => {
-    if (useBbcApi) {
-      fetchFlowsBbcTams();
-    } else {
-      fetchFlowsLegacy();
-    }
-  }, [useBbcApi, filters]);
-
-  // Initialize with demo data for better demo experience
-  useEffect(() => {
-    if (flows.length === 0 && !loading) {
-      setFlows(mockFootballFlows);
-    }
-  }, [flows.length, loading]);
+    fetchFlowsVastTams();
+    fetchSources();
+  }, [filters]);
 
   // Refresh data function
   const handleRefresh = () => {
-    if (useBbcApi) {
-      fetchFlowsBbcTams();
-    } else {
-      fetchFlowsLegacy();
-    }
+    fetchFlowsVastTams();
     setError(null);
   };
 
-  // Handle BBC TAMS pagination
-  const handleBbcPageChange = (cursor: string | null) => {
+  // Handle VAST TAMS pagination
+  const handleVastTamsPageChange = (cursor: string | null) => {
     if (cursor) {
-      fetchFlowsBbcTams(cursor);
+      fetchFlowsVastTams(cursor);
     }
   };
 
-  // Navigate to search with flow context
-  const handleSearchFlow = (flow: Flow) => {
-    const searchParams = new URLSearchParams();
-    if (flow.footballMetadata?.homeTeam) searchParams.append('homeTeam', flow.footballMetadata.homeTeam);
-    if (flow.footballMetadata?.awayTeam) searchParams.append('awayTeam', flow.footballMetadata.awayTeam);
-    if (flow.footballMetadata?.venue) searchParams.append('venue', flow.footballMetadata.venue);
-    if (flow.footballMetadata?.league) searchParams.append('league', flow.footballMetadata.league);
-    if (flow.footballMetadata?.season) searchParams.append('season', flow.footballMetadata.season);
-    searchParams.append('flowId', flow.id);
-    
-    navigate(`/search?${searchParams.toString()}`);
-  };
 
   const handleCreateFlow = async (newFlow: Omit<Flow, 'id' | 'created' | 'updated'>) => {
     try {
@@ -439,80 +275,10 @@ export default function Flows() {
     }
   };
 
-  const handleUpdateFlow = async (updatedFlow: Flow) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.updateFlow(updatedFlow.id, updatedFlow);
-      setFlows(prev => prev.map(f => f.id === updatedFlow.id ? response : f));
-      setShowEditModal(false);
-      setSelectedFlow(null);
-    } catch (err) {
-      setError('Failed to update flow');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleDelete = (flow: Flow) => {
-    setSelectedFlow(flow);
-    setShowDeleteModal(true);
-  };
 
-  const handleDeleteConfirm = async (options: DeleteOptions) => {
-    if (selectedFlow) {
-      try {
-        setLoading(true);
-        setError(null);
-        await apiClient.deleteFlow(selectedFlow.id, options);
-        setFlows(prev => prev.filter(f => f.id !== selectedFlow.id));
-        setShowDeleteModal(false);
-        setSelectedFlow(null);
-      } catch (err) {
-        setError('Failed to delete flow');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
 
-  const handleView = (flow: Flow) => {
-    navigate(`/flow-details/${flow.id}`);
-  };
-
-  const handleEdit = (flow: Flow) => {
-    setSelectedFlow(flow);
-    setShowEditModal(true);
-  };
-
-  const handleRestore = async (flow: Flow) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await apiClient.restoreFlow(flow.id);
-      setFlows(prev => prev.map(f => 
-        f.id === flow.id 
-          ? { 
-              ...f, 
-              deleted: false, 
-              deleted_at: null, 
-              deleted_by: null 
-            }
-          : f
-      ));
-      setShowDeleteModal(false);
-      setSelectedFlow(null);
-    } catch (err) {
-      setError('Failed to restore flow');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Define filter options with football-specific filters
+  // Define filter options for media flows
   const filterOptions: FilterOption[] = [
     {
       key: 'search',
@@ -532,69 +298,37 @@ export default function Flows() {
       ]
     },
     {
-      key: 'sport',
-      label: 'Sport',
+      key: 'category',
+      label: 'Category',
       type: 'select',
       options: [
-        { value: 'football', label: 'Football' },
-        { value: 'hockey', label: 'Hockey' },
-        { value: 'basketball', label: 'Basketball' },
-        { value: 'tennis', label: 'Tennis' },
-        { value: 'cricket', label: 'Cricket' }
+        { value: 'technology', label: 'Technology' },
+        { value: 'education', label: 'Education' },
+        { value: 'entertainment', label: 'Entertainment' },
+        { value: 'business', label: 'Business' },
+        { value: 'news', label: 'News' }
       ]
     },
     {
-      key: 'league',
-      label: 'League',
+      key: 'content_type',
+      label: 'Content Type',
       type: 'select',
       options: [
-        { value: 'Premier League', label: 'Premier League' },
-        { value: 'La Liga', label: 'La Liga' },
-        { value: 'Bundesliga', label: 'Bundesliga' },
-        { value: 'Serie A', label: 'Serie A' }
+        { value: 'conference', label: 'Conference' },
+        { value: 'podcast', label: 'Podcast' },
+        { value: 'training', label: 'Training' },
+        { value: 'presentation', label: 'Presentation' },
+        { value: 'webinar', label: 'Webinar' }
       ]
     },
     {
-      key: 'venue',
-      label: 'Venue',
-      type: 'select',
-      options: [
-        { value: 'Old Trafford', label: 'Old Trafford' },
-        { value: 'Emirates Stadium', label: 'Emirates Stadium' },
-        { value: 'Camp Nou', label: 'Camp Nou' },
-        { value: 'Santiago Bernabéu', label: 'Santiago Bernabéu' }
-      ]
-    },
-    {
-      key: 'season',
-      label: 'Season',
+      key: 'year',
+      label: 'Year',
       type: 'select',
       options: [
         { value: '2024', label: '2024' },
         { value: '2023', label: '2023' },
         { value: '2022', label: '2022' }
-      ]
-    },
-    {
-      key: 'homeTeam',
-      label: 'Home Team',
-      type: 'select',
-      options: [
-        { value: 'Manchester United', label: 'Manchester United' },
-        { value: 'Arsenal', label: 'Arsenal' },
-        { value: 'Barcelona', label: 'Barcelona' },
-        { value: 'Real Madrid', label: 'Real Madrid' }
-      ]
-    },
-    {
-      key: 'awayTeam',
-      label: 'Away Team',
-      type: 'select',
-      options: [
-        { value: 'Liverpool', label: 'Liverpool' },
-        { value: 'Chelsea', label: 'Chelsea' },
-        { value: 'Real Madrid', label: 'Real Madrid' },
-        { value: 'Barcelona', label: 'Barcelona' }
       ]
     },
     {
@@ -633,41 +367,20 @@ export default function Flows() {
     const formatFilter = filters.format;
     const matchesFormat = !formatFilter || flow.format === formatFilter;
 
-    // Sport filter
-    const sportFilter = filters.sport;
-    const matchesSport = !sportFilter || 
-      flow.tags?.['sport'] === sportFilter ||
-      flow.footballMetadata?.sport === sportFilter;
+    // Category filter
+    const categoryFilter = filters.category;
+    const matchesCategory = !categoryFilter || 
+      flow.tags?.['category'] === categoryFilter;
 
-    // League filter
-    const leagueFilter = filters.league;
-    const matchesLeague = !leagueFilter || 
-      flow.tags?.['league'] === leagueFilter ||
-      flow.footballMetadata?.league === leagueFilter;
+    // Content type filter
+    const contentTypeFilter = filters.content_type;
+    const matchesContentType = !contentTypeFilter || 
+      flow.tags?.['content_type'] === contentTypeFilter;
 
-    // Venue filter
-    const venueFilter = filters.venue;
-    const matchesVenue = !venueFilter || 
-      flow.tags?.['venue'] === venueFilter ||
-      flow.footballMetadata?.venue === venueFilter;
-
-    // Season filter
-    const seasonFilter = filters.season;
-    const matchesSeason = !seasonFilter || 
-      flow.tags?.['season'] === seasonFilter ||
-      flow.footballMetadata?.season === seasonFilter;
-
-    // Home team filter
-    const homeTeamFilter = filters.homeTeam;
-    const matchesHomeTeam = !homeTeamFilter || 
-      flow.tags?.['home_team'] === homeTeamFilter ||
-      flow.footballMetadata?.homeTeam === homeTeamFilter;
-
-    // Away team filter
-    const awayTeamFilter = filters.awayTeam;
-    const matchesAwayTeam = !awayTeamFilter || 
-      flow.tags?.['away_team'] === awayTeamFilter ||
-      flow.footballMetadata?.awayTeam === awayTeamFilter;
+    // Year filter
+    const yearFilter = filters.year;
+    const matchesYear = !yearFilter || 
+      flow.tags?.['year'] === yearFilter;
 
     // Status filter
     const statusFilter = filters.status;
@@ -700,16 +413,15 @@ export default function Flows() {
         `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())
       ));
 
-    return matchesSearch && matchesFormat && matchesSport && matchesLeague && 
-           matchesVenue && matchesSeason && matchesHomeTeam && matchesAwayTeam && 
-           matchesStatus && matchesCreated && matchesTags;
+    return matchesSearch && matchesFormat && matchesCategory && matchesContentType && 
+           matchesYear && matchesStatus && matchesCreated && matchesTags;
   });
 
   // BBC TAMS filter handlers
   const handleBbcFiltersChange = useCallback((newFilters: any) => {
     setBbcFilters(newFilters);
     // Reset to first page when filters change
-    setCurrentPage(1);
+    setCurrentCursor(null);
   }, []);
 
   const handleBbcFiltersReset = useCallback(() => {
@@ -723,7 +435,7 @@ export default function Flows() {
       page: '',
       limit: 50
     });
-    setCurrentPage(1);
+    setCurrentCursor(null);
   }, []);
 
   const handleBbcFiltersApply = useCallback(() => {
@@ -737,9 +449,9 @@ export default function Flows() {
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Football Game Content Management</Title>
+          <Title order={2}>Media Flows</Title>
           <Text c="dimmed" size="sm" mt="xs">
-            Manage football game content flows using TAMS v6.0 API
+            Processed media streams with technical specifications and encoding details
           </Text>
         </Box>
         <Group>
@@ -765,7 +477,7 @@ export default function Flows() {
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color="red" 
-          title="Error"
+          title="VAST TAMS Connection Error"
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -774,35 +486,27 @@ export default function Flows() {
         </Alert>
       )}
 
-      {/* Demo Mode Info */}
-      {!error && useBbcApi && (
+      {/* VAST TAMS Info */}
+      {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="TAMS API Demo Mode"
+          title="What are Flows in TAMS?"
           mb="md"
         >
-          <Text size="sm">
-            This page demonstrates TAMS v6.0 API integration for football content management. 
-            Flows represent individual football games with their video content, metadata, and relationships.
-            {flows.length > 0 && flows[0]?.footballMetadata && ' Click on any flow to view game details and search for specific content.'}
+          <Text size="sm" mb="xs">
+            <strong>Flows</strong> are the processed media content in the TAMS system - they represent individual 
+            media streams that have been created from sources and contain specific video/audio streams, codecs, 
+            and technical specifications.
+          </Text>
+          <Text size="sm" mb="xs">
+            Each flow contains detailed metadata like format, codec, resolution, sample rates, and custom tags. 
+            Flows are the second step in the TAMS workflow - they define how content is encoded and delivered.
           </Text>
         </Alert>
       )}
 
-      {/* Football Demo Features */}
-      <Card withBorder mb="md">
-        <Group gap="md" align="center">
-          <IconActivity size={24} color="#228be6" />
-          <Box>
-            <Text fw={500} size="sm">Football Content Management Features</Text>
-            <Text size="xs" c="dimmed">
-              • Game content flows with full metadata • Team and venue tracking • League and season organization • 
-              Content relationships and search integration • BBC TAMS v6.0 compliance • Cursor-based pagination
-            </Text>
-          </Box>
-        </Group>
-      </Card>
+
 
       {/* Filter Controls */}
       <Group justify="space-between" mb="md">
@@ -817,18 +521,10 @@ export default function Flows() {
               Clear All Filters
             </Button>
           )}
-          <Chip
-            checked={useBbcApi}
-            onChange={(checked) => setUseBbcApi(checked)}
-            variant="outline"
-            color="blue"
-          >
-             TAMS API
-          </Chip>
         </Group>
       </Group>
 
-      {/* Quick Football Filters */}
+      {/* Quick Media Filters */}
       <Card withBorder mb="md" p="sm">
         <Group gap="md" align="center">
           <Group gap="xs">
@@ -841,43 +537,43 @@ export default function Flows() {
           </Group>
           
           <Chip
-            checked={filters.sport === 'football'}
-            onChange={(checked) => setFilter('sport', checked ? 'football' : '')}
+            checked={filters.category === 'technology'}
+            onChange={(checked) => setFilter('category', checked ? 'technology' : '')}
             variant="light"
             size="sm"
             color="blue"
           >
-            Football Only
+            Technology
           </Chip>
           
           <Chip
-            checked={filters.league === 'Premier League'}
-            onChange={(checked) => setFilter('league', checked ? 'Premier League' : '')}
+            checked={filters.content_type === 'conference'}
+            onChange={(checked) => setFilter('content_type', checked ? 'conference' : '')}
             variant="light"
             size="sm"
             color="green"
           >
-            Premier League
+            Conference
           </Chip>
           
           <Chip
-            checked={filters.league === 'La Liga'}
-            onChange={(checked) => setFilter('league', checked ? 'La Liga' : '')}
+            checked={filters.content_type === 'podcast'}
+            onChange={(checked) => setFilter('content_type', checked ? 'podcast' : '')}
             variant="light"
             size="sm"
             color="red"
           >
-            La Liga
+            Podcast
           </Chip>
           
           <Chip
-            checked={filters.season === '2024'}
-            onChange={(checked) => setFilter('season', checked ? '2024' : '')}
+            checked={filters.year === '2024'}
+            onChange={(checked) => setFilter('year', checked ? '2024' : '')}
             variant="light"
             size="sm"
             color="orange"
           >
-            Season 2024
+            Year 2024
           </Chip>
           
           {/* Quick Timerange Filters */}
@@ -958,13 +654,13 @@ export default function Flows() {
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Game Content</Table.Th>
+              <Table.Th>Media Content</Table.Th>
               <Table.Th>Format & Codec</Table.Th>
-              <Table.Th>Game Information</Table.Th>
-              <Table.Th>Teams & Venue</Table.Th>
+              <Table.Th>Content Information</Table.Th>
+              <Table.Th>Category & Type</Table.Th>
+              <Table.Th>Collection</Table.Th>
               <Table.Th>Content Stats</Table.Th>
               <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -983,7 +679,12 @@ export default function Flows() {
             ) : filteredFlows.length === 0 ? (
               <Table.Tr>
                 <Table.Td colSpan={7} ta="center">
-                  <Text c="dimmed">No football game flows found matching your filters</Text>
+                  <Text c="dimmed">
+                    {flows.length === 0 
+                      ? "No flows available from VAST TAMS backend" 
+                      : "No flows found matching your filters"
+                    }
+                  </Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
@@ -994,7 +695,18 @@ export default function Flows() {
                       {getFormatIcon(flow.format)}
                       <Box>
                         <Group gap="xs" align="center">
-                          <Text fw={500} size="sm">
+                          <Text 
+                            fw={500} 
+                            size="sm" 
+                            style={{ cursor: 'pointer', color: 'var(--mantine-color-blue-6)' }}
+                            onClick={() => navigate(`/flow-details/${flow.id}`)}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.textDecoration = 'underline';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.textDecoration = 'none';
+                            }}
+                          >
                             {flow.label || 'Unnamed Flow'}
                           </Text>
                           {flow.deleted && (
@@ -1005,11 +717,11 @@ export default function Flows() {
                           {flow.description || 'No description'}
                         </Text>
                         {/* Source Link */}
-                        {flow.footballMetadata?.sourceId && (
+                        {flow.source_id && (
                           <Group gap="xs" mt="xs">
                             <IconLink size={12} />
                             <Text size="xs" c="blue">
-                              Source: {flow.footballMetadata.sourceId}
+                              Source: {flow.source_id}
                             </Text>
                           </Group>
                         )}
@@ -1031,41 +743,69 @@ export default function Flows() {
                       <Group gap="xs" align="center">
                         <IconCalendar size={14} />
                         <Text size="sm">
-                          {flow.footballMetadata?.gameDate || 
-                           (flow.created ? new Date(flow.created).toLocaleDateString() : 'Unknown')}
+                          {flow.created ? new Date(flow.created).toLocaleDateString() : 'Unknown'}
                         </Text>
                       </Group>
                       <Group gap="xs" align="center">
                         <IconActivity size={14} />
                         <Text size="sm" fw={500}>
-                          {flow.footballMetadata?.score || flow.tags?.['score'] || 'N/A'}
+                          {flow.duration || 'Unknown'}
                         </Text>
                       </Group>
                     </Stack>
                   </Table.Td>
                   <Table.Td>
                     <Stack gap="xs">
-                      {/* Teams */}
-                      {flow.footballMetadata && (
-                        <Group gap="xs">
+                      {/* Category & Content Type */}
+                      <Group gap="xs">
+                        {flow.tags?.category && (
                           <Badge size="xs" variant="light" color="blue">
-                            {flow.footballMetadata.homeTeam}
+                            {flow.tags.category}
                           </Badge>
-                          <Text size="xs" c="dimmed">vs</Text>
-                          <Badge size="xs" variant="light" color="red">
-                            {flow.footballMetadata.awayTeam}
+                        )}
+                        {flow.tags?.content_type && (
+                          <Badge size="xs" variant="light" color="green">
+                            {flow.tags.content_type}
                           </Badge>
-                        </Group>
-                      )}
-                      {/* Venue & League */}
+                        )}
+                      </Group>
+                      {/* Year & Speaker */}
                       <Stack gap="xs">
-                        <Text size="xs" fw={500}>
-                          {flow.footballMetadata?.venue || flow.tags?.['venue'] || 'Unknown Venue'}
-                        </Text>
-                        <Badge size="xs" variant="light" color="green">
-                          {flow.footballMetadata?.league || flow.tags?.['league'] || 'Unknown League'}
-                        </Badge>
+                        {flow.tags?.year && (
+                          <Text size="xs" fw={500}>
+                            Year: {flow.tags.year}
+                          </Text>
+                        )}
+                        {flow.tags?.speaker && (
+                          <Text size="xs" c="dimmed">
+                            Speaker: {flow.tags.speaker}
+                          </Text>
+                        )}
                       </Stack>
+                    </Stack>
+                  </Table.Td>
+                  <Table.Td>
+                    <Stack gap="xs">
+                      {/* Collection Badge */}
+                      {flow.collection_id ? (
+                        <Badge variant="light" color="purple" size="sm">
+                          {flow.collection_label || 'Collection'}
+                        </Badge>
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          No collection
+                        </Text>
+                      )}
+                      {/* Collection Actions */}
+                      {flow.collection_id && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => navigate(`/flow-collections/${flow.collection_id}`)}
+                        >
+                          View Collection
+                        </Button>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>
@@ -1079,10 +819,10 @@ export default function Flows() {
                       <Text size="xs" c="dimmed">
                         {flow.duration || 'Unknown'}
                       </Text>
-                      {/* Highlights Count */}
-                      {flow.footballMetadata?.highlightsCount && (
+                      {/* Quality Badge */}
+                      {flow.tags?.quality && (
                         <Badge size="xs" variant="light" color="orange">
-                          {flow.footballMetadata.highlightsCount} highlights
+                          {flow.tags.quality}
                         </Badge>
                       )}
                     </Stack>
@@ -1096,89 +836,31 @@ export default function Flows() {
                       {flow.status || 'Unknown'}
                     </Badge>
                   </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Tooltip label="View Game Details">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => handleView(flow)}
-                        >
-                          <IconEye size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Search Content">
-                        <ActionIcon
-                          variant="subtle"
-                          color="green"
-                          onClick={() => handleSearchFlow(flow)}
-                        >
-                          <IconSearch size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      {!flow.deleted ? (
-                        <>
-                          <Tooltip label="Edit Flow">
-                            <ActionIcon
-                              variant="subtle"
-                              color="blue"
-                              onClick={() => handleEdit(flow)}
-                            >
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Delete Flow">
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              onClick={() => handleDelete(flow)}
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </>
-                      ) : (
-                        <Tooltip label="Restore Flow">
-                          <ActionIcon
-                            variant="subtle"
-                            color="green"
-                            onClick={() => handleRestore(flow)}
-                          >
-                            <IconRefresh size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                    </Group>
-                  </Table.Td>
                 </Table.Tr>
               ))
             )}
           </Table.Tbody>
         </Table>
         
-        {/* BBC TAMS Pagination */}
-        {useBbcApi && bbcPagination && Object.keys(bbcPagination).length > 0 ? (
+        {/* VAST TAMS Pagination */}
+        {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
           <Group justify="center" mt="lg">
             <BBCPagination
               paginationMeta={bbcPagination}
-              onPageChange={handleBbcPageChange}
+              onPageChange={handleVastTamsPageChange}
               onLimitChange={(limit) => {
-                // Handle limit change for BBC TAMS API
-                fetchFlowsBbcTams();
+                // Handle limit change for VAST TAMS API
+                fetchFlowsVastTams();
               }}
               showBBCMetadata={true}
               showLimitSelector={true}
             />
           </Group>
         ) : (
-          /* Legacy Pagination */
-          filteredFlows.length > 0 && (
+          /* No pagination when no data */
+          flows.length === 0 && !loading && (
             <Group justify="center" mt="lg">
-              <Pagination 
-                total={Math.ceil(filteredFlows.length / 10)} 
-                value={currentPage} 
-                onChange={setCurrentPage}
-              />
+              <Text c="dimmed">No flows available</Text>
             </Group>
           )
         )}
@@ -1192,32 +874,6 @@ export default function Flows() {
         sources={sources}
       />
 
-      {/* Edit Flow Modal */}
-      {selectedFlow && (
-        <EditFlowModal
-          flow={selectedFlow}
-          opened={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedFlow(null);
-          }}
-          onSubmit={handleUpdateFlow}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {selectedFlow && (
-        <EnhancedDeleteModal
-          opened={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Delete Flow"
-          itemName={selectedFlow.label || 'Unnamed Flow'}
-          itemType="flow"
-          showCascadeOption={true}
-          defaultDeletedBy="admin"
-        />
-      )}
     </Container>
   );
 }
@@ -1420,13 +1076,14 @@ function CreateFlowModal({ opened, onClose, onSubmit, sources }: CreateFlowModal
                   color="blue" 
                   variant="light"
                   rightSection={
-                    <ActionIcon 
+                    <Button 
                       size="xs" 
                       variant="subtle" 
                       onClick={() => removeTag(key)}
+                      style={{ minWidth: 'auto', padding: '2px' }}
                     >
                       <IconX size={10} />
-                    </ActionIcon>
+                    </Button>
                   }
                 >
                   {key}: {value}
@@ -1444,179 +1101,3 @@ function CreateFlowModal({ opened, onClose, onSubmit, sources }: CreateFlowModal
     </Modal>
   );
 }
-
-interface EditFlowModalProps {
-  flow: Flow;
-  opened: boolean;
-  onClose: () => void;
-  onSubmit: (flow: Flow) => void;
-}
-
-function EditFlowModal({ flow, opened, onClose, onSubmit }: EditFlowModalProps) {
-  const [formData, setFormData] = useState({
-    ...flow,
-    tags: flow.tags || {}
-  });
-
-  const [tagKey, setTagKey] = useState('');
-  const [tagValue, setTagValue] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      ...flow,
-      ...formData,
-      updated: new Date().toISOString(),
-      updated_by: 'admin'
-    });
-  };
-
-  const addTag = () => {
-    if (tagKey && tagValue) {
-      setFormData({
-        ...formData,
-        tags: { ...formData.tags, [tagKey]: tagValue }
-      });
-      setTagKey('');
-      setTagValue('');
-    }
-  };
-
-  const removeTag = (key: string) => {
-    const newTags = { ...formData.tags };
-    delete newTags[key];
-    setFormData({ ...formData, tags: newTags });
-  };
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Edit Flow" size="lg">
-      <form onSubmit={handleSubmit}>
-        <Stack gap="md">
-          <TextInput
-            label="Label"
-            placeholder="Flow name"
-            value={formData.label || ''}
-            onChange={(e) => setFormData({ ...formData, label: e.currentTarget.value })}
-            required
-          />
-          
-          <Textarea
-            label="Description"
-            placeholder="Flow description"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.currentTarget.value })}
-            rows={3}
-          />
-          
-          <TextInput
-            label="Codec"
-            placeholder="e.g., video/mp4, audio/wav"
-            value={formData.codec}
-            onChange={(e) => setFormData({ ...formData, codec: e.currentTarget.value })}
-            required
-          />
-          
-          <TextInput
-            label="Container"
-            placeholder="e.g., mp4, wav, jpeg"
-            value={formData.container || ''}
-            onChange={(e) => setFormData({ ...formData, container: e.currentTarget.value })}
-          />
-          
-          {/* Video-specific fields */}
-          {formData.format === 'urn:x-nmos:format:video' && (
-            <Group grow>
-                             <NumberInput
-                 label="Frame Width"
-                 value={formData.frame_width || 1920}
-                 onChange={(value) => setFormData({ ...formData, frame_width: typeof value === 'number' ? value : 1920 })}
-                 min={1}
-               />
-               <NumberInput
-                 label="Frame Height"
-                 value={formData.frame_height || 1080}
-                 onChange={(value) => setFormData({ ...formData, frame_height: typeof value === 'number' ? value : 1080 })}
-                 min={1}
-               />
-              <TextInput
-                label="Frame Rate"
-                placeholder="e.g., 25/1"
-                value={formData.frame_rate || ''}
-                onChange={(e) => setFormData({ ...formData, frame_rate: e.currentTarget.value })}
-              />
-            </Group>
-          )}
-          
-          {/* Audio-specific fields */}
-          {formData.format === 'urn:x-nmos:format:audio' && (
-            <Group grow>
-                             <NumberInput
-                 label="Sample Rate"
-                 value={formData.sample_rate || 44100}
-                 onChange={(value) => setFormData({ ...formData, sample_rate: typeof value === 'number' ? value : 44100 })}
-                 min={1}
-               />
-               <NumberInput
-                 label="Bits Per Sample"
-                 value={formData.bits_per_sample || 16}
-                 onChange={(value) => setFormData({ ...formData, bits_per_sample: typeof value === 'number' ? value : 16 })}
-                 min={1}
-               />
-               <NumberInput
-                 label="Channels"
-                 value={formData.channels || 2}
-                 onChange={(value) => setFormData({ ...formData, channels: typeof value === 'number' ? value : 2 })}
-                 min={1}
-               />
-            </Group>
-          )}
-          
-          {/* Tags */}
-          <Box>
-            <Text size="sm" fw={500} mb="xs">Tags</Text>
-            <Group gap="xs" mb="xs">
-              <TextInput
-                placeholder="Tag key"
-                value={tagKey}
-                onChange={(e) => setTagKey(e.currentTarget.value)}
-                style={{ flex: 1 }}
-              />
-              <TextInput
-                placeholder="Tag value"
-                value={tagValue}
-                onChange={(e) => setTagValue(e.currentTarget.value)}
-                style={{ flex: 1 }}
-              />
-              <Button size="sm" onClick={addTag}>Add</Button>
-            </Group>
-            <Group gap="xs">
-              {Object.entries(formData.tags).map(([key, value]) => (
-                <Badge 
-                  key={key} 
-                  color="blue" 
-                  variant="light"
-                  rightSection={
-                    <ActionIcon 
-                      size="xs" 
-                      variant="subtle" 
-                      onClick={() => removeTag(key)}
-                    >
-                      <IconX size={10} />
-                    </ActionIcon>
-                  }
-                >
-                  {key}: {value}
-                </Badge>
-              ))}
-            </Group>
-          </Box>
-          
-          <Group justify="flex-end" gap="sm">
-            <Button variant="light" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Update Flow</Button>
-          </Group>
-        </Stack>
-      </form>
-    </Modal>
-  );
-} 

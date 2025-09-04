@@ -64,11 +64,7 @@ import {
   IconNetwork,
   IconServer,
   IconActivity,
-  IconTrendingUp,
-  IconTrendingDown,
   IconAlertCircle,
-  IconCheck,
-  IconX,
   IconSettings,
   IconRefresh,
   IconArrowLeft,
@@ -80,8 +76,7 @@ import {
   IconChartBar,
   IconUpload,
   IconRadio,
-  IconTags,
-  IconHeart
+  IconTags
 } from '@tabler/icons-react';
 import { apiClient } from '../services/api';
 import AdvancedFilter, { FilterOption, FilterPreset } from '../components/AdvancedFilter';
@@ -93,14 +88,15 @@ import { FlowTagsManager } from '../components/FlowTagsManager';
 import { FlowDescriptionManager } from '../components/FlowDescriptionManager';
 import { FlowCollectionManager } from '../components/FlowCollectionManager';
 import { FlowReadOnlyManager } from '../components/FlowReadOnlyManager';
-import { FlowAnalyticsDashboard } from '../components/FlowAnalyticsDashboard';
-import { FlowHealthMonitor } from '../components/FlowHealthMonitor';
 
-// Mock data structure based on backend API models
+import HLSVideoPlayer from '../components/HLSVideoPlayer';
+import VastTamsVideoPlayer from '../components/VastTamsVideoPlayer';
+import { transformSegmentUrls } from '../utils/s3Proxy';
+
+// VAST TAMS Flow interface based on real API response
 interface FlowDetails {
   id: string;
   source_id: string;
-  source_name: string;
   format: string;
   codec: string;
   label: string;
@@ -110,10 +106,9 @@ interface FlowDetails {
   created: string;
   updated: string;
   tags: Record<string, string>;
-  status: 'active' | 'inactive' | 'processing' | 'error';
   read_only: boolean;
   
-  // Video-specific fields
+  // Video-specific fields from VAST TAMS API
   frame_width?: number;
   frame_height?: number;
   frame_rate?: string;
@@ -131,122 +126,33 @@ interface FlowDetails {
   // Common fields
   container?: string;
   
+  // Bitrate fields from VAST TAMS API
+  avg_bit_rate?: number;
+  max_bit_rate?: number;
+  
   // Multi-flow fields
   flow_collection?: string[];
   
-  // Performance metrics
-  performance?: {
-    bitrate: number;
-    frame_drops: number;
-    latency: number;
-    quality_score: number;
-    uptime_percentage: number;
-  };
+  // Collection fields
+  collection_id?: string;
+  collection_label?: string;
   
-  // Storage info
-  storage?: {
-    total_segments: number;
-    total_size: number;
-    oldest_segment: string;
-    newest_segment: string;
-    storage_used: number;
-    storage_limit: number;
-  };
-  
-  // Recent segments
-  recent_segments?: Array<{
-    object_id: string;
-    timerange: {
-      start: string;
-      end: string;
-    };
-    size: number;
-    status: string;
-  }>;
-  
-  // New soft delete fields for backend v6.0
+  // VAST TAMS soft delete fields
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
+  
+  // Status field
+  status?: string;
+  
+  // Storage information
+  storage?: {
+    total_segments: number;
+    total_size: number;
+  };
 }
 
-// Mock data
-const mockFlowDetails: FlowDetails = {
-  id: 'flow_001',
-  source_id: 'source_001',
-  source_name: 'BBC News Studio Camera',
-  format: 'urn:x-nmos:format:video',
-  codec: 'video/H.264',
-  label: 'BBC News Studio',
-  description: 'High-quality video stream from BBC News Studio with professional lighting and audio',
-  created_by: 'admin@bbc.com',
-  updated_by: 'admin@bbc.com',
-  created: '2024-01-15T09:00:00Z',
-  updated: '2024-01-15T10:30:00Z',
-  tags: {
-    category: 'news',
-    type: 'video',
-    priority: 'high',
-    location: 'studio',
-    quality: 'broadcast'
-  },
-  status: 'active',
-  read_only: false,
-  
-  // Video-specific
-  frame_width: 1920,
-  frame_height: 1080,
-  frame_rate: '25/1',
-  interlace_mode: 'progressive',
-  color_sampling: '4:2:2',
-  color_space: 'BT.709',
-  transfer_characteristics: 'BT.709',
-  color_primaries: 'BT.709',
-  
-  // Common
-  container: 'MPEG-TS',
-  
-  // Performance
-  performance: {
-    bitrate: 15000000, // 15 Mbps
-    frame_drops: 2,
-    latency: 150, // ms
-    quality_score: 95,
-    uptime_percentage: 99.8
-  },
-  
-  // Storage
-  storage: {
-    total_segments: 156,
-    total_size: 21474836480, // 20 GB
-    oldest_segment: '2024-01-15T09:00:00Z',
-    newest_segment: '2024-01-15T10:30:00Z',
-    storage_used: 21474836480,
-    storage_limit: 107374182400 // 100 GB
-  },
-  
-  // Recent segments
-  recent_segments: [
-    {
-      object_id: 'obj_001',
-      timerange: { start: '2024-01-15T10:00:00Z', end: '2024-01-15T10:01:00Z' },
-      size: 52428800, // 50MB
-      status: 'active'
-    },
-    {
-      object_id: 'obj_002',
-      timerange: { start: '2024-01-15T10:01:00Z', end: '2024-01-15T10:02:30Z' },
-      size: 78643200, // 75MB
-      status: 'active'
-    },
-    {
-      object_id: 'obj_003',
-      timerange: { start: '2024-01-15T10:02:30Z', end: '2024-01-15T10:03:00Z' },
-      size: 26214400, // 25MB
-      status: 'processing'
-    }
-  ]
-};
+
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -320,7 +226,7 @@ export default function FlowDetails() {
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'tags' | 'performance' | 'storage' | 'technical'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'tags' | 'storage' | 'technical' | 'analytics'>('overview');
 
   // Disabled state for operations
   const [disabled, setDisabled] = useState(false);
@@ -365,6 +271,10 @@ export default function FlowDetails() {
   const [cmcdMetrics, setCmcdMetrics] = useState<CMCDMetrics[]>([]);
   const [showCMCDPanel, setShowCMCDPanel] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Analytics state
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     const fetchFlowDetails = async () => {
@@ -373,16 +283,43 @@ export default function FlowDetails() {
       try {
         setLoading(true);
         setError(null);
+        console.log('Fetching flow details from VAST TAMS API for ID:', flowId);
         const response = await apiClient.getFlow(flowId);
+        console.log('VAST TAMS flow details response:', response);
+        
+        // Convert tags from array format to string format if needed
+        if (response.tags) {
+          const convertedTags: Record<string, string> = {};
+          Object.entries(response.tags).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              // Convert array to comma-separated string
+              convertedTags[key] = value.join(', ');
+            } else if (typeof value === 'string') {
+              convertedTags[key] = value;
+            } else {
+              convertedTags[key] = String(value);
+            }
+          });
+          response.tags = convertedTags;
+        }
+        
         setFlow(response);
       } catch (err: any) {
-        // Check if it's a 404 error (backend not ready)
-        if (err.message && err.message.includes('404')) {
-          setError('Backend Not Ready - Flow details endpoint is not available');
+        console.error('VAST TAMS flow details API error:', err);
+        
+        // Set appropriate error message based on error type
+        if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
+          setError('VAST TAMS backend temporarily unavailable - please try again later');
+        } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
+          setError('Network connection issue - please check your connection and try again');
+        } else if (err?.message?.includes('404')) {
+          setError('Flow not found - please check the flow ID and try again');
         } else {
-          setError('Failed to fetch flow details');
+          setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
         }
-        // Error logged by component
+        
+        // Clear flow on error
+        setFlow(null);
       } finally {
         setLoading(false);
       }
@@ -391,6 +328,35 @@ export default function FlowDetails() {
     fetchFlowDetails();
   }, [flowId]);
 
+  // Load analytics when analytics tab is selected
+  useEffect(() => {
+    if (activeTab === 'analytics' && !analyticsData) {
+      loadAnalytics();
+    }
+  }, [activeTab, analyticsData]);
+
+  const loadAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      // Fetch analytics data from VAST TAMS
+      const [flowUsage, storageUsage, timeRangeAnalysis] = await Promise.all([
+        fetch('/api/analytics/flow-usage').then(res => res.json()),
+        fetch('/api/analytics/storage-usage').then(res => res.json()),
+        fetch('/api/analytics/time-range-analysis').then(res => res.json())
+      ]);
+      
+      setAnalyticsData({
+        flowUsage,
+        storageUsage,
+        timeRangeAnalysis
+      });
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   // Fetch flow-scoped segments
   const fetchSegments = async () => {
     if (!flowId) return;
@@ -398,22 +364,42 @@ export default function FlowDetails() {
       setSegmentsLoading(true);
       setSegmentsError(null);
       const flowSegments = await apiClient.getFlowSegments(flowId);
-      const transformed = (flowSegments.data || []).map((seg: any): SegmentItem => ({
-        id: seg.id || `${flowId}_${seg.timerange?.start || Date.now()}`,
-        object_id: seg.object_id || 'unknown',
-        timerange: seg.timerange || { start: new Date().toISOString(), end: new Date().toISOString() },
-        description: seg.description || 'No description',
-        size: seg.size,
-        status: seg.status || 'active',
-        last_duration: seg.last_duration,
-        key_frame_count: seg.key_frame_count,
-        get_urls: seg.get_urls,
-        tags: seg.tags,
-        flow_format: seg.flow_format || flow?.format,
-        created_at: seg.created_at,
-        updated_at: seg.updated_at,
-        is_live: seg.is_live
-      }));
+      console.log('VAST TAMS segments response:', flowSegments);
+      
+      const transformed = (flowSegments.data || []).map((seg: any): SegmentItem => {
+        // Parse VAST TAMS timerange format (e.g., "2025-01-25T10:00:00Z/2025-01-25T10:00:15Z")
+        let timerange = { start: new Date().toISOString(), end: new Date().toISOString() };
+        if (seg.timerange) {
+          if (typeof seg.timerange === 'string') {
+            // VAST TAMS format: "start/end"
+            const [start, end] = seg.timerange.split('/');
+            timerange = { start: start || new Date().toISOString(), end: end || new Date().toISOString() };
+          } else if (seg.timerange.start && seg.timerange.end) {
+            // Already in object format
+            timerange = seg.timerange;
+          }
+        }
+        
+        const segmentItem = {
+          id: seg.id || `${flowId}_${timerange.start}_${Date.now()}`,
+          object_id: seg.object_id || seg.id || 'unknown',
+          timerange,
+          description: seg.description || 'No description',
+          size: seg.size,
+          status: seg.status || 'active',
+          last_duration: seg.last_duration,
+          key_frame_count: seg.key_frame_count,
+          get_urls: seg.get_urls || [],
+          tags: seg.tags || {},
+          flow_format: seg.flow_format || seg.format || flow?.format,
+          created_at: seg.created_at || seg.created,
+          updated_at: seg.updated_at || seg.updated,
+          is_live: seg.is_live
+        };
+
+        // Transform S3 URLs for development proxy
+        return transformSegmentUrls(segmentItem);
+      });
       
       // Check for new segments if in live mode
       if (isLiveMode && segments.length > 0) {
@@ -446,10 +432,10 @@ export default function FlowDetails() {
     setIsLiveMode(true);
     setNewSegmentsCount(0);
     
-    // Set up polling every 2 hours for live segments instead of every 5 seconds
+    // Set up polling every 10 minutes for live segments (demo-optimized)
     const interval = window.setInterval(() => {
       fetchSegments();
-    }, 7200000);
+    }, 600000); // 10 minutes = 600,000ms
     
     setLiveUpdateInterval(interval);
   };
@@ -477,18 +463,21 @@ export default function FlowDetails() {
     
     setUploadingSegment(true);
     try {
-      // Create segment metadata
+      // Create segment metadata in VAST TAMS format
       const segment = {
-        object_id: `seg_${Date.now()}`,
-        timerange: segmentData.timerange,
-        sample_offset: segmentData.sample_offset || 0,
-        sample_count: segmentData.sample_count || 0,
-        description: segmentData.description || 'Live uploaded segment',
-        tags: segmentData.tags || {}
+        object_id: segmentData.object_id || `seg_${Date.now()}`,
+        timerange: segmentData.timerange || `${segmentData.startTime || '00:00:00'}_${segmentData.endTime || '00:01:00'}`,
+        description: segmentData.description || 'Uploaded segment',
+        tags: segmentData.tags || {},
+        format: flow?.format || 'urn:x-nmos:format:video',
+        codec: flow?.codec || 'h264'
       };
 
-      // Upload segment to backend
+      console.log('Uploading segment to VAST TAMS:', segment);
+      
+      // Upload segment to VAST TAMS backend
       const response = await apiClient.createFlowSegment(flowId, segment, file);
+      console.log('VAST TAMS upload response:', response);
       
       if (response) {
         // Refresh segments to show the new one
@@ -502,8 +491,8 @@ export default function FlowDetails() {
         setShowUploadModal(false);
       }
     } catch (error) {
-      console.error('Failed to upload segment:', error);
-      setSegmentsError('Failed to upload segment');
+      console.error('Failed to upload segment to VAST TAMS:', error);
+      setSegmentsError(`Failed to upload segment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploadingSegment(false);
     }
@@ -538,10 +527,59 @@ export default function FlowDetails() {
     return duration.replace('PT', '').replace('H', 'h ').replace('M', 'm ').replace('S', 's').trim();
   };
 
+  // Generate HLS stream URL for the flow
+  const getHLSStreamUrl = (flowId: string): string => {
+    const backend = import.meta.env.VITE_DEFAULT_BACKEND;
+    if (backend === 'ibc-thiago-imported') {
+      return `http://localhost:3002/flows/${flowId}/stream.m3u8`;
+    } else if (backend === 'vast') {
+      // VAST TAMS backend
+      return `${import.meta.env.VITE_VAST_API_URL || 'http://localhost:8000'}/flows/${flowId}/stream.m3u8`;
+    }
+    // Fallback to other backends
+    return `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/flows/${flowId}/stream.m3u8`;
+  };
+
   const handlePlaySegment = (segment: SegmentItem) => {
+    console.log('Playing segment:', segment);
+    console.log('Segment get_urls:', segment.get_urls);
+    
+    // Check if segment has presigned URLs from VAST TAMS
+    if (!segment.get_urls || segment.get_urls.length === 0) {
+      setError('No playback URLs available for this segment');
+      return;
+    }
+    
     setSelectedSegment(segment);
     setShowVideoPlayer(true);
     // Reset CMCD tracking for new segment
+    cmcdTracker.resetSession();
+    setCmcdMetrics([]);
+  };
+
+  // Helper function to check if a segment can be played
+  const canPlaySegment = (segment: SegmentItem): boolean => {
+    const format = segment.flow_format || flow?.format;
+    
+    // Support both legacy mp2t format and VAST TAMS video formats
+    return format === 'video/mp2t' || 
+           format === 'urn:x-nmos:format:video' ||
+           (format && format.includes('video')) ||
+           !!(segment.get_urls && segment.get_urls.length > 0);
+  };
+
+  const handlePlayFlow = () => {
+    if (!flowId) return;
+    setSelectedSegment({
+      id: flowId,
+      object_id: flowId,
+      timerange: { start: new Date().toISOString(), end: new Date().toISOString() },
+      description: flow?.label || 'Flow Stream',
+      status: 'active',
+      flow_format: flow?.format || 'video/mp2t'
+    });
+    setShowVideoPlayer(true);
+    // Reset CMCD tracking for new flow
     cmcdTracker.resetSession();
     setCmcdMetrics([]);
   };
@@ -572,6 +610,7 @@ export default function FlowDetails() {
     { key: 'format', label: 'Format', type: 'select', options: [
       { value: 'urn:x-nmos:format:video', label: 'Video' },
       { value: 'urn:x-nmos:format:audio', label: 'Audio' },
+      { value: 'urn:x-nmos:format:data', label: 'Data' },
       { value: 'urn:x-tam:format:image', label: 'Image' }
     ]},
     { key: 'status', label: 'Status', type: 'select', options: [
@@ -579,6 +618,20 @@ export default function FlowDetails() {
       { value: 'processing', label: 'Processing' },
       { value: 'error', label: 'Error' },
       { value: 'deleted', label: 'Deleted' }
+    ]},
+    { key: 'category', label: 'Category', type: 'select', options: [
+      { value: 'technology', label: 'Technology' },
+      { value: 'education', label: 'Education' },
+      { value: 'entertainment', label: 'Entertainment' },
+      { value: 'business', label: 'Business' },
+      { value: 'news', label: 'News' }
+    ]},
+    { key: 'content_type', label: 'Content Type', type: 'select', options: [
+      { value: 'conference', label: 'Conference' },
+      { value: 'podcast', label: 'Podcast' },
+      { value: 'training', label: 'Training' },
+      { value: 'presentation', label: 'Presentation' },
+      { value: 'webinar', label: 'Webinar' }
     ]},
     { key: 'timerange', label: 'Time Range', type: 'text', placeholder: 'Filter by time range (HH:MM:SS)' },
     { key: 'tags', label: 'Tags', type: 'text', placeholder: 'Filter by tag key:value' }
@@ -595,6 +648,17 @@ export default function FlowDetails() {
     const statusFilter = segFilters.status;
     const matchesStatus = !statusFilter || segment.status === statusFilter;
 
+    // Category filter
+    const categoryFilter = segFilters.category;
+    const matchesCategory = !categoryFilter || 
+      segment.tags?.['category'] === categoryFilter;
+
+    // Content type filter
+    const contentTypeFilter = segFilters.content_type;
+    const matchesContentType = !contentTypeFilter || 
+      segment.tags?.['content_type'] === contentTypeFilter ||
+      segment.tags?.['event_type'] === contentTypeFilter;
+
     const timerangeFilter = segFilters.timerange;
     const matchesTimerange = !timerangeFilter ||
       segment.timerange.start.includes(timerangeFilter) ||
@@ -603,7 +667,7 @@ export default function FlowDetails() {
     const tagsFilter = segFilters.tags;
     const matchesTags = !tagsFilter || (segment.tags && Object.entries(segment.tags).some(([key, value]) => `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())));
 
-    return matchesSearch && matchesFormat && matchesStatus && matchesTimerange && matchesTags;
+    return matchesSearch && matchesFormat && matchesStatus && matchesCategory && matchesContentType && matchesTimerange && matchesTags;
   });
 
   // Removed URL sync - tab state managed locally
@@ -641,6 +705,23 @@ export default function FlowDetails() {
       setRefreshing(true);
       setError(null);
       const response = await apiClient.getFlow(flowId);
+      
+      // Convert tags from array format to string format if needed
+      if (response.tags) {
+        const convertedTags: Record<string, string> = {};
+        Object.entries(response.tags).forEach(([key, value]) => {
+          if (Array.isArray(value)) {
+            // Convert array to comma-separated string
+            convertedTags[key] = value.join(', ');
+          } else if (typeof value === 'string') {
+            convertedTags[key] = value;
+          } else {
+            convertedTags[key] = String(value);
+          }
+        });
+        response.tags = convertedTags;
+      }
+      
       setFlow(response);
     } catch (err: any) {
       // Check if it's a 404 error (backend not ready)
@@ -662,6 +743,23 @@ export default function FlowDetails() {
       setLoading(true);
       setError(null);
       const response = await apiClient.getFlow(flowId);
+      
+      // Convert tags from array format to string format if needed
+      if (response.tags) {
+        const convertedTags: Record<string, string> = {};
+        Object.entries(response.tags).forEach(([key, value]) => {
+          if (Array.isArray(value)) {
+            // Convert array to comma-separated string
+            convertedTags[key] = value.join(', ');
+          } else if (typeof value === 'string') {
+            convertedTags[key] = value;
+          } else {
+            convertedTags[key] = String(value);
+          }
+        });
+        response.tags = convertedTags;
+      }
+      
       setFlow(response);
     } catch (err: any) {
       // Check if it's a 404 error (backend not ready)
@@ -766,7 +864,7 @@ export default function FlowDetails() {
               >
                 Back to Flows
               </Button>
-              <Badge color={getStatusColor(flow.status)} variant="light">
+              <Badge color={getStatusColor(flow.status || 'unknown')} variant="light">
                 {flow.status}
               </Badge>
             </Group>
@@ -776,14 +874,14 @@ export default function FlowDetails() {
               {getFormatIcon(flow.format)}
               <Text size="sm">{getFormatLabel(flow.format)}</Text>
               <Text size="sm" c="dimmed">•</Text>
-              <Text size="sm" c="dimmed">Source: {flow.source_name}</Text>
+              <Text size="sm" c="dimmed">Source ID: {flow.source_id}</Text>
               <Text size="sm" c="dimmed">•</Text>
               <Text size="sm" c="dimmed">Codec: {flow.codec}</Text>
             </Group>
           </Box>
           <Group gap="sm">
-            <Button leftSection={<IconPlayerPlay size={16} />}>
-              Play Live
+            <Button leftSection={<IconPlayerPlay size={16} />} onClick={handlePlayFlow}>
+              Play Stream
             </Button>
             <Button variant="light" leftSection={<IconEdit size={16} />} onClick={() => setShowEditModal(true)}>
               Edit Flow
@@ -821,6 +919,26 @@ export default function FlowDetails() {
         </Alert>
       )}
 
+      {/* VAST TAMS Info */}
+      {!error && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="Flow Details in TAMS"
+          mb="lg"
+        >
+          <Text size="sm" mb="xs">
+            This page shows detailed information about a specific <strong>Flow</strong> - a processed media stream 
+            with technical specifications and encoding details. Here you can view segments, manage tags, 
+            configure storage, and analyze performance.
+          </Text>
+          <Text size="sm" mb="xs">
+            Flows contain detailed metadata like format, codec, resolution, bitrates, and custom tags. 
+            This detailed view helps you understand the technical specifications and manage flow properties.
+          </Text>
+        </Alert>
+      )}
+
       {/* Backend Status Note */}
       {error && error.includes('Backend Not Ready') && (
         <Alert 
@@ -849,21 +967,15 @@ export default function FlowDetails() {
           <Tabs.Tab value="tags" leftSection={<IconTags size={16} />}>
             Tags
           </Tabs.Tab>
-          <Tabs.Tab value="performance" leftSection={<IconActivity size={16} />}>
-            Performance
-          </Tabs.Tab>
           <Tabs.Tab value="storage" leftSection={<IconStorage size={16} />}>
             Storage
           </Tabs.Tab>
-                  <Tabs.Tab value="technical" leftSection={<IconSettings size={16} />}>
-          Technical Details
-        </Tabs.Tab>
-        <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
-          Analytics
-        </Tabs.Tab>
-        <Tabs.Tab value="health" leftSection={<IconHeart size={16} />}>
-          Health & Status
-        </Tabs.Tab>
+          <Tabs.Tab value="technical" leftSection={<IconSettings size={16} />}>
+            Technical Details
+          </Tabs.Tab>
+          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+            Analytics
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview" pt="xl">
@@ -915,6 +1027,52 @@ export default function FlowDetails() {
                       </Stack>
                     </Grid.Col>
                   </Grid>
+                </Card>
+
+                {/* Collection Management */}
+                <Card withBorder p="xl">
+                  <Group justify="space-between" mb="md">
+                    <Title order={4}>Collection Management</Title>
+                    <Button
+                      size="sm"
+                      variant="light"
+                      onClick={() => navigate('/flow-collections')}
+                    >
+                      Manage Collections
+                    </Button>
+                  </Group>
+                  <Stack gap="md">
+                    {flow.collection_id ? (
+                      <Group gap="md">
+                        <Badge variant="light" color="purple" size="lg">
+                          {flow.collection_label || 'Collection'}
+                        </Badge>
+                        <Text size="sm" c="dimmed">
+                          This flow is part of a collection
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => navigate(`/flow-collections/${flow.collection_id}`)}
+                        >
+                          View Collection
+                        </Button>
+                      </Group>
+                    ) : (
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">
+                          This flow is not part of any collection
+                        </Text>
+                        <Button
+                          size="sm"
+                          variant="light"
+                          onClick={() => navigate('/flow-collections')}
+                        >
+                          Add to Collection
+                        </Button>
+                      </Group>
+                    )}
+                  </Stack>
                 </Card>
 
                 {/* Description & Label Management */}
@@ -976,109 +1134,44 @@ export default function FlowDetails() {
                   </Button>
                 </Card>
 
-                {/* Recent Segments */}
-                <Card withBorder p="xl">
-                  <Title order={4} mb="md">Recent Segments</Title>
-                  <Table>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Object ID</Table.Th>
-                        <Table.Th>Time Range</Table.Th>
-                        <Table.Th>Duration</Table.Th>
-                        <Table.Th>Size</Table.Th>
-                        <Table.Th>Status</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {flow.recent_segments?.map((segment) => (
-                        <Table.Tr key={segment.object_id}>
-                          <Table.Td>
-                            <Text size="sm" style={{ fontFamily: 'monospace' }}>
-                              {segment.object_id}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm">
-                              {formatTimestamp(segment.timerange.start)} - {formatTimestamp(segment.timerange.end)}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm">
-                              {formatDuration(segment.timerange.start, segment.timerange.end)}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm">{formatFileSize(segment.size)}</Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Badge color={getStatusColor(segment.status)} variant="light" size="sm">
-                              {segment.status}
-                            </Badge>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </Card>
+
               </Stack>
             </Grid.Col>
 
             <Grid.Col span={4}>
               <Stack gap="lg">
-                {/* Quick Stats */}
+                {/* Flow Status */}
                 <Card withBorder p="xl">
-                  <Title order={4} mb="md">Quick Stats</Title>
+                  <Title order={4} mb="md">Flow Status</Title>
                   <Stack gap="md">
                     <Box>
-                      <Group gap="xs" mb={4}>
-                        <IconTimeline size={20} color="#228be6" />
-                        <Text size="sm" fw={500} c="dimmed">Total Segments</Text>
-                      </Group>
-                      <Text size="lg" fw={600}>{flow.storage?.total_segments || 0}</Text>
+                      <Text size="sm" fw={500} c="dimmed">Read Only</Text>
+                      <Badge color={flow.read_only ? 'red' : 'green'} variant="light" size="lg">
+                        {flow.read_only ? 'Yes' : 'No'}
+                      </Badge>
                     </Box>
                     <Box>
-                      <Group gap="xs" mb={4}>
-                        <IconStorage size={20} color="#40c057" />
-                        <Text size="sm" fw={500} c="dimmed">Total Size</Text>
-                      </Group>
-                      <Text size="lg" fw={600}>{flow.storage ? formatFileSize(flow.storage.total_size) : '0 B'}</Text>
+                      <Text size="sm" fw={500} c="dimmed">Deleted</Text>
+                      <Badge color={flow.deleted ? 'red' : 'green'} variant="light" size="lg">
+                        {flow.deleted ? 'Yes' : 'No'}
+                      </Badge>
                     </Box>
-                    <Box>
-                      <Group gap="xs" mb={4}>
-                        <IconTrendingUp size={20} color="#fd7e14" />
-                        <Text size="sm" fw={500} c="dimmed">Quality Score</Text>
-                      </Group>
-                      <Text size="lg" fw={600}>{flow.performance?.quality_score || 0}%</Text>
-                    </Box>
-                    <Box>
-                      <Group gap="xs" mb={4}>
-                        <IconCheck size={20} color="#7950f2" />
-                        <Text size="sm" fw={500} c="dimmed">Uptime</Text>
-                      </Group>
-                      <Text size="lg" fw={600}>{flow.performance?.uptime_percentage || 0}%</Text>
-                    </Box>
+                    {flow.avg_bit_rate && (
+                      <Box>
+                        <Text size="sm" fw={500} c="dimmed">Average Bitrate</Text>
+                        <Text size="lg" fw={600}>{Math.round(flow.avg_bit_rate / 1000000)} Mbps</Text>
+                      </Box>
+                    )}
+                    {flow.max_bit_rate && (
+                      <Box>
+                        <Text size="sm" fw={500} c="dimmed">Maximum Bitrate</Text>
+                        <Text size="lg" fw={600}>{Math.round(flow.max_bit_rate / 1000000)} Mbps</Text>
+                      </Box>
+                    )}
                   </Stack>
                 </Card>
 
-                {/* Performance Ring */}
-                <Card withBorder p="xl">
-                  <Title order={4} mb="md">Performance</Title>
-                  <Box ta="center">
-                    <RingProgress
-                      size={120}
-                      thickness={12}
-                      sections={[
-                        { value: flow.performance?.quality_score || 0, color: 'green' }
-                      ]}
-                      label={
-                        <Text ta="center" size="lg" fw={700}>
-                          {flow.performance?.quality_score || 0}%
-                        </Text>
-                      }
-                    />
-                    <Text size="sm" c="dimmed" mt="md">Quality Score</Text>
-                  </Box>
-                </Card>
+
 
                 {/* Read-Only Status Management */}
                 {flowId ? (
@@ -1124,7 +1217,7 @@ export default function FlowDetails() {
                   size="sm"
                   onClick={toggleLiveMode}
                 >
-                  {isLiveMode ? 'Stop Live' : 'Go Live'}
+                  {isLiveMode ? 'Stop Real-time' : 'Start Real-time'}
                 </Button>
                 <Select
                   value={viewMode}
@@ -1143,14 +1236,14 @@ export default function FlowDetails() {
 
             {/* Live mode info */}
             {isLiveMode && (
-              <Alert icon={<IconRadio size={16} />} color="red" variant="light" mb="md">
+                              <Alert icon={<IconRadio size={16} />} color="red" variant="light" mb="md">
                 <Group justify="space-between" align="center">
                   <Text size="sm">
-                    <strong>Live Mode Active:</strong> Segments are automatically updating every 5 seconds
+                    <strong>Real-time Mode Active:</strong> Segments are automatically updating every 10 minutes
                     {lastUpdateTime && ` • Last update: ${lastUpdateTime.toLocaleTimeString()}`}
                   </Text>
                   <Button variant="subtle" size="xs" onClick={stopLiveMode}>
-                    Stop Live
+                    Stop Real-time
                   </Button>
                 </Group>
               </Alert>
@@ -1268,8 +1361,26 @@ export default function FlowDetails() {
                         )}
                         <Group gap="xs" mt="xs">
                           <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}>Details</Button>
-                          <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={() => handlePlaySegment(segment)} disabled={(segment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}>Play</Button>
-                          <Button size="xs" variant="light" leftSection={<IconDownload size={14} />}>Download</Button>
+                          <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={() => handlePlaySegment(segment)} disabled={!canPlaySegment(segment)}>Play</Button>
+                          <Button 
+                            size="xs" 
+                            variant="light" 
+                            leftSection={<IconDownload size={14} />}
+                            onClick={() => {
+                              if (segment.get_urls && segment.get_urls.length > 0) {
+                                const downloadUrl = segment.get_urls.find(url => url.label?.includes('GET'))?.url;
+                                if (downloadUrl) {
+                                  window.open(downloadUrl, '_blank');
+                                } else {
+                                  setError('No download URL available for this segment');
+                                }
+                              } else {
+                                setError('No download URLs available for this segment');
+                              }
+                            }}
+                          >
+                            Download
+                          </Button>
                           <ActionIcon size="sm" variant="light" color="red" onClick={() => { setSelectedSegment(segment); setShowDeleteModal(true); }}><IconTrash size={14} /></ActionIcon>
                         </Group>
                       </Stack>
@@ -1317,8 +1428,27 @@ export default function FlowDetails() {
                         <Grid.Col span={2}>
                           <Group gap="xs">
                             <Tooltip label="View Details"><ActionIcon size="sm" variant="light" onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}><IconEye size={14} /></ActionIcon></Tooltip>
-                            <Tooltip label="Play Segment"><ActionIcon size="sm" variant="light" onClick={() => handlePlaySegment(segment)} disabled={(segment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}><IconPlayerPlay size={14} /></ActionIcon></Tooltip>
-                            <Tooltip label="Download"><ActionIcon size="sm" variant="light"><IconDownload size={14} /></ActionIcon></Tooltip>
+                            <Tooltip label="Play Segment"><ActionIcon size="sm" variant="light" onClick={() => handlePlaySegment(segment)} disabled={!canPlaySegment(segment)}><IconPlayerPlay size={14} /></ActionIcon></Tooltip>
+                            <Tooltip label="Download">
+                              <ActionIcon 
+                                size="sm" 
+                                variant="light"
+                                onClick={() => {
+                                  if (segment.get_urls && segment.get_urls.length > 0) {
+                                    const downloadUrl = segment.get_urls.find(url => url.label?.includes('GET'))?.url;
+                                    if (downloadUrl) {
+                                      window.open(downloadUrl, '_blank');
+                                    } else {
+                                      setError('No download URL available for this segment');
+                                    }
+                                  } else {
+                                    setError('No download URLs available for this segment');
+                                  }
+                                }}
+                              >
+                                <IconDownload size={14} />
+                              </ActionIcon>
+                            </Tooltip>
                             <Tooltip label="Delete"><ActionIcon size="sm" variant="light" color="red" onClick={() => { setSelectedSegment(segment); setShowDeleteModal(true); }}><IconTrash size={14} /></ActionIcon></Tooltip>
                           </Group>
                         </Grid.Col>
@@ -1363,7 +1493,7 @@ export default function FlowDetails() {
                   </Box>
                 )}
                 <Group gap="xs" mt="md">
-                  <Button leftSection={<IconPlayerPlay size={16} />} onClick={() => handlePlaySegment(selectedSegment)} disabled={(selectedSegment.flow_format || flow.format) !== 'urn:x-nmos:format:video'}>Play Segment</Button>
+                  <Button leftSection={<IconPlayerPlay size={16} />} onClick={() => handlePlaySegment(selectedSegment)} disabled={!canPlaySegment(selectedSegment)}>Play Segment</Button>
                   <Button variant="light" leftSection={<IconDownload size={16} />}>Download</Button>
                   <Button variant="light" leftSection={<IconEdit size={16} />}>Edit</Button>
                 </Group>
@@ -1385,13 +1515,13 @@ export default function FlowDetails() {
           )}
 
           {/* Video Player Modal */}
-          {selectedSegment && (selectedSegment.flow_format || flow.format) === 'urn:x-nmos:format:video' && (
+          {selectedSegment && canPlaySegment(selectedSegment) && (
             <Modal opened={showVideoPlayer} onClose={() => setShowVideoPlayer(false)} title={`Video Player - ${flow.label}`} size="xl" fullScreen>
               <Stack gap="md">
                 <Group justify="space-between">
                   <Box>
                     <Title order={4}>{selectedSegment.description}</Title>
-                    <Text size="sm" c="dimmed">{flow.label} • {formatIsoDuration(selectedSegment.last_duration || 'PT0S')} • {formatFileSize(selectedSegment.size || 0)}</Text>
+                    <Text size="sm" c="dimmed">{flow.label} • HLS Stream • {formatFileSize(selectedSegment.size || 0)}</Text>
                   </Box>
                   <Group>
                     <Button variant="light" leftSection={<IconDownload size={16} />}>Download</Button>
@@ -1404,24 +1534,48 @@ export default function FlowDetails() {
                 
                 <Grid>
                   <Grid.Col span={showCMCDPanel ? 8 : 12}>
-                    <Box style={{ width: '100%', height: '70vh', backgroundColor: '#000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {selectedSegment.get_urls && selectedSegment.get_urls[0] ? (
-                        <video 
-                          ref={videoRef}
-                          controls 
-                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
-                          src={selectedSegment.get_urls[0].url}
-                        >
-                          Your browser does not support the video tag.
-                        </video>
-                      ) : (
-                        <Stack gap="md" align="center">
-                          <IconVideo size={64} color="#666" />
-                          <Text c="dimmed" size="lg" ta="center">Video not available for playback</Text>
-                          <Text size="sm" c="dimmed" ta="center">This segment doesn't have a playable video URL</Text>
-                        </Stack>
-                      )}
-                    </Box>
+                    {selectedSegment.get_urls && selectedSegment.get_urls.length > 0 ? (
+                      // Use VAST TAMS Video Player for segments with presigned URLs
+                      <VastTamsVideoPlayer
+                        segment={{
+                          id: selectedSegment.id,
+                          timerange: `${selectedSegment.timerange.start}/${selectedSegment.timerange.end}`,
+                          get_urls: selectedSegment.get_urls,
+                          format: selectedSegment.flow_format || flow?.format,
+                          codec: flow?.codec,
+                          size: selectedSegment.size,
+                          created: selectedSegment.created_at,
+                          updated: selectedSegment.updated_at,
+                          tags: selectedSegment.tags,
+                          deleted: false,
+                          deleted_at: null,
+                          deleted_by: null
+                        }}
+                        title={selectedSegment.description || flow.label}
+                        description={`VAST TAMS segment playback for ${flow.label}`}
+                        onClose={() => setShowVideoPlayer(false)}
+                        showControls={true}
+                        autoPlay={true}
+                        onError={(error) => {
+                          console.error('VAST TAMS Video Player Error:', error);
+                          setError(`Video playback error: ${error}`);
+                        }}
+                      />
+                    ) : (
+                      // Fallback to HLS stream
+                      <HLSVideoPlayer
+                        hlsUrl={getHLSStreamUrl(flowId || '')}
+                        title={selectedSegment.description || flow.label}
+                        description={`HLS stream for ${flow.label}`}
+                        onClose={() => setShowVideoPlayer(false)}
+                        showControls={true}
+                        autoPlay={true}
+                        onError={(error) => {
+                          console.error('HLS Video Player Error:', error);
+                          setError(`Video playback error: ${error}`);
+                        }}
+                      />
+                    )}
                   </Grid.Col>
                   
                   {showCMCDPanel && (
@@ -1577,6 +1731,7 @@ export default function FlowDetails() {
             {flowId ? (
               <FlowTagsManager 
                 flowId={flowId}
+                initialTags={flow.tags || {}}
                 disabled={disabled}
                 readOnly={flow.read_only}
                 onTagsChange={(tags: Record<string, string>) => {
@@ -1593,78 +1748,7 @@ export default function FlowDetails() {
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="performance" pt="xl">
-          <Grid>
-            <Grid.Col span={6}>
-              <Card withBorder p="xl">
-                <Title order={4} mb="md">Performance Metrics</Title>
-                <Stack gap="lg">
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Bitrate</Text>
-                    <Text size="lg" fw={600}>
-                      {flow.performance ? Math.round(flow.performance.bitrate / 1000000) : 0} Mbps
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Frame Drops</Text>
-                    <Text size="lg" fw={600}>
-                      {flow.performance?.frame_drops || 0} frames
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Latency</Text>
-                    <Text size="lg" fw={600}>
-                      {flow.performance?.latency || 0} ms
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Quality Score</Text>
-                    <Progress
-                      value={flow.performance?.quality_score || 0}
-                      color={flow.performance && flow.performance.quality_score > 90 ? 'green' : 
-                             flow.performance && flow.performance.quality_score > 70 ? 'yellow' : 'red'}
-                      size="lg"
-                    />
-                    <Text size="sm" c="dimmed" mt="xs">
-                      {flow.performance?.quality_score || 0}%
-                    </Text>
-                  </Box>
-                </Stack>
-              </Card>
-            </Grid.Col>
 
-            <Grid.Col span={6}>
-              <Card withBorder p="xl">
-                <Title order={4} mb="md">Uptime & Reliability</Title>
-                <Stack gap="lg">
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Uptime Percentage</Text>
-                    <Progress
-                      value={flow.performance?.uptime_percentage || 0}
-                      color="green"
-                      size="lg"
-                    />
-                    <Text size="sm" c="dimmed" mt="xs">
-                      {flow.performance?.uptime_percentage || 0}%
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Status</Text>
-                    <Badge color={getStatusColor(flow.status)} variant="light" size="lg">
-                      {flow.status}
-                    </Badge>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Read Only</Text>
-                    <Badge color={flow.read_only ? 'red' : 'green'} variant="light" size="lg">
-                      {flow.read_only ? 'Yes' : 'No'}
-                    </Badge>
-                  </Box>
-                </Stack>
-              </Card>
-            </Grid.Col>
-          </Grid>
-        </Tabs.Panel>
 
         <Tabs.Panel value="storage" pt="xl">
           <Stack gap="xl">
@@ -1755,33 +1839,103 @@ export default function FlowDetails() {
 
         <Tabs.Panel value="analytics" pt="xl">
           <Stack gap="xl">
-            {flowId ? (
-              <FlowAnalyticsDashboard 
-                flowId={flowId}
-                disabled={disabled}
-              />
+            {analyticsLoading ? (
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <Loader size="lg" />
+                  <Text size="lg" c="dimmed">Loading analytics data...</Text>
+                </Stack>
+              </Card>
+            ) : analyticsData ? (
+              <>
+                {/* Flow Usage Analytics */}
+                <Card withBorder>
+                  <Title order={4} mb="md">Flow Usage Statistics</Title>
+                  <Grid>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="blue">
+                          {analyticsData.flowUsage.total_flows}
+                        </Text>
+                        <Text size="sm" c="dimmed">Total Flows</Text>
+                      </Paper>
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="green">
+                          {Math.round(analyticsData.flowUsage.average_flow_size / 1024 / 1024)} MB
+                        </Text>
+                        <Text size="sm" c="dimmed">Average Flow Size</Text>
+                      </Paper>
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="orange">
+                          {Math.round(analyticsData.flowUsage.estimated_storage_bytes / 1024 / 1024)} MB
+                        </Text>
+                        <Text size="sm" c="dimmed">Total Storage</Text>
+                      </Paper>
+                    </Grid.Col>
+                  </Grid>
+                  
+                  {analyticsData.flowUsage.format_distribution && (
+                    <Box mt="md">
+                      <Text size="sm" fw={500} mb="sm">Format Distribution</Text>
+                      <Group gap="xs">
+                        {Object.entries(analyticsData.flowUsage.format_distribution).map(([format, count]) => (
+                          <Badge key={format} size="lg" variant="light" color="blue">
+                            {format.split(':').pop()}: {count as number}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Box>
+                  )}
+                </Card>
+
+                {/* Storage Usage Analytics */}
+                {analyticsData.storageUsage && (
+                  <Card withBorder>
+                    <Title order={4} mb="md">Storage Usage Analysis</Title>
+                    <Text size="sm" c="dimmed">
+                      Storage usage patterns and access statistics from VAST TAMS backend.
+                    </Text>
+                    {/* Add more storage analytics when available */}
+                  </Card>
+                )}
+
+                {/* Time Range Analysis */}
+                {analyticsData.timeRangeAnalysis && (
+                  <Card withBorder>
+                    <Title order={4} mb="md">Time Range Patterns</Title>
+                    <Text size="sm" c="dimmed">
+                      Time range patterns and duration analysis from VAST TAMS backend.
+                    </Text>
+                    {/* Add more time range analytics when available */}
+                  </Card>
+                )}
+              </>
             ) : (
-              <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
-                Flow ID is required to view analytics.
-              </Alert>
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <IconChartBar size={64} color="#ccc" />
+                  <Title order={4} c="dimmed">Analytics Unavailable</Title>
+                  <Text size="lg" c="dimmed" ta="center">
+                    Unable to load analytics data from VAST TAMS backend
+                  </Text>
+                  <Button 
+                    variant="light" 
+                    onClick={loadAnalytics}
+                    loading={analyticsLoading}
+                  >
+                    Retry
+                  </Button>
+                </Stack>
+              </Card>
             )}
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="health" pt="xl">
-          <Stack gap="xl">
-            {flowId ? (
-              <FlowHealthMonitor 
-                flowId={flowId}
-                disabled={disabled}
-              />
-            ) : (
-              <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
-                Flow ID is required to view health status.
-              </Alert>
-            )}
-          </Stack>
-        </Tabs.Panel>
+
       </Tabs>
 
       {/* Edit Flow Modal */}
@@ -1805,7 +1959,7 @@ export default function FlowDetails() {
           />
           <Select
             label="Status"
-            value={flow.status}
+            value={flow.status || null}
             onChange={(value) => setFlow({ ...flow, status: value as 'active' | 'inactive' | 'processing' | 'error' })}
             data={[
               { value: 'active', label: 'Active' },
@@ -1872,12 +2026,12 @@ export default function FlowDetails() {
       <Modal
         opened={showUploadModal}
         onClose={() => setShowUploadModal(false)}
-        title="Upload Live Segment"
+        title="Upload Media Segment"
         size="lg"
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Upload a new media segment to this flow. The segment will be immediately available in live mode.
+            Upload a new media segment to this flow. The segment will be immediately available for playback.
           </Text>
           
           <FileInput
@@ -1889,6 +2043,7 @@ export default function FlowDetails() {
           />
           
           <TextInput
+            id="object-id"
             label="Object ID"
             placeholder="Auto-generated if empty"
             description="Unique identifier for this segment"
@@ -1896,11 +2051,13 @@ export default function FlowDetails() {
           
           <Group grow>
             <TextInput
+              id="start-time"
               label="Start Time"
               placeholder="HH:MM:SS"
               description="Segment start time"
             />
             <TextInput
+              id="end-time"
               label="End Time"
               placeholder="HH:MM:SS"
               description="Segment end time"
@@ -1908,12 +2065,14 @@ export default function FlowDetails() {
           </Group>
           
           <Textarea
+            id="description"
             label="Description"
             placeholder="Segment description"
             rows={3}
           />
           
           <TextInput
+            id="tags"
             label="Tags"
             placeholder="key1:value1,key2:value2"
             description="Comma-separated key-value pairs"
@@ -1926,16 +2085,37 @@ export default function FlowDetails() {
             <Button 
               onClick={() => {
                 const fileInput = document.getElementById('segment-file') as HTMLInputElement;
+                const objectIdInput = document.getElementById('object-id') as HTMLInputElement;
+                const startTimeInput = document.getElementById('start-time') as HTMLInputElement;
+                const endTimeInput = document.getElementById('end-time') as HTMLInputElement;
+                const descriptionInput = document.getElementById('description') as HTMLTextAreaElement;
+                const tagsInput = document.getElementById('tags') as HTMLInputElement;
+                
                 if (fileInput?.files?.[0]) {
                   const file = fileInput.files[0];
+                  
+                  // Parse tags from comma-separated string
+                  const tags: Record<string, string> = {};
+                  if (tagsInput?.value) {
+                    tagsInput.value.split(',').forEach(tag => {
+                      const [key, value] = tag.trim().split(':');
+                      if (key && value) {
+                        tags[key] = value;
+                      }
+                    });
+                  }
+                  
                   const segmentData = {
-                    timerange: '[00:00:00_00:01:00)',
-                    sample_offset: 0,
-                    sample_count: 0,
-                    description: 'Live uploaded segment',
-                    tags: {}
+                    object_id: objectIdInput?.value || undefined,
+                    timerange: `${startTimeInput?.value || '00:00:00'}_${endTimeInput?.value || '00:01:00'}`,
+                    description: descriptionInput?.value || 'Uploaded segment',
+                    tags
                   };
+                  
+                  console.log('Uploading segment with data:', segmentData);
                   handleUploadSegment(file, segmentData);
+                } else {
+                  setError('Please select a file to upload');
                 }
               }}
               loading={uploadingSegment}

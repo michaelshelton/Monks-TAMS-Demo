@@ -14,6 +14,32 @@ const API_BASE_URL = import.meta.env.DEV
 // BBC TAMS API Configuration
 export const BBC_TAMS_BASE_URL = API_BASE_URL;
 
+// Import IBC Thiago API functions
+import { 
+  getIBCThiagoSources,
+  getIBCThiagoSource,
+  getIBCThiagoFlows,
+  getIBCThiagoFlow,
+  getIBCThiagoFlowSegments,
+  getIBCThiagoHLSManifest,
+  createIBCThiagoMarker,
+  updateIBCThiagoMarker,
+  deleteIBCThiagoMarker,
+  getIBCThiagoHealth,
+  getIBCThiagoStorage,
+  ibcThiagoWebSocket,
+  extractMarkersFromSource,
+  extractVideoFlowsFromSource,
+  isMarkerFlow,
+  getMarkerColor,
+  getMarkerDisplayType,
+  isMarkerEditable,
+  type IBCThiagoSource,
+  type IBCThiagoFlow,
+  type IBCThiagoSegment,
+  type IBCThiagoMarker
+} from './ibcThiagoApi';
+
 // BBC TAMS API Response Types
 export interface BBCPaginationMeta {
   link?: string;
@@ -247,11 +273,117 @@ export function getAllNavigationCursors(response: BBCApiResponse<any>): {
 }
 
 // Unified API Client class with BBC TAMS compliance
+// This class now acts as a facade over the new service factory architecture
 class UnifiedApiClient {
   private baseUrl: string;
+  private currentBackend: string;
+  private apiClient: any = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+    this.currentBackend = this.detectBackend();
+    this.baseUrl = this.getBackendUrl();
+    // Initialize API client asynchronously
+    this.initializeApiClient().catch(error => {
+      console.warn('Failed to initialize API client:', error);
+    });
+  }
+
+  /**
+   * Detect which backend is currently being used
+   */
+  private detectBackend(): string {
+    // Check environment variable first
+    const defaultBackend = import.meta.env.VITE_DEFAULT_BACKEND;
+    if (defaultBackend) {
+      return defaultBackend;
+    }
+    
+    // Check localStorage for backend selection
+    const storedBackend = localStorage.getItem('selectedBackend');
+    if (storedBackend) {
+      return storedBackend;
+    }
+    
+    // Default to vast-tams for better reliability
+    return 'vast-tams';
+  }
+
+  /**
+   * Get the correct backend URL based on the current backend configuration
+   */
+  private getBackendUrl(): string {
+    const backend = this.currentBackend;
+    
+    switch (backend) {
+      case 'ibc-thiago':
+        return import.meta.env.VITE_BACKEND_IBC_THIAGO_URL || 'http://localhost:3000';
+      case 'ibc-thiago-imported':
+        return import.meta.env.VITE_BACKEND_IBC_THIAGO_IMPORTED_URL || 'http://localhost:3002';
+      case 'vast-tams':
+        // Use main API proxy to avoid CORS issues
+        return import.meta.env.DEV ? '/api' : '/api/proxy';
+      case 'upcoming-demo':
+        return import.meta.env.VITE_BACKEND_UPCOMING_DEMO_URL || 'https://upcoming-demo.example.com';
+      default:
+        return API_BASE_URL; // Fallback to proxy
+    }
+  }
+
+  /**
+   * Initialize the appropriate API client using the service factory
+   */
+  private async initializeApiClient(): Promise<void> {
+    try {
+      const { apiServiceFactory } = await import('./apiServiceFactory');
+      const { getCurrentBackendConfig } = await import('../config/apiConfig');
+      
+      const config = getCurrentBackendConfig();
+      this.apiClient = await apiServiceFactory.createClient(
+        config.type as any,
+        config
+      );
+    } catch (error) {
+      console.warn('Failed to initialize API client with service factory, falling back to legacy mode:', error);
+      // Fall back to legacy implementation
+    }
+  }
+
+  /**
+   * Set the current backend
+   */
+  async setBackend(backendId: string): Promise<void> {
+    this.currentBackend = backendId;
+    this.baseUrl = this.getBackendUrl();
+    
+    try {
+      const { apiServiceFactory } = await import('./apiServiceFactory');
+      const { getBackendConfig } = await import('../config/apiConfig');
+      
+      const config = getBackendConfig(backendId);
+      if (config) {
+        this.apiClient = await apiServiceFactory.createClient(
+          config.type as any,
+          config
+        );
+      }
+    } catch (error) {
+      console.error('Failed to switch backend:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if using IBC Thiago backend
+   */
+  private isIBCThiagoBackend(): boolean {
+    return this.currentBackend === 'ibc-thiago' || this.currentBackend === 'ibc-thiago-imported';
+  }
+
+  /**
+   * Get the current API client instance
+   */
+  private getApiClient(): any {
+    return this.apiClient;
   }
 
   /**
@@ -414,6 +546,14 @@ class UnifiedApiClient {
 
   // Health check
   async getHealth(): Promise<any> {
+    const client = this.getApiClient();
+    if (client) {
+      return client.getHealth();
+    }
+    
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoHealth();
+    }
     return this.request('/health');
   }
 
@@ -429,10 +569,21 @@ class UnifiedApiClient {
 
   // BBC TAMS Sources API
   async getSources(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
+    const client = this.getApiClient();
+    if (client) {
+      return client.getSources(options);
+    }
+    
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoSources(options);
+    }
     return this.bbcTamsGet('/sources', options);
   }
 
   async getSource(id: string): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoSource(id);
+    }
     return this.request(`/sources/${id}`);
   }
 
@@ -470,10 +621,16 @@ class UnifiedApiClient {
 
   // BBC TAMS Flows API
   async getFlows(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoFlows(options);
+    }
     return this.bbcTamsGet('/flows', options);
   }
 
   async getFlow(id: string): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoFlow(id);
+    }
     return this.request(`/flows/${id}`);
   }
 
@@ -583,6 +740,9 @@ class UnifiedApiClient {
 
   // BBC TAMS Segments API
   async getFlowSegments(flowId: string, options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoFlowSegments(flowId, options);
+    }
     return this.bbcTamsGet(`/flows/${flowId}/segments`, options);
   }
 
@@ -828,6 +988,121 @@ class UnifiedApiClient {
   // Root endpoints
   async getRootEndpoints(): Promise<string[]> {
     return this.request('/');
+  }
+
+  // IBC Thiago specific methods
+  async getHLSManifest(flowId: string): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoHLSManifest(flowId);
+    }
+    throw new Error('HLS manifest not supported by current backend');
+  }
+
+  async createMarker(markerData: any): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return createIBCThiagoMarker(markerData);
+    }
+    throw new Error('Marker creation not supported by current backend');
+  }
+
+  async updateMarker(markerId: string, updates: any): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return updateIBCThiagoMarker(markerId, updates);
+    }
+    throw new Error('Marker updates not supported by current backend');
+  }
+
+  async deleteMarker(markerId: string): Promise<void> {
+    if (this.isIBCThiagoBackend()) {
+      return deleteIBCThiagoMarker(markerId);
+    }
+    throw new Error('Marker deletion not supported by current backend');
+  }
+
+  async getStorage(flowId: string): Promise<any> {
+    if (this.isIBCThiagoBackend()) {
+      return getIBCThiagoStorage(flowId);
+    }
+    return this.request(`/flows/${flowId}/storage`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  }
+
+  // WebSocket management for IBC Thiago
+  connectWebSocket(): Promise<void> {
+    if (this.isIBCThiagoBackend()) {
+      return ibcThiagoWebSocket.connect();
+    }
+    throw new Error('WebSocket not supported by current backend');
+  }
+
+  disconnectWebSocket(): void {
+    if (this.isIBCThiagoBackend()) {
+      ibcThiagoWebSocket.disconnect();
+    }
+  }
+
+  subscribeToWebSocket(eventType: string, callback: (data: any) => void): void {
+    if (this.isIBCThiagoBackend()) {
+      ibcThiagoWebSocket.subscribe(eventType, callback);
+    }
+  }
+
+  unsubscribeFromWebSocket(eventType: string, callback: (data: any) => void): void {
+    if (this.isIBCThiagoBackend()) {
+      ibcThiagoWebSocket.unsubscribe(eventType, callback);
+    }
+  }
+
+  isWebSocketConnected(): boolean {
+    if (this.isIBCThiagoBackend()) {
+      return ibcThiagoWebSocket.isConnected();
+    }
+    return false;
+  }
+
+  // Utility methods for IBC Thiago
+  extractMarkersFromSource(source: any): any[] {
+    if (this.isIBCThiagoBackend()) {
+      return extractMarkersFromSource(source);
+    }
+    return [];
+  }
+
+  extractVideoFlowsFromSource(source: any): any[] {
+    if (this.isIBCThiagoBackend()) {
+      return extractVideoFlowsFromSource(source);
+    }
+    return source.flows || [];
+  }
+
+  isMarkerFlow(flow: any): boolean {
+    if (this.isIBCThiagoBackend()) {
+      return isMarkerFlow(flow);
+    }
+    return false;
+  }
+
+  getMarkerColor(marker: any): string {
+    if (this.isIBCThiagoBackend()) {
+      return getMarkerColor(marker);
+    }
+    return '#00ff00';
+  }
+
+  getMarkerDisplayType(marker: any): string {
+    if (this.isIBCThiagoBackend()) {
+      return getMarkerDisplayType(marker);
+    }
+    return 'square';
+  }
+
+  isMarkerEditable(marker: any): boolean {
+    if (this.isIBCThiagoBackend()) {
+      return isMarkerEditable(marker);
+    }
+    return true;
   }
 }
 

@@ -713,6 +713,11 @@ export async function getFlowTags(flowId: string): Promise<Record<string, string
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow tags not supported by IBC Thiago backend, returning empty tags');
+        return {};
+      }
       throw new Error(`Failed to get flow tags: ${response.status} ${response.statusText}`);
     }
 
@@ -720,6 +725,11 @@ export async function getFlowTags(flowId: string): Promise<Record<string, string
     return data;
   } catch (error) {
     console.error('Error getting flow tags:', error);
+    // If it's a network error or 404, return empty tags for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot GET'))) {
+      console.warn('Flow tags not supported by backend, returning empty tags');
+      return {};
+    }
     throw error;
   }
 }
@@ -839,6 +849,11 @@ export async function getFlowCollection(flowId: string): Promise<any> {
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow collections not supported by IBC Thiago backend, returning null');
+        return null;
+      }
       throw new Error(`Failed to get flow collection: ${response.status} ${response.statusText}`);
     }
 
@@ -846,6 +861,11 @@ export async function getFlowCollection(flowId: string): Promise<any> {
     return data;
   } catch (error) {
     console.error('Error getting flow collection:', error);
+    // If it's a network error or 404, return null for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot GET'))) {
+      console.warn('Flow collections not supported by backend, returning null');
+      return null;
+    }
     throw error;
   }
 }
@@ -924,7 +944,7 @@ export async function getFlowReadOnly(flowId: string): Promise<{ read_only: bool
  * Get flow description
  * GET /flows/{flow_id}/description
  */
-export async function getFlowDescription(flowId: string): Promise<{ description: string }> {
+export async function getFlowDescription(flowId: string): Promise<{ description: string | null }> {
   try {
     const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/description`, {
       method: 'GET',
@@ -934,6 +954,11 @@ export async function getFlowDescription(flowId: string): Promise<{ description:
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow description not supported by IBC Thiago backend, returning null');
+        return { description: null };
+      }
       throw new Error(`Failed to get flow description: ${response.status} ${response.statusText}`);
     }
 
@@ -941,6 +966,11 @@ export async function getFlowDescription(flowId: string): Promise<{ description:
     return data;
   } catch (error) {
     console.error('Error getting flow description:', error);
+    // If it's a network error or 404, return null for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot GET'))) {
+      console.warn('Flow description not supported by backend, returning null');
+      return { description: null };
+    }
     throw error;
   }
 }
@@ -960,10 +990,20 @@ export async function setFlowDescription(flowId: string, description: string): P
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow description not supported by IBC Thiago backend, operation ignored');
+        return;
+      }
       throw new Error(`Failed to set flow description: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
     console.error('Error setting flow description:', error);
+    // If it's a network error or 404, ignore for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot PUT'))) {
+      console.warn('Flow description not supported by backend, operation ignored');
+      return;
+    }
     throw error;
   }
 }
@@ -972,7 +1012,7 @@ export async function setFlowDescription(flowId: string, description: string): P
  * Get flow label
  * GET /flows/{flow_id}/label
  */
-export async function getFlowLabel(flowId: string): Promise<{ label: string }> {
+export async function getFlowLabel(flowId: string): Promise<{ label: string | null }> {
   try {
     const response = await fetch(`${BBC_TAMS_BASE_URL}/flows/${flowId}/label`, {
       method: 'GET',
@@ -982,6 +1022,11 @@ export async function getFlowLabel(flowId: string): Promise<{ label: string }> {
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow label not supported by IBC Thiago backend, returning null');
+        return { label: null };
+      }
       throw new Error(`Failed to get flow label: ${response.status} ${response.statusText}`);
     }
 
@@ -989,6 +1034,11 @@ export async function getFlowLabel(flowId: string): Promise<{ label: string }> {
     return data;
   } catch (error) {
     console.error('Error getting flow label:', error);
+    // If it's a network error or 404, return null for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot GET'))) {
+      console.warn('Flow label not supported by backend, returning null');
+      return { label: null };
+    }
     throw error;
   }
 }
@@ -1008,10 +1058,20 @@ export async function setFlowLabel(flowId: string, label: string): Promise<void>
     });
 
     if (!response.ok) {
+      // Check if this is a 404 from IBC Thiago backend (unsupported endpoint)
+      if (response.status === 404) {
+        console.warn('Flow label not supported by IBC Thiago backend, operation ignored');
+        return;
+      }
       throw new Error(`Failed to set flow label: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
     console.error('Error setting flow label:', error);
+    // If it's a network error or 404, ignore for unsupported backends
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Cannot PUT'))) {
+      console.warn('Flow label not supported by backend, operation ignored');
+      return;
+    }
     throw error;
   }
 }

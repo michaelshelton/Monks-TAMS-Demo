@@ -1,13 +1,7 @@
 // Search Service - Real BBC TAMS API Integration
-// Handles search queries, results, and content discovery
+// Handles search queries, results, and content discovery using real backend endpoints
 
-import { 
-  getFlows, 
-  getFlowSegments, 
-  getSources, 
-  BBCApiOptions, 
-  BBCApiResponse 
-} from './bbcTamsApi';
+import { apiClient, BBCApiOptions, BBCApiResponse } from './api';
 
 // Search result interface for real API data
 export interface SearchResult {
@@ -15,18 +9,12 @@ export interface SearchResult {
   type: 'segment' | 'flow' | 'source';
   title: string;
   description?: string;
-  gameInfo: {
-    homeTeam: string;
-    awayTeam: string;
+  contentInfo: {
+    category: string;
+    contentType: string;
+    organization: string;
     date: string;
-    venue: string;
-    score?: string;
-  };
-  playerInfo?: {
-    number: string;
-    name: string;
-    team: string;
-    position: string;
+    venue?: string;
   };
   timing: {
     start: string;
@@ -39,6 +27,12 @@ export interface SearchResult {
     tags: Record<string, string>;
   };
   thumbnail?: string;
+  // Presigned URLs from backend
+  get_urls?: Array<{
+    url: string;
+    label: string;
+  }>;
+  // Legacy field for backward compatibility
   previewUrl?: string;
 }
 
@@ -48,12 +42,11 @@ export interface SearchQuery {
   searchMode: 'basic' | 'advanced' | 'flow' | 'ai';
   aiSearchEnabled: boolean;
   aiConfidence: number;
-  playerNumber?: string;
-  playerName?: string;
-  team?: string;
-  eventType?: string | undefined;
-  timerange?: string | undefined;
+  category?: string;
+  contentType?: string;
+  organization?: string;
   format?: string | undefined;
+  timerange?: string | undefined;
   codec?: string | undefined;
   searchStrategy: {
     sources: boolean;
@@ -87,26 +80,18 @@ function convertFlowToSearchResult(flow: any): SearchResult {
     id: flow.id,
     type: 'flow',
     title: flow.label || flow.name || `Flow ${flow.id}`,
-    description: flow.description || 'Football game flow',
-    gameInfo: {
-      homeTeam: flow.tags?.home_team || flow.tags?.team_a || 'Team A',
-      awayTeam: flow.tags?.away_team || flow.tags?.team_b || 'Team B',
-      date: flow.tags?.date || flow.tags?.game_date || 'Unknown',
-      venue: flow.tags?.venue || flow.tags?.stadium || 'Unknown',
-      score: flow.tags?.score || flow.tags?.final_score
+    description: flow.description || 'Media content flow',
+    contentInfo: {
+      category: flow.tags?.category || flow.tags?.content_category || 'General',
+      contentType: flow.tags?.content_type || flow.tags?.type || 'Media',
+      organization: flow.tags?.organization || flow.tags?.company || 'Unknown',
+      date: flow.tags?.date || flow.tags?.created_date || 'Unknown',
+      venue: flow.tags?.venue || flow.tags?.location
     },
-    ...(flow.tags?.player_number ? {
-      playerInfo: {
-        number: flow.tags.player_number,
-        name: flow.tags.player_name || `Player ${flow.tags.player_number}`,
-        team: flow.tags.player_team || flow.tags.home_team || 'Unknown',
-        position: flow.tags.player_position || 'Unknown'
-      }
-    } : {}),
     timing: {
       start: flow.tags?.start_time || '00:00:00',
       end: flow.tags?.end_time || '00:00:00',
-      duration: flow.tags?.duration || flow.tags?.game_duration || 90 * 60 // 90 minutes default
+      duration: flow.tags?.duration || flow.tags?.content_duration || 60 * 60 // 1 hour default
     },
     metadata: {
       format: flow.format || 'video/h264',
@@ -114,7 +99,9 @@ function convertFlowToSearchResult(flow: any): SearchResult {
       tags: flow.tags || {}
     },
     thumbnail: flow.tags?.thumbnail || `https://via.placeholder.com/320x180/1f2937/ffffff?text=${encodeURIComponent(flow.label || 'Flow')}`,
-    previewUrl: flow.tags?.preview_url || flow.tags?.video_url || flow.tags?.media_url || flow.tags?.stream_url || flow.tags?.file_url
+    // Use presigned URLs if available, fallback to legacy fields
+    get_urls: flow.get_urls || undefined,
+    previewUrl: flow.get_urls?.[0]?.url || flow.tags?.preview_url || flow.tags?.video_url || flow.tags?.media_url || flow.tags?.stream_url || flow.tags?.file_url
   };
 }
 
@@ -126,22 +113,14 @@ function convertSegmentToSearchResult(segment: any, flowData?: any): SearchResul
     id: segment.id,
     type: 'segment',
     title: segment.label || segment.name || `Segment ${segment.id}`,
-    description: segment.description || 'Video segment',
-    gameInfo: {
-      homeTeam: segment.tags?.home_team || flowTags.home_team || flowTags.team_a || 'Team A',
-      awayTeam: segment.tags?.away_team || flowTags.away_team || flowTags.team_b || 'Team B',
-      date: segment.tags?.date || flowTags.date || flowTags.game_date || 'Unknown',
-      venue: segment.tags?.venue || flowTags.venue || flowTags.stadium || 'Unknown',
-      score: segment.tags?.score || flowTags.score || flowTags.final_score
+    description: segment.description || 'Media segment',
+    contentInfo: {
+      category: segment.tags?.category || flowTags.category || flowTags.content_category || 'General',
+      contentType: segment.tags?.content_type || flowTags.content_type || flowTags.type || 'Media',
+      organization: segment.tags?.organization || flowTags.organization || flowTags.company || 'Unknown',
+      date: segment.tags?.date || flowTags.date || flowTags.created_date || 'Unknown',
+      venue: segment.tags?.venue || flowTags.venue || flowTags.location
     },
-    ...(segment.tags?.player_number ? {
-      playerInfo: {
-        number: segment.tags.player_number,
-        name: segment.tags.player_name || `Player ${segment.tags.player_number}`,
-        team: segment.tags.player_team || flowTags.home_team || 'Unknown',
-        position: segment.tags.player_position || 'Unknown'
-      }
-    } : {}),
     timing: {
       start: segment.timerange?.start || segment.tags?.start_time || '00:00:00',
       end: segment.timerange?.end || segment.tags?.end_time || '00:00:00',
@@ -153,7 +132,9 @@ function convertSegmentToSearchResult(segment: any, flowData?: any): SearchResul
       tags: { ...flowTags, ...segment.tags }
     },
     thumbnail: segment.tags?.thumbnail || `https://via.placeholder.com/320x180/1f2937/ffffff?text=${encodeURIComponent(segment.label || 'Segment')}`,
-    previewUrl: segment.tags?.preview_url || segment.tags?.video_url || segment.content_url || segment.media_url || segment.stream_url || segment.file_url
+    // Use presigned URLs if available, fallback to legacy fields
+    get_urls: segment.get_urls || undefined,
+    previewUrl: segment.get_urls?.[0]?.url || segment.tags?.preview_url || segment.tags?.video_url || segment.content_url || segment.media_url || segment.stream_url || segment.file_url
   };
 }
 
@@ -164,25 +145,17 @@ function convertSourceToSearchResult(source: any): SearchResult {
     type: 'source',
     title: source.label || source.name || `Source ${source.id}`,
     description: source.description || 'Original content source',
-    gameInfo: {
-      homeTeam: source.tags?.home_team || source.tags?.team_a || 'Team A',
-      awayTeam: source.tags?.away_team || source.tags?.team_b || 'Team B',
-      date: source.tags?.date || source.tags?.game_date || 'Unknown',
-      venue: source.tags?.venue || source.tags?.stadium || 'Unknown',
-      score: source.tags?.score || source.tags?.final_score
+    contentInfo: {
+      category: source.tags?.category || source.tags?.content_category || 'General',
+      contentType: source.tags?.content_type || source.tags?.type || 'Media',
+      organization: source.tags?.organization || source.tags?.company || 'Unknown',
+      date: source.tags?.date || source.tags?.created_date || 'Unknown',
+      venue: source.tags?.venue || source.tags?.location
     },
-    ...(source.tags?.player_number ? {
-      playerInfo: {
-        number: source.tags.player_number,
-        name: source.tags.player_name || `Player ${source.tags.player_number}`,
-        team: source.tags.player_team || source.tags.home_team || 'Unknown',
-        position: source.tags.player_position || 'Unknown'
-      }
-    } : {}),
     timing: {
       start: source.tags?.start_time || '00:00:00',
       end: source.tags?.end_time || '00:00:00',
-      duration: source.tags?.duration || source.tags?.game_duration || 90 * 60 // 90 minutes default
+      duration: source.tags?.duration || source.tags?.content_duration || 60 * 60 // 1 hour default
     },
     metadata: {
       format: source.format || 'video/h264',
@@ -190,7 +163,9 @@ function convertSourceToSearchResult(source: any): SearchResult {
       tags: source.tags || {}
     },
     thumbnail: source.tags?.thumbnail || `https://via.placeholder.com/320x180/1f2937/ffffff?text=${encodeURIComponent(source.label || 'Source')}`,
-    previewUrl: source.tags?.preview_url || source.tags?.video_url || source.tags?.media_url || source.tags?.stream_url || source.tags?.file_url
+    // Use presigned URLs if available, fallback to legacy fields
+    get_urls: source.get_urls || undefined,
+    previewUrl: source.get_urls?.[0]?.url || source.tags?.preview_url || source.tags?.video_url || source.tags?.media_url || source.tags?.stream_url || source.tags?.file_url
   };
 }
 
@@ -202,39 +177,47 @@ function buildSearchOptions(query: SearchQuery): BBCApiOptions {
     tagExists: {}
   };
 
-  // Add basic filters
-  if (query.playerNumber) {
-    options.tags!['player_number'] = query.playerNumber;
+  // Add basic filters based on VAST TAMS API capabilities
+  if (query.category) {
+    options.tags!['category'] = query.category;
   }
   
-  if (query.playerName) {
-    options.tags!['player_name'] = query.playerName;
+  if (query.contentType) {
+    options.tags!['content_type'] = query.contentType;
   }
   
-  if (query.team) {
-    options.tags!['home_team'] = query.team;
-    // Also search in away team
-    options.tags!['away_team'] = query.team;
-  }
-  
-  if (query.eventType) {
-    options.tags!['event_type'] = query.eventType;
+  if (query.organization) {
+    options.tags!['organization'] = options.tags!['company'] = query.organization;
   }
   
   if (query.timerange) {
     options.timerange = query.timerange;
   }
   
-  if (query.format) {
-    options.format = query.format;
+  if (query.format && query.format.trim() !== '') {
+    // Map generic format names to proper API format values
+    const formatMapping: Record<string, string> = {
+      'video': 'urn:x-nmos:format:video',
+      'audio': 'urn:x-nmos:format:audio',
+      'data': 'urn:x-nmos:format:data',
+      'image': 'urn:x-nmos:format:image'
+    };
+    const mappedFormat = formatMapping[query.format] || query.format;
+    options.format = mappedFormat;
+    console.log('🔍 Search Service: Format mapping:', query.format, '->', mappedFormat);
   }
   
   if (query.codec) {
     options.codec = query.codec;
   }
 
-  // Add sport-specific tags
-  options.tags!['sport'] = 'football';
+  // Add common media content tags
+  if (query.query) {
+    // Use the search query as a label filter for better matching
+    // options.label = query.query; // Not supported in BBCApiOptions
+  }
+  
+  console.log('🔍 Search Service: Final search options being sent to API:', options);
   
   return options;
 }
@@ -242,8 +225,13 @@ function buildSearchOptions(query: SearchQuery): BBCApiOptions {
 // Perform search using BBC TAMS API
 export async function performSearch(query: SearchQuery, page: number = 1, limit: number = 20): Promise<SearchResponse> {
   const startTime = Date.now();
+  console.log('🔍 Search Service: Starting search with query:', query);
+  
   const searchOptions = buildSearchOptions(query);
+  console.log('🔍 Search Service: Built search options:', searchOptions);
+  
   searchOptions.limit = limit;
+  console.log('🔍 Search Service: Set limit to:', limit);
   
   // Add pagination cursor if not first page
   if (page > 1) {
@@ -263,8 +251,12 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
     // Execute search based on strategy
     if (query.searchStrategy.sources) {
       try {
-        const sourcesResponse = await getSources(searchOptions);
+        const sourcesResponse = await apiClient.getSources(searchOptions);
+        console.log('🔍 Search Service: Sources API response:', sourcesResponse);
+        
         const sourceResults = sourcesResponse.data.map(convertSourceToSearchResult);
+        console.log('🔍 Search Service: Converted source results:', sourceResults);
+        
         results.push(...sourceResults);
         totalResults += sourcesResponse.data.length;
         
@@ -282,8 +274,11 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
 
     if (query.searchStrategy.flows) {
       try {
-        const flowsResponse = await getFlows(searchOptions);
+        console.log('🔍 Search Service: Searching flows with options:', searchOptions);
+        const flowsResponse = await apiClient.getFlows(searchOptions);
+        console.log('🔍 Search Service: Flows API response:', flowsResponse);
         const flowResults = flowsResponse.data.map(convertFlowToSearchResult);
+        console.log('🔍 Search Service: Converted flow results:', flowResults);
         results.push(...flowResults);
         totalResults += flowsResponse.data.length;
         
@@ -302,11 +297,11 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
     if (query.searchStrategy.segments) {
       try {
         // For segments, we need to search flows first, then get their segments
-        const flowsResponse = await getFlows(searchOptions);
+        const flowsResponse = await apiClient.getFlows(searchOptions);
         
         for (const flow of flowsResponse.data.slice(0, 5)) { // Limit to first 5 flows to avoid too many API calls
           try {
-            const segmentsResponse = await getFlowSegments(flow.id, searchOptions);
+            const segmentsResponse = await apiClient.getFlowSegments(flow.id, searchOptions);
             const segmentResults = segmentsResponse.data.map(segment => 
               convertSegmentToSearchResult(segment, flow)
             );
@@ -343,6 +338,10 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
     });
 
     const searchTime = Date.now() - startTime;
+    
+    console.log('🔍 Search Service: Final results:', finalResults);
+    console.log('🔍 Search Service: Total results:', finalResults.length);
+    console.log('🔍 Search Service: Search time:', searchTime);
 
     return {
       results: finalResults,
@@ -364,64 +363,46 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
   }
 }
 
-// Use proxy in development, Vercel proxy in production
-const API_BASE_URL = import.meta.env.DEV 
-  ? '/api'  // Use Vite dev server proxy
-  : '/api/proxy'; // Use Vercel proxy in production
 
-// Get specific flow details for video playback
+
+// Get specific flow details for video playback using REAL API
 export async function getFlowDetails(flowId: string): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE_URL}/flows/${flowId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get flow details: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    return await apiClient.getFlow(flowId);
   } catch (error) {
     console.error('Failed to get flow details:', error);
     throw error;
   }
 }
 
-// Get segment content URL for video playback
+// Get segment content URL for video playback using REAL API
 export async function getSegmentContentUrl(flowId: string, segmentId: string): Promise<string> {
   try {
-    const response = await fetch(`${API_BASE_URL}/flows/${flowId}/segments/${segmentId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+    const segment = await apiClient.getFlowSegments(flowId, {});
+    
+    // Find the specific segment
+    const targetSegment = segment.data.find((s: any) => s.id === segmentId);
+    if (!targetSegment) {
+      throw new Error(`Segment ${segmentId} not found in flow ${flowId}`);
+    }
+    
+    // Return the presigned URL for video playback
+    if (targetSegment.get_urls && targetSegment.get_urls.length > 0) {
+      // Find the GET URL (for video playback)
+      const getUrl = targetSegment.get_urls.find((url: any) => url.label.includes('GET'));
+      if (getUrl) {
+        return getUrl.url;
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get segment details: ${response.status} ${response.statusText}`);
     }
-
-    const segment = await response.json();
     
-    // Return the content URL for video playback
-    // Try multiple possible URL fields that BBC TAMS might use
-    const contentUrl = segment.content_url || 
-                      segment.video_url || 
-                      segment.url || 
-                      segment.media_url ||
-                      segment.stream_url ||
-                      segment.file_url ||
+    // Fallback to legacy URL fields
+    const contentUrl = targetSegment.content_url || 
+                      targetSegment.video_url || 
+                      targetSegment.url || 
+                      targetSegment.media_url ||
+                      targetSegment.stream_url ||
+                      targetSegment.file_url ||
                       '';
-    
-    // If we have a relative URL, make it absolute
-    if (contentUrl && !contentUrl.startsWith('http')) {
-      return `${API_BASE_URL}${contentUrl}`;
-    }
     
     return contentUrl;
   } catch (error) {
@@ -430,18 +411,17 @@ export async function getSegmentContentUrl(flowId: string, segmentId: string): P
   }
 }
 
-// Get available football games (sources)
-export async function getFootballGames(): Promise<SearchResult[]> {
+// Get available media sources
+export async function getMediaSources(): Promise<SearchResult[]> {
   try {
     const options: BBCApiOptions = {
-      tags: { sport: 'football' },
       limit: 20
     };
 
-    const sourcesResponse = await getSources(options);
+    const sourcesResponse = await apiClient.getSources(options);
     return sourcesResponse.data.map(convertSourceToSearchResult);
   } catch (error) {
-    console.error('Failed to get football games:', error);
+    console.error('Failed to get media sources:', error);
     // Return empty array on error to prevent UI crashes
     return [];
   }

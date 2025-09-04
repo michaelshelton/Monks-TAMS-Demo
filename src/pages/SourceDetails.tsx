@@ -31,38 +31,21 @@ import {
   IconTags,
   IconSettings,
   IconChartBar,
-  IconHeart,
   IconEdit,
   IconTrash,
   IconRefresh,
   IconAlertCircle,
   IconInfoCircle,
-  IconCalendar,
   IconMapPin,
   IconNetwork,
-  IconGauge
+  IconGauge,
+  IconCalendar
 } from '@tabler/icons-react';
-import { SourceHealthMonitor } from '../components/SourceHealthMonitor';
-import { SourceConfigManager } from '../components/SourceConfigManager';
+
 import { EnhancedDeleteModal, DeleteOptions } from '../components/EnhancedDeleteModal';
 import { apiClient } from '../services/api';
-import { getSource } from '../services/bbcTamsApi';
 
-// Football-specific metadata interface
-interface FootballGameMetadata {
-  sport: string;
-  league: string;
-  venue: string;
-  season: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  gameDate?: string;
-  score?: string;
-  duration?: string;
-  highlights?: string[];
-}
-
-// Enhanced Source interface with football metadata
+// VAST TAMS Source interface
 interface Source {
   id: string;
   format: string;
@@ -75,12 +58,10 @@ interface Source {
   tags?: Record<string, string>;
   source_collection?: Array<{ id: string; label?: string }>;
   collected_by?: string[];
-  // New soft delete fields for backend v6.0
+  // VAST TAMS soft delete fields
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
-  // Football-specific metadata
-  footballMetadata?: FootballGameMetadata;
 }
 
 export default function SourceDetails() {
@@ -89,9 +70,17 @@ export default function SourceDetails() {
   const [source, setSource] = useState<Source | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'health' | 'analytics' | 'configuration' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'configuration'>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [disabled, setDisabled] = useState(false);
+  
+  // Analytics state
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  
+  // Configuration state
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   // Load source data
   useEffect(() => {
@@ -100,6 +89,13 @@ export default function SourceDetails() {
     }
   }, [sourceId]);
 
+  // Load analytics when analytics tab is selected
+  useEffect(() => {
+    if (activeTab === 'analytics' && !analyticsData) {
+      loadAnalytics();
+    }
+  }, [activeTab, analyticsData]);
+
   const loadSource = async () => {
     if (!sourceId) return;
     
@@ -107,52 +103,81 @@ export default function SourceDetails() {
     setError(null);
     
     try {
-      // Try BBC TAMS API first
-      const sourceData = await getSource(sourceId);
+      console.log('Fetching source details from VAST TAMS API for ID:', sourceId);
+      const sourceData = await apiClient.getSource(sourceId);
+      console.log('VAST TAMS source details response:', sourceData);
+      
       setSource(sourceData);
-    } catch (err) {
-      console.error('BBC TAMS API error:', err);
+    } catch (err: any) {
+      console.error('VAST TAMS source details API error:', err);
       
-      // Fallback to mock data for demo
-      const mockSource: Source = {
-        id: sourceId,
-        format: 'urn:x-nmos:format:video',
-        label: 'Manchester United vs Arsenal - Premier League 2024',
-        description: 'Live broadcast of the Premier League match between Manchester United and Arsenal',
-        created_by: 'admin',
-        updated_by: 'admin',
-        created: '2024-01-15T10:00:00Z',
-        updated: '2024-01-15T10:00:00Z',
-        tags: {
-          sport: 'football',
-          league: 'Premier League',
-          venue: 'Old Trafford',
-          season: '2024',
-          priority: 'high',
-          quality: '4K'
-        },
-        footballMetadata: {
-          sport: 'football',
-          league: 'Premier League',
-          venue: 'Old Trafford',
-          season: '2024',
-          homeTeam: 'Manchester United',
-          awayTeam: 'Arsenal',
-          gameDate: '2024-01-15',
-          score: '2-1',
-          duration: '90 minutes',
-          highlights: [
-            'Opening goal by Rashford (15\')',
-            'Equalizer by Saka (45\')',
-            'Winning goal by Fernandes (78\')'
-          ]
-        }
-      };
+      // Set appropriate error message based on error type
+      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
+        setError('VAST TAMS backend temporarily unavailable - please try again later');
+      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
+        setError('Network connection issue - please check your connection and try again');
+      } else if (err?.message?.includes('404')) {
+        setError('Source not found - please check the source ID and try again');
+      } else {
+        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+      }
       
-      setSource(mockSource);
-      setError('BBC TAMS API unavailable, using demo data');
+      // Clear source on error
+      setSource(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      // Fetch analytics data from VAST TAMS
+      const [flowUsage, storageUsage, timeRangeAnalysis] = await Promise.all([
+        fetch('/api/analytics/flow-usage').then(res => res.json()),
+        fetch('/api/analytics/storage-usage').then(res => res.json()),
+        fetch('/api/analytics/time-range-analysis').then(res => res.json())
+      ]);
+      
+      setAnalyticsData({
+        flowUsage,
+        storageUsage,
+        timeRangeAnalysis
+      });
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const updateSourceConfig = async (field: string, value: string) => {
+    if (!sourceId) return;
+    
+    setConfigLoading(true);
+    setConfigError(null);
+    
+    try {
+      // Update specific field using VAST TAMS API
+      const response = await fetch(`/api/sources/${sourceId}/${field}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ [field]: value })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update ${field}`);
+      }
+      
+      // Reload source data to reflect changes
+      await loadSource();
+    } catch (err: any) {
+      console.error(`Failed to update ${field}:`, err);
+      setConfigError(`Failed to update ${field}: ${err.message}`);
+    } finally {
+      setConfigLoading(false);
     }
   };
 
@@ -316,12 +341,31 @@ export default function SourceDetails() {
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color="red" 
-          title="Error"
+          title="VAST TAMS Connection Error"
           withCloseButton
           onClose={() => setError(null)}
           mb="lg"
         >
           {error}
+        </Alert>
+      )}
+
+      {/* VAST TAMS Info */}
+      {!error && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="Source Details in TAMS"
+          mb="lg"
+        >
+          <Text size="sm" mb="xs">
+            This page shows detailed information about a specific <strong>Source</strong> - the original media input 
+            container in the TAMS system. Here you can view metadata, analytics, and configuration options.
+          </Text>
+          <Text size="sm" mb="xs">
+            Sources contain information like format, tags, creation details, and relationships to flows and collections. 
+            This detailed view helps you understand the content structure and manage source properties.
+          </Text>
         </Alert>
       )}
 
@@ -331,17 +375,11 @@ export default function SourceDetails() {
           <Tabs.Tab value="overview" leftSection={<IconInfoCircle size={16} />}>
             Overview
           </Tabs.Tab>
-          <Tabs.Tab value="health" leftSection={<IconHeart size={16} />}>
-            Health & Performance
-          </Tabs.Tab>
           <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
             Analytics
           </Tabs.Tab>
           <Tabs.Tab value="configuration" leftSection={<IconSettings size={16} />}>
             Configuration
-          </Tabs.Tab>
-          <Tabs.Tab value="history" leftSection={<IconCalendar size={16} />}>
-            History
           </Tabs.Tab>
         </Tabs.List>
 
@@ -396,96 +434,82 @@ export default function SourceDetails() {
               </Grid>
             </Card>
 
-            {/* Football Metadata */}
-            {source.footballMetadata && (
+            {/* Media Information */}
+            {source.tags && (source.tags.category || source.tags.content_type || source.tags.speaker) && (
               <Card withBorder>
-                <Title order={4} mb="md">Game Information</Title>
+                <Title order={4} mb="md">Media Information</Title>
                 <Grid>
                   <Grid.Col span={6}>
                     <Stack gap="md">
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconActivity size={16} />
-                          <Text size="sm" fw={500}>Teams</Text>
-                        </Group>
-                        <Group gap="md">
-                          <Badge size="lg" variant="light" color="red">
-                            {source.footballMetadata.homeTeam}
-                          </Badge>
-                          <Text size="lg" fw={700}>vs</Text>
+                      {source.tags.category && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconActivity size={16} />
+                            <Text size="sm" fw={500}>Category</Text>
+                          </Group>
                           <Badge size="lg" variant="light" color="blue">
-                            {source.footballMetadata.awayTeam}
+                            {source.tags.category}
                           </Badge>
-                        </Group>
-                      </Box>
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconCalendar size={16} />
-                          <Text size="sm" fw={500}>Game Date</Text>
-                        </Group>
-                        <Text>{source.footballMetadata.gameDate}</Text>
-                      </Box>
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconMapPin size={16} />
-                          <Text size="sm" fw={500}>Venue</Text>
-                        </Group>
-                        <Text>{source.footballMetadata.venue}</Text>
-                      </Box>
+                        </Box>
+                      )}
+                      {source.tags.content_type && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconCalendar size={16} />
+                            <Text size="sm" fw={500}>Content Type</Text>
+                          </Group>
+                          <Badge size="lg" variant="light" color="green">
+                            {source.tags.content_type}
+                          </Badge>
+                        </Box>
+                      )}
+                      {source.tags.venue && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconMapPin size={16} />
+                            <Text size="sm" fw={500}>Venue</Text>
+                          </Group>
+                          <Text>{source.tags.venue}</Text>
+                        </Box>
+                      )}
                     </Stack>
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Stack gap="md">
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconActivity size={16} />
-                          <Text size="sm" fw={500}>Score</Text>
-                        </Group>
-                        <Text size="xl" fw={700} c="green">
-                          {source.footballMetadata.score}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconGauge size={16} />
-                          <Text size="sm" fw={500}>Duration</Text>
-                        </Group>
-                        <Text>{source.footballMetadata.duration}</Text>
-                      </Box>
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <IconActivity size={16} />
-                          <Text size="sm" fw={500}>League & Season</Text>
-                        </Group>
-                        <Group gap="md">
+                      {source.tags.speaker && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconActivity size={16} />
+                            <Text size="sm" fw={500}>Speaker</Text>
+                          </Group>
+                          <Text size="lg" fw={700} c="blue">
+                            {source.tags.speaker}
+                          </Text>
+                        </Box>
+                      )}
+                      {source.tags.duration && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconGauge size={16} />
+                            <Text size="sm" fw={500}>Duration</Text>
+                          </Group>
+                          <Text>{source.tags.duration}</Text>
+                        </Box>
+                      )}
+                      {source.tags.year && (
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <IconActivity size={16} />
+                            <Text size="sm" fw={500}>Year</Text>
+                          </Group>
                           <Badge size="md" variant="light" color="green">
-                            {source.footballMetadata.league}
+                            {source.tags.year}
                           </Badge>
-                          <Badge size="md" variant="light" color="blue">
-                            Season {source.footballMetadata.season}
-                          </Badge>
-                        </Group>
-                      </Box>
+                        </Box>
+                      )}
                     </Stack>
                   </Grid.Col>
                 </Grid>
-
-                {/* Highlights */}
-                {source.footballMetadata.highlights && source.footballMetadata.highlights.length > 0 && (
-                  <Box mt="lg">
-                    <Text fw={500} mb="md">Key Highlights</Text>
-                    <Grid>
-                      {source.footballMetadata.highlights.map((highlight, index) => (
-                        <Grid.Col key={index} span={4}>
-                          <Paper withBorder p="md" ta="center">
-                            <Text size="sm" fw={500} c="dimmed">Highlight {index + 1}</Text>
-                            <Text>{highlight}</Text>
-                          </Paper>
-                        </Grid.Col>
-                      ))}
-                    </Grid>
-                  </Box>
-                )}
               </Card>
             )}
 
@@ -524,70 +548,280 @@ export default function SourceDetails() {
                 </Stack>
               </Card>
             )}
+
+            {/* Collected By */}
+            {source.collected_by && source.collected_by.length > 0 && (
+              <Card withBorder>
+                <Title order={4} mb="md">Collected By</Title>
+                <Stack gap="md">
+                  {source.collected_by.map((collectorId) => (
+                    <Paper key={collectorId} withBorder p="md">
+                      <Group gap="sm">
+                        <IconNetwork size={16} color="#228be6" />
+                        <Box>
+                          <Text fw={500}>Collector ID</Text>
+                          <Text size="sm" c="dimmed" ff="monospace">{collectorId}</Text>
+                        </Box>
+                      </Group>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Card>
+            )}
           </Stack>
         </Tabs.Panel>
 
-        {/* Health Tab */}
-        <Tabs.Panel value="health" pt="xl">
-          <Stack gap="xl">
-            <SourceHealthMonitor 
-              sourceId={sourceId || ''}
-              autoRefresh={true}
-              refreshInterval={7200000}
-            />
-          </Stack>
-        </Tabs.Panel>
+
 
         {/* Analytics Tab */}
         <Tabs.Panel value="analytics" pt="xl">
           <Stack gap="xl">
-            <Card withBorder>
-              <Stack gap="md" align="center" py="xl">
-                <IconChartBar size={64} color="#ccc" />
-                <Title order={4} c="dimmed">Source Analytics</Title>
-                <Text size="lg" c="dimmed" ta="center">
-                  Comprehensive analytics and performance metrics for this source
-                </Text>
-                <Text size="sm" c="dimmed" ta="center">
-                  This feature will provide detailed usage statistics, performance analysis, 
-                  and trend data when the analytics API endpoints are implemented.
-                </Text>
-              </Stack>
-            </Card>
+            {analyticsLoading ? (
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <Loader size="lg" />
+                  <Text size="lg" c="dimmed">Loading analytics data...</Text>
+                </Stack>
+              </Card>
+            ) : analyticsData ? (
+              <>
+                {/* Flow Usage Analytics */}
+                <Card withBorder>
+                  <Title order={4} mb="md">Flow Usage Statistics</Title>
+                  <Grid>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="blue">
+                          {analyticsData.flowUsage.total_flows}
+                        </Text>
+                        <Text size="sm" c="dimmed">Total Flows</Text>
+                      </Paper>
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="green">
+                          {Math.round(analyticsData.flowUsage.average_flow_size / 1024 / 1024)} MB
+                        </Text>
+                        <Text size="sm" c="dimmed">Average Flow Size</Text>
+                      </Paper>
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="orange">
+                          {Math.round(analyticsData.flowUsage.estimated_storage_bytes / 1024 / 1024)} MB
+                        </Text>
+                        <Text size="sm" c="dimmed">Total Storage</Text>
+                      </Paper>
+                    </Grid.Col>
+                  </Grid>
+                  
+                  {analyticsData.flowUsage.format_distribution && (
+                    <Box mt="md">
+                      <Text size="sm" fw={500} mb="sm">Format Distribution</Text>
+                      <Group gap="xs">
+                        {Object.entries(analyticsData.flowUsage.format_distribution).map(([format, count]) => (
+                          <Badge key={format} size="lg" variant="light" color="blue">
+                            {format.split(':').pop()}: {count as number}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Box>
+                  )}
+                </Card>
+
+                {/* Storage Usage Analytics */}
+                {analyticsData.storageUsage && (
+                  <Card withBorder>
+                    <Title order={4} mb="md">Storage Usage Analysis</Title>
+                    <Text size="sm" c="dimmed">
+                      Storage usage patterns and access statistics from VAST TAMS backend.
+                    </Text>
+                    {/* Add more storage analytics when available */}
+                  </Card>
+                )}
+
+                {/* Time Range Analysis */}
+                {analyticsData.timeRangeAnalysis && (
+                  <Card withBorder>
+                    <Title order={4} mb="md">Time Range Patterns</Title>
+                    <Text size="sm" c="dimmed">
+                      Time range patterns and duration analysis from VAST TAMS backend.
+                    </Text>
+                    {/* Add more time range analytics when available */}
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <IconChartBar size={64} color="#ccc" />
+                  <Title order={4} c="dimmed">Analytics Unavailable</Title>
+                  <Text size="lg" c="dimmed" ta="center">
+                    Unable to load analytics data from VAST TAMS backend
+                  </Text>
+                  <Button 
+                    variant="light" 
+                    onClick={loadAnalytics}
+                    loading={analyticsLoading}
+                  >
+                    Retry
+                  </Button>
+                </Stack>
+              </Card>
+            )}
           </Stack>
         </Tabs.Panel>
 
         {/* Configuration Tab */}
         <Tabs.Panel value="configuration" pt="xl">
           <Stack gap="xl">
-            <SourceConfigManager 
-              sourceId={sourceId || ''}
-              onConfigChange={(config) => {
-                console.log('Source configuration updated:', config);
-                // In a real implementation, this would update the source
-              }}
-            />
-          </Stack>
-        </Tabs.Panel>
-
-        {/* History Tab */}
-        <Tabs.Panel value="history" pt="xl">
-          <Stack gap="xl">
+            {configError && (
+              <Alert 
+                icon={<IconAlertCircle size={16} />} 
+                color="red" 
+                title="Configuration Error"
+                withCloseButton
+                onClose={() => setConfigError(null)}
+              >
+                {configError}
+              </Alert>
+            )}
+            
             <Card withBorder>
-              <Stack gap="md" align="center" py="xl">
-                <IconCalendar size={64} color="#ccc" />
-                <Title order={4} c="dimmed">Source History</Title>
-                <Text size="lg" c="dimmed" ta="center">
-                  Complete history and audit trail for this source
-                </Text>
-                <Text size="sm" c="dimmed" ta="center">
-                  This feature will show the complete history of changes, 
-                  modifications, and events related to this source when the history API is implemented.
-                </Text>
+              <Title order={4} mb="md">Source Configuration</Title>
+              <Text size="sm" c="dimmed" mb="lg">
+                Update source metadata using VAST TAMS API endpoints
+              </Text>
+              
+              <Stack gap="md">
+                {/* Label Configuration */}
+                <Paper withBorder p="md">
+                  <Group justify="space-between" align="flex-start">
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={500} mb="xs">Label</Text>
+                      <Text size="sm" c="dimmed" mb="sm">
+                        Human-readable name for this source
+                      </Text>
+                      <Text size="sm" ff="monospace" c="dimmed">
+                        Current: {source?.label || 'No label set'}
+                      </Text>
+                    </Box>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        const newLabel = prompt('Enter new label:', source?.label || '');
+                        if (newLabel !== null && newLabel !== source?.label) {
+                          updateSourceConfig('label', newLabel);
+                        }
+                      }}
+                      loading={configLoading}
+                    >
+                      Update Label
+                    </Button>
+                  </Group>
+                </Paper>
+
+                {/* Description Configuration */}
+                <Paper withBorder p="md">
+                  <Group justify="space-between" align="flex-start">
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={500} mb="xs">Description</Text>
+                      <Text size="sm" c="dimmed" mb="sm">
+                        Detailed description of this source
+                      </Text>
+                      <Text size="sm" ff="monospace" c="dimmed">
+                        Current: {source?.description || 'No description set'}
+                      </Text>
+                    </Box>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        const newDescription = prompt('Enter new description:', source?.description || '');
+                        if (newDescription !== null && newDescription !== source?.description) {
+                          updateSourceConfig('description', newDescription);
+                        }
+                      }}
+                      loading={configLoading}
+                    >
+                      Update Description
+                    </Button>
+                  </Group>
+                </Paper>
+
+                {/* Tags Configuration */}
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="xs">Tags</Text>
+                  <Text size="sm" c="dimmed" mb="sm">
+                    Key-value metadata tags for this source
+                  </Text>
+                  
+                  {source?.tags && Object.keys(source.tags).length > 0 ? (
+                    <Stack gap="xs">
+                      {Object.entries(source.tags).map(([key, value]) => (
+                        <Group key={key} justify="space-between" align="center">
+                          <Badge variant="light" color="blue">
+                            {key}: {value}
+                          </Badge>
+                          <Button
+                            variant="subtle"
+                            color="red"
+                            size="xs"
+                            onClick={() => {
+                              if (confirm(`Delete tag "${key}"?`)) {
+                                // TODO: Implement tag deletion via VAST TAMS API
+                                console.log('Delete tag:', key);
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </Group>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Text size="sm" c="dimmed">No tags configured</Text>
+                  )}
+                  
+                  <Button
+                    variant="light"
+                    size="sm"
+                    mt="sm"
+                    onClick={() => {
+                      const key = prompt('Enter tag key:');
+                      const value = prompt('Enter tag value:');
+                      if (key && value) {
+                        // TODO: Implement tag addition via VAST TAMS API
+                        console.log('Add tag:', key, value);
+                      }
+                    }}
+                    loading={configLoading}
+                  >
+                    Add Tag
+                  </Button>
+                </Paper>
+
+                {/* Format Information (Read-only) */}
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="xs">Format</Text>
+                  <Text size="sm" c="dimmed" mb="sm">
+                    Media format type (read-only)
+                  </Text>
+                  <Group gap="sm">
+                    {getFormatIcon(source?.format || '')}
+                    <Text>{getFormatLabel(source?.format || '')}</Text>
+                    <Badge variant="light" color="gray">
+                      {source?.format}
+                    </Badge>
+                  </Group>
+                </Paper>
               </Stack>
             </Card>
           </Stack>
         </Tabs.Panel>
+
+
       </Tabs>
 
       {/* Delete Confirmation Modal */}

@@ -23,7 +23,8 @@ import {
   Modal,
   Textarea,
   Code,
-  Image
+  Image,
+  Table
 } from '@mantine/core';
 import { 
   IconSearch, 
@@ -32,6 +33,7 @@ import {
   IconTag, 
   IconFilter,
   IconInfoCircle,
+  IconAlertCircle,
   IconArrowRight,
   IconVideo,
   IconBrain,
@@ -53,7 +55,7 @@ import {
   IconTrash,
   IconPlayerPlay
 } from '@tabler/icons-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { BBCApiOptions } from '../services/api';
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import BBCPagination from '../components/BBCPagination';
@@ -61,53 +63,44 @@ import VideoPlayer from '../components/VideoPlayer';
 import FlowAdvancedSearch, { FlowAdvancedSearchFilters } from '../components/FlowAdvancedSearch';
 import { 
   performSearch, 
-  getFootballGames, 
   SearchQuery, 
   SearchResult, 
   SearchResponse 
 } from '../services/searchService';
 
-// Enhanced search interface with BBC TAMS compliance
-interface EnhancedSearchOptions extends BBCApiOptions {
+// Simplified search interface aligned with VAST TAMS API
+interface TAMSSearchOptions {
   query: string;
-  searchMode: 'basic' | 'advanced' | 'flow' | 'ai';
-  searchStrategy: {
-    sources: boolean;
-    flows: boolean;
-    segments: boolean;
-    searchOrder: 'bbc-tams' | 'custom';
-    customOrder?: ('sources' | 'flows' | 'segments')[];
-    deduplication: boolean;
-    relationshipMapping: boolean;
+  searchType: 'sources' | 'flows' | 'segments';
+  filters: {
+    // Sources filters
+    label?: string;
+    format?: string;
+    
+    // Flows filters  
+    source_id?: string;
+    timerange?: string;
+    codec?: string;
+    frame_width?: number;
+    frame_height?: number;
+    
+    // Tag filters (for all types)
+    tags?: Record<string, string>;
+    tagExists?: Record<string, boolean>;
+    
+    // Pagination
+    page?: string;
+    limit?: number;
   };
-  aiSearchEnabled: boolean;
-  aiConfidence: number;
-  playerNumber?: string;
-  playerName?: string;
-  team?: string;
-  eventType?: string;
-  timerange?: string;
-  savedQueries: any[];
 }
 
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
-  const [searchMode, setSearchMode] = useState<'basic' | 'advanced' | 'flow' | 'ai'>(
-    (searchParams.get('searchMode') as 'basic' | 'advanced' | 'flow' | 'ai') || 'advanced'
+  const [searchType, setSearchType] = useState<'sources' | 'flows' | 'segments'>(
+    (searchParams.get('searchType') as 'sources' | 'flows' | 'segments') || 'flows'
   );
-  const [playerNumber, setPlayerNumber] = useState(searchParams.get('playerNumber') || '');
-  const [playerName, setPlayerName] = useState(searchParams.get('playerName') || '');
-  const [team, setTeam] = useState(searchParams.get('team') || '');
-  const [eventType, setEventType] = useState<string | undefined>(searchParams.get('eventType') || undefined);
-  const [selectedGame, setSelectedGame] = useState<string | null>(searchParams.get('gameId') || '');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showSearchStrategy, setShowSearchStrategy] = useState(false);
-  const [aiSearchEnabled, setAiSearchEnabled] = useState(searchParams.get('aiSearchEnabled') === 'true');
-  const [aiConfidence, setAiConfidence] = useState(parseFloat(searchParams.get('aiConfidence') || '0.7'));
-  const [savedQueries, setSavedQueries] = useState<any[]>([]);
-  const [showQueryHistory, setShowQueryHistory] = useState(false);
-  const [savedFlowQueries, setSavedFlowQueries] = useState<Array<{ name: string; filters: FlowAdvancedSearchFilters }>>([]);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -117,206 +110,111 @@ export default function Search() {
   const [totalResults, setTotalResults] = useState(0);
   const [searchTime, setSearchTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [footballGames, setFootballGames] = useState<SearchResult[]>([]);
+
   const [selectedVideo, setSelectedVideo] = useState<SearchResult | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
-  // BBC TAMS Search Strategy
-  const [searchStrategy, setSearchStrategy] = useState(() => {
-    const strategyParam = searchParams.get('searchStrategy');
-    return strategyParam ? JSON.parse(strategyParam) : {
-      sources: true,
-      flows: true,
-      segments: true,
-      searchOrder: 'bbc-tams' as const,
-      deduplication: true,
-      relationshipMapping: true
-    };
+  // Search filters aligned with VAST TAMS API
+  const [filters, setFilters] = useState({
+    label: searchParams.get('label') || '',
+    format: searchParams.get('format') || '',
+    source_id: searchParams.get('source_id') || '',
+    timerange: searchParams.get('timerange') || '',
+    codec: searchParams.get('codec') || '',
+    frame_width: searchParams.get('frame_width') ? parseInt(searchParams.get('frame_width')!) : undefined,
+    frame_height: searchParams.get('frame_height') ? parseInt(searchParams.get('frame_height')!) : undefined,
+    tags: searchParams.get('tags') ? JSON.parse(searchParams.get('tags')!) : {},
+    tagExists: searchParams.get('tagExists') ? JSON.parse(searchParams.get('tagExists')!) : {},
+    tagName: searchParams.get('tagName') || '',
+    tagValue: searchParams.get('tagValue') || '',
+    page: searchParams.get('page') || '',
+    limit: parseInt(searchParams.get('limit') || '50')
   });
 
-  // BBC TAMS Advanced Filters
-  const [bbcFilters, setBbcFilters] = useState<BBCFilterPatterns>(() => {
-    return {
-      label: searchParams.get('label') || '',
-      format: searchParams.get('format') || '',
-      codec: searchParams.get('codec') || '',
-      tags: searchParams.get('tags') ? JSON.parse(searchParams.get('tags')!) : {},
-      tagExists: {},
-      timerange: searchParams.get('timerange') || '',
-      page: '',
-      limit: parseInt(searchParams.get('limit') || '50')
-    };
-  });
 
-  // Flow Advanced Search Filters
-  const [flowAdvancedFilters, setFlowAdvancedFilters] = useState<FlowAdvancedSearchFilters>(() => {
-    return {
-      query: searchParams.get('query') || '',
-      label: searchParams.get('label') || '',
-      description: searchParams.get('description') || '',
-      tags: searchParams.get('tags') ? JSON.parse(searchParams.get('tags')!) : {},
-      tagExists: {},
-      format: searchParams.get('format') || '',
-      codec: searchParams.get('codec') || '',
-      timerange: searchParams.get('timerange') || '',
-      startDate: null,
-      endDate: null,
-      startTime: '',
-      endTime: '',
-      duration: { min: null, max: null },
-      flowType: searchParams.get('flowType') || '',
-      status: searchParams.get('status') || '',
-      priority: searchParams.get('priority') || '',
-      segmentCount: { min: null, max: null },
-      hasSegments: searchParams.get('hasSegments') === 'true',
-      segmentTypes: searchParams.get('segmentTypes') ? JSON.parse(searchParams.get('segmentTypes')!) : [],
-      searchMode: (searchParams.get('searchMode') as 'exact' | 'fuzzy' | 'semantic') || 'fuzzy',
-      caseSensitive: searchParams.get('caseSensitive') === 'true',
-      includeArchived: searchParams.get('includeArchived') === 'true',
-      includeDeleted: searchParams.get('includeDeleted') === 'true',
-      page: searchParams.get('page') || '',
-      limit: parseInt(searchParams.get('limit') || '50')
-    };
-  });
-
-  // Event types for football
-  const eventTypes = [
-    { value: 'goal', label: 'Goal' },
-    { value: 'assist', label: 'Assist' },
-    { value: 'save', label: 'Save' },
-    { value: 'tackle', label: 'Tackle' },
-    { value: 'free_kick', label: 'Free Kick' },
-    { value: 'penalty', label: 'Penalty' },
-    { value: 'yellow_card', label: 'Yellow Card' },
-    { value: 'red_card', label: 'Red Card' }
-  ];
-
-  // Load football games on component mount
-  useEffect(() => {
-    loadFootballGames();
-  }, []);
-
-  // Load available football games from API
-  const loadFootballGames = async () => {
-    try {
-      const games = await getFootballGames();
-      setFootballGames(games);
-    } catch (error) {
-      console.error('Failed to load football games:', error);
-      // Keep existing mock games as fallback
-    }
-  };
 
   // Update URL parameters when search state changes
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('query', searchQuery);
-    if (searchMode) params.set('searchMode', searchMode);
-    if (aiSearchEnabled) params.set('aiSearchEnabled', 'true');
-    if (aiConfidence !== 0.7) params.set('aiConfidence', aiConfidence.toString());
-    if (playerNumber) params.set('playerNumber', playerNumber);
-    if (playerName) params.set('playerName', playerName);
-    if (team) params.set('team', team);
-    if (eventType) params.set('eventType', eventType);
-    if (selectedGame) params.set('gameId', selectedGame);
-    
-    // Add flow advanced filters to URL params
-    if (searchMode === 'flow') {
-      if (flowAdvancedFilters.timerange) params.set('timerange', flowAdvancedFilters.timerange);
-      if (flowAdvancedFilters.format) params.set('format', flowAdvancedFilters.format);
-      if (flowAdvancedFilters.codec) params.set('codec', flowAdvancedFilters.codec);
-      if (flowAdvancedFilters.flowType) params.set('flowType', flowAdvancedFilters.flowType);
-      if (flowAdvancedFilters.status) params.set('status', flowAdvancedFilters.status);
-      if (flowAdvancedFilters.priority) params.set('priority', flowAdvancedFilters.priority);
-      if (flowAdvancedFilters.hasSegments) params.set('hasSegments', 'true');
-      if (flowAdvancedFilters.segmentTypes.length > 0) params.set('segmentTypes', JSON.stringify(flowAdvancedFilters.segmentTypes));
-      if (flowAdvancedFilters.caseSensitive) params.set('caseSensitive', 'true');
-      if (flowAdvancedFilters.includeArchived) params.set('includeArchived', 'true');
-      if (flowAdvancedFilters.includeDeleted) params.set('includeDeleted', 'true');
-      if (flowAdvancedFilters.tags && Object.keys(flowAdvancedFilters.tags).length > 0) {
-        params.set('tags', JSON.stringify(flowAdvancedFilters.tags));
-      }
-    } else {
-      // Standard BBC filters
-      if (bbcFilters.timerange) params.set('timerange', bbcFilters.timerange);
-      if (bbcFilters.format) params.set('format', bbcFilters.format);
-      if (bbcFilters.codec) params.set('codec', bbcFilters.codec);
-      if (bbcFilters.tags && Object.keys(bbcFilters.tags).length > 0) {
-        params.set('tags', JSON.stringify(bbcFilters.tags));
+    if (searchType) params.set('searchType', searchType);
+    if (filters.label) params.set('label', filters.label);
+    if (filters.format) params.set('format', filters.format);
+    if (filters.source_id) params.set('source_id', filters.source_id);
+    if (filters.timerange) params.set('timerange', filters.timerange);
+    if (filters.codec) params.set('codec', filters.codec);
+    if (filters.frame_width) params.set('frame_width', filters.frame_width.toString());
+    if (filters.frame_height) params.set('frame_height', filters.frame_height.toString());
+    if (Object.keys(filters.tags).length > 0) {
+      try {
+        params.set('tags', JSON.stringify(filters.tags));
+      } catch (e) {
+        console.warn('Failed to serialize tags:', e);
       }
     }
-    
-    params.set('searchStrategy', JSON.stringify(searchStrategy));
+    if (Object.keys(filters.tagExists).length > 0) {
+      try {
+        params.set('tagExists', JSON.stringify(filters.tagExists));
+      } catch (e) {
+        console.warn('Failed to serialize tagExists:', e);
+      }
+    }
+    if (filters.tagName) params.set('tagName', filters.tagName);
+    if (filters.tagValue) params.set('tagValue', filters.tagValue);
+    if (filters.page) params.set('page', filters.page);
+    if (filters.limit !== 50) params.set('limit', filters.limit.toString());
     
     setSearchParams(params, { replace: true });
-  }, [searchQuery, searchMode, aiSearchEnabled, aiConfidence, playerNumber, playerName, team, eventType, selectedGame, bbcFilters, flowAdvancedFilters, searchStrategy, setSearchParams]);
+  }, [searchQuery, searchType, filters, setSearchParams]);
 
   // Handle search submission
   const handleSearch = async () => {
-    if (!searchQuery.trim() && searchMode !== 'flow') return;
+    if (!isSearchReady) return;
     
     setShowResults(true);
     setLoading(true);
     setError(null);
     
     try {
-      // Build search query based on mode
-      let searchQueryData: SearchQuery;
-      
-      if (searchMode === 'flow') {
-        // Use flow advanced filters for flow search
-        searchQueryData = {
-          query: flowAdvancedFilters.query || searchQuery,
-          searchMode: 'flow',
-          aiSearchEnabled: false,
-          aiConfidence: 0.7,
-          playerNumber: '',
-          playerName: '',
-          team: '',
-          eventType: undefined,
-          timerange: flowAdvancedFilters.timerange,
-          format: flowAdvancedFilters.format,
-          codec: flowAdvancedFilters.codec,
-          searchStrategy: {
-            ...searchStrategy,
-            flows: true,
-            segments: true,
-            sources: false // Focus on flows and segments for flow search
-          }
-        };
-      } else {
-        // Use standard search for other modes
-        searchQueryData = {
-          query: searchQuery,
-          searchMode,
-          aiSearchEnabled,
-          aiConfidence,
-          playerNumber,
-          playerName,
-          team,
-          eventType,
-          timerange: bbcFilters.timerange,
-          format: bbcFilters.format,
-          codec: bbcFilters.codec,
-          searchStrategy
+      // Build search query based on VAST TAMS API
+      const searchQueryData: SearchQuery = {
+        query: searchQuery,
+        searchMode: searchType === 'sources' ? 'basic' : 'flow',
+        aiSearchEnabled: false,
+        aiConfidence: 0.7,
+        // playerNumber: '', // Not used in simplified version
+        // playerName: '', // Not used in simplified version
+        // team: '', // Not used in simplified version
+        // eventType: filters.format, // Not supported in SearchQuery interface
+        timerange: filters.timerange,
+        format: filters.format,
+        codec: filters.codec,
+        searchStrategy: {
+          sources: searchType === 'sources',
+          flows: searchType === 'flows',
+          segments: searchType === 'segments',
+          searchOrder: 'bbc-tams',
+          deduplication: true,
+          relationshipMapping: true
+        }
+      };
+
+      // Add tag filtering if tagName and tagValue are provided
+      if (filters.tagName && filters.tagValue) {
+        searchQueryData.searchStrategy = {
+          ...searchQueryData.searchStrategy,
+          // This will be handled in the searchService to add tag.* parameters
         };
       }
 
-      // Perform real search
+      console.log('🔍 Search Component: About to call performSearch with:', searchQueryData);
       const searchResponse = await performSearch(searchQueryData, currentPage, itemsPerPage);
+      
+      console.log('🔍 Search Component: Received search response:', searchResponse);
       
       setSearchResults(searchResponse.results);
       setTotalResults(searchResponse.totalResults);
       setSearchTime(searchResponse.searchTime);
-      
-      console.log('Search completed:', searchResponse);
-      
-      // Debug: Log video URLs for debugging
-      searchResponse.results.forEach((result, index) => {
-        if (result.previewUrl) {
-          console.log(`Result ${index + 1} (${result.type}): ${result.previewUrl}`);
-        }
-      });
       
     } catch (error) {
       console.error('Search failed:', error);
@@ -327,63 +225,6 @@ export default function Search() {
       setLoading(false);
     }
   };
-
-  // Handle quick search examples
-  const handleQuickSearch = (example: string) => {
-    setSearchQuery(example);
-    setPlayerNumber('19');
-    setPlayerName('Marcus Rashford');
-    setTeam('Manchester United');
-    setEventType('goal');
-    setSelectedGame('game-001');
-    setSearchMode('ai');
-    setAiSearchEnabled(true);
-    setShowResults(true);
-    
-    // Auto-trigger search for quick examples
-    setTimeout(() => {
-      handleSearch();
-    }, 100);
-  };
-
-  // Save current search query
-  const handleSaveQuery = useCallback(() => {
-    const queryToSave = {
-      id: Date.now().toString(),
-      name: `Search ${new Date().toLocaleString()}`,
-      query: searchQuery,
-      filters: {
-        playerNumber,
-        playerName,
-        team,
-        eventType,
-        selectedGame,
-        bbcFilters,
-        searchStrategy
-      },
-      searchMode,
-      aiSearchEnabled,
-      aiConfidence,
-      timestamp: new Date().toISOString()
-    };
-    setSavedQueries(prev => [...prev, queryToSave]);
-  }, [searchQuery, playerNumber, playerName, team, eventType, selectedGame, bbcFilters, searchStrategy, searchMode, aiSearchEnabled, aiConfidence]);
-
-  // Load saved query
-  const handleLoadQuery = useCallback((query: any) => {
-    setSearchQuery(query.query);
-    setPlayerNumber(query.filters.playerNumber || '');
-    setPlayerName(query.filters.playerName || '');
-    setTeam(query.filters.team || '');
-    setEventType(query.filters.eventType || '');
-    setSelectedGame(query.filters.selectedGame || '');
-    setBbcFilters(query.filters.bbcFilters || {});
-    setSearchStrategy(query.filters.searchStrategy || searchStrategy);
-    setSearchMode(query.searchMode || 'advanced');
-    setAiSearchEnabled(query.aiSearchEnabled || true);
-    setAiConfidence(query.aiConfidence || 0.7);
-    setShowResults(true);
-  }, [searchStrategy]);
 
   // Handle result selection
   const toggleResultSelection = (resultId: string) => {
@@ -402,7 +243,7 @@ export default function Search() {
     setCurrentPage(pageNum);
     
     // Re-run search with new page
-    if (showResults && searchQuery.trim()) {
+    if (showResults && isSearchReady) {
       handleSearch();
     }
   };
@@ -413,7 +254,7 @@ export default function Search() {
     setCurrentPage(1);
     
     // Re-run search with new limit
-    if (showResults && searchQuery.trim()) {
+    if (showResults && isSearchReady) {
       handleSearch();
     }
   };
@@ -425,6 +266,19 @@ export default function Search() {
       setShowVideoPlayer(true);
     } else {
       alert(`Preview: ${result.title}\nDuration: ${result.timing.duration}s\nNo preview URL available`);
+    }
+  };
+
+  const handleResultClick = (result: SearchResult) => {
+    // Navigate to the appropriate detail page based on result type
+    if (result.type === 'source') {
+      navigate(`/sources/${result.id}`);
+    } else if (result.type === 'flow') {
+      navigate(`/flows/${result.id}`);
+    } else if (result.type === 'segment') {
+      // For segments, we'll navigate to the flows page since we don't have flowId
+      // Users can then find the specific flow that contains this segment
+      navigate('/flows');
     }
   };
 
@@ -444,85 +298,104 @@ export default function Search() {
   const mockPaginationMeta = {
     limit: itemsPerPage,
     count: totalResults,
-    timerange: '0:0_90:0', // 90 minutes game
+    timerange: '0:0_90:0', // 90 minutes
     reverseOrder: false
   };
 
   // Check if search is ready
-  const isSearchReady = searchMode === 'flow' || searchQuery.trim().length > 0;
+  const isSearchReady = searchQuery.trim().length > 0 || 
+                       filters.label.trim().length > 0 || 
+                       filters.format.trim().length > 0 ||
+                       filters.source_id.trim().length > 0 ||
+                       filters.timerange.trim().length > 0 ||
+                       filters.codec.trim().length > 0 ||
+                       filters.tagName.trim().length > 0 ||
+                       filters.tagValue.trim().length > 0 ||
+                       Object.keys(filters.tags).length > 0;
 
   return (
-    <Container size="xl" px="xl" py="xl" className="dark-bg-primary">
+    <Container size="xl" px="xl" py="xl">
       <Stack gap="xl">
-        {/* Header */}
-        <Box ta="center">
-          <Title order={1} mb="md" className="dark-text-primary" style={{ fontSize: rem(48), fontWeight: 700 }}>
-            Advanced Content Discovery
-          </Title>
-          <Text size="lg" className="dark-text-secondary" style={{ maxWidth: '600px', margin: '0 auto' }}>
-            Search across football content using TAMS v6.0 API with AI-powered discovery and advanced filtering
-          </Text>
-        </Box>
+        {/* Title and Header */}
+        <Group justify="space-between" mb="lg">
+          <Box>
+            <Title order={2}>Content Discovery</Title>
+            <Text c="dimmed" size="sm" mt="xs">
+              Search across Sources, Flows, and Segments using VAST TAMS API
+            </Text>
+          </Box>
+          <Group>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => {
+                setError(null);
+                if (isSearchReady) {
+                  handleSearch();
+                }
+              }}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Group>
+        </Group>
 
-        {/* Search Mode Selection */}
+        {/* Error Alert */}
+        {error && (
+          <Alert 
+            icon={<IconAlertCircle size={16} />} 
+            color="red" 
+            title="Search Error"
+            withCloseButton
+            onClose={() => setError(null)}
+            mb="md"
+          >
+            {error}
+          </Alert>
+        )}
+
+        {/* VAST TAMS Info */}
+        {!error && (
+          <Alert 
+            icon={<IconInfoCircle size={16} />} 
+            color="blue" 
+            title="What is Search in TAMS?"
+            mb="md"
+          >
+            <Text size="sm" mb="xs">
+              <strong>Search</strong> is the content discovery engine in the TAMS system - it allows you to find and explore 
+              sources, flows, and segments across your entire media library using powerful filtering and query capabilities.
+            </Text>
+            <Text size="sm" mb="xs">
+              You can search by text, filter by format, codec, time ranges, tags, and technical specifications. 
+              Search helps you quickly locate specific content and understand relationships between different media objects.
+            </Text>
+          </Alert>
+        )}
+
+
+        {/* Search Type Selection */}
         <Card withBorder p="lg" radius="lg" shadow="sm" className="search-interface">
           <Stack gap="md">
             <Box>
-              <Title order={4} mb="xs" className="dark-text-primary">Search Mode</Title>
-              <Text size="sm" className="dark-text-secondary">Choose your search approach</Text>
+              <Title order={4} mb="xs" className="dark-text-primary">Search Type</Title>
+              <Text size="sm" className="dark-text-secondary">Choose what type of content to search</Text>
             </Box>
             
-            <Tabs value={searchMode} onChange={(value) => setSearchMode(value as 'basic' | 'advanced' | 'flow' | 'ai')}>
+            <Tabs value={searchType} onChange={(value) => setSearchType(value as 'sources' | 'flows' | 'segments')}>
               <Tabs.List>
-                <Tabs.Tab value="basic" leftSection={<IconSearch size={16} />}>
-                  Basic Search
+                <Tabs.Tab value="sources" leftSection={<IconDatabase size={16} />}>
+                  Sources
                 </Tabs.Tab>
-                <Tabs.Tab value="advanced" leftSection={<IconFilter size={16} />}>
-                  Advanced Filters
+                <Tabs.Tab value="flows" leftSection={<IconVideo size={16} />}>
+                  Flows
                 </Tabs.Tab>
-                <Tabs.Tab value="flow" leftSection={<IconDatabase size={16} />}>
-                  Flow & Segment Search
-                </Tabs.Tab>
-                <Tabs.Tab value="ai" leftSection={<IconBrain size={16} />}>
-                  AI Discovery
+                <Tabs.Tab value="segments" leftSection={<IconTarget size={16} />}>
+                  Segments
                 </Tabs.Tab>
               </Tabs.List>
             </Tabs>
-
-            {/* AI Search Configuration */}
-            {searchMode === 'ai' && (
-              <Card withBorder p="md" radius="md" className="dark-modal">
-                <Stack gap="md">
-                  <Group justify="space-between">
-                    <Text fw={500} className="dark-text-primary">AI-Powered Search</Text>
-                    <Switch
-                      checked={aiSearchEnabled}
-                      onChange={(event) => setAiSearchEnabled(event.currentTarget.checked)}
-                      label="Enable AI Search"
-                    />
-                  </Group>
-                  
-                  {aiSearchEnabled && (
-                    <Box>
-                      <Text size="sm" mb="xs" className="dark-text-secondary">AI Confidence Threshold</Text>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="1.0"
-                        step="0.1"
-                        value={aiConfidence}
-                        onChange={(e) => setAiConfidence(parseFloat(e.target.value))}
-                        style={{ width: '100%' }}
-                        className="dark-video-timeline"
-                      />
-                      <Text size="xs" className="dark-text-tertiary" ta="center">
-                        {Math.round(aiConfidence * 100)}% confidence
-                      </Text>
-                    </Box>
-                  )}
-                </Stack>
-              </Card>
-            )}
           </Stack>
         </Card>
 
@@ -530,370 +403,302 @@ export default function Search() {
         <Card withBorder p="xl" radius="lg" shadow="sm" className="search-interface">
           <Stack gap="lg">
             <Box ta="center">
-              <Title order={3} mb="xs" className="dark-text-primary">Find Football Moments</Title>
-              <Text className="dark-text-secondary">Search for specific players, events, or time ranges</Text>
+              <Title order={3} mb="xs" className="dark-text-primary">Search {searchType.charAt(0).toUpperCase() + searchType.slice(1)}</Title>
+              <Text className="dark-text-secondary">
+                {searchType === 'sources' && 'Search for media sources by label and format'}
+                {searchType === 'flows' && 'Search for media flows with time range and format filtering'}
+                {searchType === 'segments' && 'Search for media segments within specific time ranges'}
+              </Text>
             </Box>
 
             {/* Search Input */}
             <TextInput
               size="lg"
-              placeholder="e.g., Show me all times when player number 19 was visible"
+              placeholder={`Search ${searchType}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftSection={<IconSearch size={20} />}
               className="search-input"
               rightSection={
-                <Group gap="xs">
-                  <Button
-                    variant="light"
-                    size="sm"
-                    onClick={() => setShowQueryHistory(true)}
-                    leftSection={<IconHistory size={16} />}
-                    className="dark-button"
-                  >
-                    History
-                  </Button>
-                  <Button
-                    variant="filled"
-                    size="sm"
-                    onClick={handleSearch}
-                    disabled={!isSearchReady || loading}
-                    loading={loading}
-                    rightSection={<IconArrowRight size={16} />}
-                    className="dark-button primary"
-                  >
-                    {loading ? 'Searching...' : (searchMode === 'flow' ? 'Search Flows' : 'Search')}
-                  </Button>
-                </Group>
+                <Button
+                  variant="filled"
+                  size="sm"
+                  onClick={handleSearch}
+                  disabled={!isSearchReady || loading}
+                  loading={loading}
+                  rightSection={<IconArrowRight size={16} />}
+                  className="dark-button primary"
+                >
+                  {loading ? 'Searching...' : 'Search'}
+                </Button>
               }
             />
 
-            {/* Basic Search Options */}
-            {searchMode === 'basic' && (
+            {/* Search Filters */}
+            <Grid gutter="md">
+              {/* Common filters */}
+              <Grid.Col span={4}>
+                <TextInput
+                  label="Label"
+                  placeholder="Filter by label"
+                  value={filters.label}
+                  onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
+                  leftSection={<IconTag size={16} />}
+                />
+              </Grid.Col>
+              
+              <Grid.Col span={4}>
+                <Select
+                  label="Format"
+                  placeholder="Select format"
+                  data={[
+                    { value: 'urn:x-nmos:format:video', label: 'Video' },
+                    { value: 'urn:x-nmos:format:audio', label: 'Audio' },
+                    { value: 'urn:x-nmos:format:data', label: 'Data' },
+                    { value: 'urn:x-nmos:format:mux', label: 'Mux' }
+                  ]}
+                  value={filters.format || null}
+                  onChange={(value) => setFilters(prev => ({ ...prev, format: value || '' }))}
+                  leftSection={<IconFilter size={16} />}
+                  clearable
+                />
+              </Grid.Col>
+
+              {/* Flow-specific filters */}
+              {searchType === 'flows' && (
+                <>
+                  <Grid.Col span={4}>
+                    <TextInput
+                      label="Source ID"
+                      placeholder="Enter source ID"
+                      value={filters.source_id}
+                      onChange={(e) => setFilters(prev => ({ ...prev, source_id: e.target.value }))}
+                      leftSection={<IconDatabase size={16} />}
+                    />
+                  </Grid.Col>
+                  
+                  <Grid.Col span={4}>
+                    <TextInput
+                      label="Time Range"
+                      placeholder="e.g., [0:0_10:0)"
+                      value={filters.timerange}
+                      onChange={(e) => setFilters(prev => ({ ...prev, timerange: e.target.value }))}
+                      leftSection={<IconClock size={16} />}
+                    />
+                  </Grid.Col>
+                  
+                  <Grid.Col span={4}>
+                    <Select
+                      label="Codec"
+                      placeholder="Select codec"
+                      data={[
+                        { value: 'urn:x-nmos:codec:h264', label: 'H.264' },
+                        { value: 'urn:x-nmos:codec:prores', label: 'ProRes' },
+                        { value: 'urn:x-nmos:codec:dnxhd', label: 'DNxHD' },
+                        { value: 'urn:x-nmos:codec:mjpeg', label: 'MJPEG' }
+                      ]}
+                      value={filters.codec || null}
+                      onChange={(value) => setFilters(prev => ({ ...prev, codec: value || '' }))}
+                      leftSection={<IconVideo size={16} />}
+                      clearable
+                    />
+                  </Grid.Col>
+                  
+                  <Grid.Col span={3}>
+                    <TextInput
+                      label="Frame Width"
+                      placeholder="e.g., 1920"
+                      type="number"
+                      value={filters.frame_width || ''}
+                      onChange={(e) => setFilters(prev => ({ ...prev, frame_width: e.target.value ? parseInt(e.target.value) : undefined }))}
+                      leftSection={<IconVideo size={16} />}
+                    />
+                  </Grid.Col>
+                  
+                  <Grid.Col span={3}>
+                    <TextInput
+                      label="Frame Height"
+                      placeholder="e.g., 1080"
+                      type="number"
+                      value={filters.frame_height || ''}
+                      onChange={(e) => setFilters(prev => ({ ...prev, frame_height: e.target.value ? parseInt(e.target.value) : undefined }))}
+                      leftSection={<IconVideo size={16} />}
+                    />
+                  </Grid.Col>
+                </>
+              )}
+
+              {/* Segment-specific filters */}
+              {searchType === 'segments' && (
+                <Grid.Col span={4}>
+                  <TextInput
+                    label="Time Range"
+                    placeholder="e.g., [0:0_10:0)"
+                    value={filters.timerange}
+                    onChange={(e) => setFilters(prev => ({ ...prev, timerange: e.target.value }))}
+                    leftSection={<IconClock size={16} />}
+                  />
+                </Grid.Col>
+              )}
+            </Grid>
+
+            {/* Tag Filters */}
+            <Box>
+              <Text fw={500} mb="xs" className="dark-text-primary">Tag Filters</Text>
+              <Text size="sm" mb="sm" className="dark-text-secondary">
+                Add custom tags to filter results (e.g., category, organization, etc.)
+              </Text>
               <Grid gutter="md">
-                <Grid.Col span={3}>
+                <Grid.Col span={6}>
                   <TextInput
-                    label="Player Number"
-                    placeholder="e.g., 19"
-                    value={playerNumber}
-                    onChange={(e) => setPlayerNumber(e.target.value)}
-                    leftSection={<IconUser size={16} />}
+                    label="Tag Name"
+                    placeholder="e.g., category"
+                    value={filters.tagName || ''}
+                    onChange={(e) => setFilters(prev => ({ ...prev, tagName: e.target.value }))}
                   />
                 </Grid.Col>
-                <Grid.Col span={3}>
+                <Grid.Col span={6}>
                   <TextInput
-                    label="Player Name"
-                    placeholder="e.g., Marcus Rashford"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    leftSection={<IconUser size={16} />}
-                  />
-                </Grid.Col>
-                <Grid.Col span={3}>
-                  <TextInput
-                    label="Team"
-                    placeholder="e.g., Manchester United"
-                    value={team}
-                    onChange={(e) => setTeam(e.target.value)}
-                    leftSection={<IconTag size={16} />}
-                  />
-                </Grid.Col>
-                <Grid.Col span={3}>
-                  <Select
-                    label="Event Type"
-                    placeholder="Select event"
-                    data={eventTypes}
-                    value={eventType || null}
-                    onChange={(value) => setEventType(value || undefined)}
-                    leftSection={<IconFilter size={16} />}
-                    clearable
+                    label="Tag Value"
+                    placeholder="e.g., sports"
+                    value={filters.tagValue || ''}
+                    onChange={(e) => setFilters(prev => ({ ...prev, tagValue: e.target.value }))}
                   />
                 </Grid.Col>
               </Grid>
-            )}
-
-            {/* Advanced Filters */}
-            {searchMode === 'advanced' && (
-              <Box>
-                <Button
-                  variant="light"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  leftSection={<IconFilter size={16} />}
-                  mb="md"
-                >
-                  {showAdvancedFilters ? 'Hide' : 'Show'} Advanced TAMS Filters
-                </Button>
-                
-                <Collapse in={showAdvancedFilters}>
-                  <BBCAdvancedFilter
-                    filters={bbcFilters}
-                    onFiltersChange={setBbcFilters}
-                    onReset={() => setBbcFilters({
-                      label: '',
-                      format: '',
-                      codec: '',
-                      tags: {},
-                      tagExists: {},
-                      timerange: '',
-                      page: '',
-                      limit: 50
-                    })}
-                    onApply={() => console.log('Applying BBC filters:', bbcFilters)}
-                  />
-                </Collapse>
-              </Box>
-            )}
-
-            {/* Flow Advanced Search */}
-            {searchMode === 'flow' && (
-              <FlowAdvancedSearch
-                filters={flowAdvancedFilters}
-                onFiltersChange={setFlowAdvancedFilters}
-                onSearch={handleSearch}
-                onReset={() => {
-                  setFlowAdvancedFilters({
-                    query: '',
-                    label: '',
-                    description: '',
-                    tags: {},
-                    tagExists: {},
-                    format: '',
-                    codec: '',
-                    timerange: '',
-                    startDate: null,
-                    endDate: null,
-                    startTime: '',
-                    endTime: '',
-                    duration: { min: null, max: null },
-                    flowType: '',
-                    status: '',
-                    priority: '',
-                    segmentCount: { min: null, max: null },
-                    hasSegments: false,
-                    segmentTypes: [],
-                    searchMode: 'fuzzy',
-                    caseSensitive: false,
-                    includeArchived: false,
-                    includeDeleted: false,
-                    page: '',
-                    limit: 50
-                  });
-                }}
-                onSaveQuery={(name, filters) => {
-                  setSavedFlowQueries(prev => [...prev, { name, filters }]);
-                }}
-                onLoadQuery={(name) => {
-                  const query = savedFlowQueries.find(q => q.name === name);
-                  if (query) {
-                    setFlowAdvancedFilters(query.filters);
-                  }
-                }}
-                savedQueries={savedFlowQueries}
-                loading={loading}
-                showAdvanced={true}
-                onToggleAdvanced={() => {}}
-              />
-            )}
-
-            {/* Search Strategy Configuration */}
-            <Box>
-              <Button
-                variant="light"
-                onClick={() => setShowSearchStrategy(!showSearchStrategy)}
-                leftSection={<IconSettings size={16} />}
-                mb="md"
-              >
-                {showSearchStrategy ? 'Hide' : 'Show'} Search Strategy
-              </Button>
-              
-              <Collapse in={showSearchStrategy}>
-                <Card withBorder p="md" radius="md">
-                  <Stack gap="md">
-                    <Text fw={500}>TAMS Search Strategy</Text>
-                    
-                    <Grid gutter="md">
-                      <Grid.Col span={4}>
-                        <Switch
-                          label="Search Sources"
-                          checked={searchStrategy.sources}
-                          onChange={(event) => setSearchStrategy((prev: any) => ({ ...prev, sources: event.currentTarget.checked }))}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={4}>
-                        <Switch
-                          label="Search Flows"
-                          checked={searchStrategy.flows}
-                          onChange={(event) => setSearchStrategy((prev: any) => ({ ...prev, flows: event.currentTarget.checked }))}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={4}>
-                        <Switch
-                          label="Search Segments"
-                          checked={searchStrategy.segments}
-                          onChange={(event) => setSearchStrategy((prev: any) => ({ ...prev, segments: event.currentTarget.checked }))}
-                        />
-                      </Grid.Col>
-                    </Grid>
-
-                    <Grid gutter="md">
-                      <Grid.Col span={6}>
-                        <Switch
-                          label="Enable Deduplication"
-                          checked={searchStrategy.deduplication}
-                          onChange={(event) => setSearchStrategy((prev: any) => ({ ...prev, deduplication: event.currentTarget.checked }))}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={6}>
-                        <Switch
-                          label="Map Relationships"
-                          checked={searchStrategy.relationshipMapping}
-                          onChange={(event) => setSearchStrategy((prev: any) => ({ ...prev, relationshipMapping: event.currentTarget.checked }))}
-                        />
-                      </Grid.Col>
-                    </Grid>
-
-                    <Select
-                      label="Search Order"
-                      data={[
-                        { value: 'bbc-tams', label: 'TAMS Standard (Sources → Flows → Segments)' },
-                        { value: 'custom', label: 'Custom Order' }
-                      ]}
-                      value={searchStrategy.searchOrder}
-                      onChange={(value) => setSearchStrategy((prev: any) => ({ ...prev, searchOrder: value as 'bbc-tams' | 'custom' }))}
-                    />
-                  </Stack>
-                </Card>
-              </Collapse>
+              {(filters.tagName || filters.tagValue) && (
+                <Group gap="xs" mt="sm">
+                  <Badge variant="light" color="blue" size="sm">
+                    {filters.tagName}: {filters.tagValue}
+                  </Badge>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="red"
+                    onClick={() => setFilters(prev => ({ ...prev, tagName: '', tagValue: '' }))}
+                  >
+                    Clear
+                  </Button>
+                </Group>
+              )}
             </Box>
 
             {/* Quick Search Examples */}
             <Box>
               <Text fw={500} mb="xs" className="dark-text-primary">Quick Search Examples</Text>
               <Group gap="xs">
-                {searchMode === 'flow' ? (
+                {searchType === 'sources' && (
                   <>
                     <Button
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFlowAdvancedFilters(prev => ({
-                          ...prev,
-                          flowType: 'recorded',
-                          hasSegments: true,
-                          segmentTypes: ['video', 'highlight']
-                        }));
+                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:video' }));
+                        setSearchQuery('camera');
                       }}
                       className="dark-button"
                     >
-                      Recorded Flows with Video Segments
+                      Video Sources
                     </Button>
                     <Button
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFlowAdvancedFilters(prev => ({
-                          ...prev,
-                          status: 'active',
-                          priority: 'high'
-                        }));
+                        setFilters(prev => ({ ...prev, label: 'camera' }));
+                        setSearchQuery('');
                       }}
                       className="dark-button"
                     >
-                      Active High Priority Flows
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFlowAdvancedFilters(prev => ({
-                          ...prev,
-                          format: 'h264',
-                          duration: { min: 300, max: 3600 } // 5 min to 1 hour
-                        }));
-                      }}
-                      className="dark-button"
-                    >
-                      H.264 Flows (5min-1hr)
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => handleQuickSearch('Show me all times when player number 19 was visible')}
-                      className="dark-button"
-                    >
-                      Player 19 Highlights
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => handleQuickSearch('Find all goals scored by Marcus Rashford')}
-                      className="dark-button"
-                    >
-                      Rashford Goals
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => handleQuickSearch('Show Manchester United goals from January 2024')}
-                      className="dark-button"
-                    >
-                      Man U Goals
+                      Camera Sources
                     </Button>
                   </>
                 )}
-                <Button
-                  variant="light"
-                  size="sm"
-                  onClick={searchMode === 'flow' ? () => {
-                    setSavedFlowQueries(prev => [...prev, { 
-                      name: `Flow Search ${new Date().toLocaleString()}`, 
-                      filters: flowAdvancedFilters 
-                    }]);
-                  } : handleSaveQuery}
-                  leftSection={<IconBookmark size={16} />}
-                  className="dark-button success"
-                >
-                  Save Search
-                </Button>
+                {searchType === 'flows' && (
+                  <>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          format: 'urn:x-nmos:format:video',
+                          codec: 'urn:x-nmos:codec:h264'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      H.264 Video Flows
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          timerange: '[0:0_60:0)',
+                          format: 'urn:x-nmos:format:video'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      First Hour Video
+                    </Button>
+                  </>
+                )}
+                {searchType === 'segments' && (
+                  <>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          timerange: '[0:0_10:0)'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      First 10 Minutes
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          timerange: '[30:0_60:0)'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      30-60 Minutes
+                    </Button>
+                  </>
+                )}
               </Group>
             </Box>
           </Stack>
         </Card>
 
-        {/* Search Results - Inline */}
+        {/* Search Results */}
         {showResults && (
           <Card withBorder p="xl" radius="lg" shadow="sm" className="search-interface">
             <Stack gap="lg">
               {/* Results Header */}
               <Box>
-                <Group justify="space-between" align="flex-start">
-                  <Box>
-                    <Title order={3} mb="xs" className="dark-text-primary">Search Results</Title>
-                    <Text className="dark-text-secondary" size="sm">
-                      Found {totalResults} results
-                      {searchMode === 'flow' ? ' for flow search' : ` for "${searchQuery}"`}
-                      {searchTime > 0 && ` in ${searchTime}ms`}
-                    </Text>
-                    <Text size="xs" className="dark-text-tertiary" mt="xs">
-                      Search Mode: {searchMode} • AI: {aiSearchEnabled ? 'Enabled' : 'Disabled'}
-                      {aiSearchEnabled && ` • Confidence: ${Math.round(aiConfidence * 100)}%`}
-                      {searchMode === 'flow' && flowAdvancedFilters.flowType && ` • Type: ${flowAdvancedFilters.flowType}`}
-                      {searchMode === 'flow' && flowAdvancedFilters.status && ` • Status: ${flowAdvancedFilters.status}`}
-                      {searchMode === 'flow' && flowAdvancedFilters.hasSegments && ` • Has Segments: Yes`}
-                    </Text>
-                  </Box>
-                  <Button
-                    variant="light"
-                    size="sm"
-                    onClick={() => setShowResults(false)}
-                    className="dark-button"
-                  >
-                    Hide Results
-                  </Button>
-                </Group>
+                <Title order={3} mb="xs" className="dark-text-primary">Search Results</Title>
+                <Text className="dark-text-secondary" size="sm">
+                  Found {totalResults} {searchType}
+                  {searchQuery && ` for "${searchQuery}"`}
+                  {searchTime > 0 && ` in ${searchTime}ms`}
+                </Text>
+                <Badge variant="light" color="blue" size="sm" mt="xs">
+                  {searchType.toUpperCase()}
+                </Badge>
               </Box>
 
               {/* Error Display */}
@@ -914,7 +719,7 @@ export default function Search() {
               {/* Loading State */}
               {loading && (
                 <Box ta="center" py="xl">
-                  <Text>Searching TAMS API...</Text>
+                  <Text>Searching VAST TAMS API...</Text>
                 </Box>
               )}
 
@@ -930,9 +735,6 @@ export default function Search() {
                       <Text size="sm" c="dimmed">
                         {selectedResults.size} selected
                       </Text>
-                      <Button size="sm" variant="light" color="red">
-                        Delete Selected
-                      </Button>
                       <Button size="sm" variant="light">
                         Export Selected
                       </Button>
@@ -941,119 +743,135 @@ export default function Search() {
                 </Group>
               )}
 
-              {/* Search Results Grid */}
+              {/* Search Results Table */}
               {!loading && !error && (
-                <Grid gutter="md">
-                  {paginatedResults.map((result) => (
-                    <Grid.Col key={result.id} span={6}>
-                      <Card 
-                        withBorder 
-                        p="md" 
-                        radius="md"
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Content</Table.Th>
+                      <Table.Th>Type & Format</Table.Th>
+                      <Table.Th>Timing</Table.Th>
+                      <Table.Th>Metadata</Table.Th>
+                      <Table.Th>Actions</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {paginatedResults.map((result) => (
+                      <Table.Tr 
+                        key={result.id}
                         style={{ 
-                          borderColor: selectedResults.has(result.id) ? '#228be6' : undefined,
-                          borderWidth: selectedResults.has(result.id) ? '2px' : '1px'
+                          backgroundColor: selectedResults.has(result.id) ? 'var(--mantine-color-blue-0)' : undefined
                         }}
                       >
-                        <Stack gap="sm">
-                          {/* Result Header */}
-                          <Group justify="space-between" align="flex-start">
-                            <Box style={{ flex: 1 }}>
-                              <Text fw={500} size="sm" lineClamp={2}>
+                        <Table.Td>
+                          <Box>
+                            <Group gap="xs" align="center" mb="xs">
+                              <Text 
+                                fw={500} 
+                                size="sm"
+                                style={{ cursor: 'pointer', color: '#228be6' }}
+                                onClick={() => handleResultClick(result)}
+                              >
                                 {result.title}
                               </Text>
-                              <Text size="xs" c="dimmed" lineClamp={1}>
-                                {result.description}
-                              </Text>
-                              <Badge variant="light" color="gray" size="xs" mt="xs">
+                              <Badge variant="light" color="gray" size="xs">
                                 {result.type}
                               </Badge>
-                            </Box>
-                            <ActionIcon
-                              size="sm"
-                              variant="light"
-                              onClick={() => toggleResultSelection(result.id)}
-                              color={selectedResults.has(result.id) ? 'blue' : 'gray'}
-                            >
-                              <IconEye size={16} />
-                            </ActionIcon>
-                          </Group>
-
-                          {/* Game Info */}
-                          <Box>
-                            <Badge variant="light" color="blue" size="sm" mb="xs">
-                              {result.gameInfo.homeTeam} vs {result.gameInfo.awayTeam}
-                            </Badge>
-                            <Text size="xs" c="dimmed">
-                              {result.gameInfo.date} • {result.gameInfo.venue}
-                              {result.gameInfo.score && ` • ${result.gameInfo.score}`}
+                              {selectedResults.has(result.id) && (
+                                <Badge size="xs" color="blue">SELECTED</Badge>
+                              )}
+                            </Group>
+                            <Text size="xs" c="dimmed" lineClamp={2}>
+                              {result.description}
+                            </Text>
+                            <Text size="xs" c="dimmed" mt="xs">
+                              {result.contentInfo.category} • {result.contentInfo.contentType}
                             </Text>
                           </Box>
-
-                          {/* Player Info */}
-                          {result.playerInfo && (
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap="xs">
+                            <Badge variant="light" color="blue" size="sm">
+                              {result.metadata.format}
+                            </Badge>
+                            <Badge variant="light" color="green" size="sm">
+                              {result.metadata.quality}
+                            </Badge>
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs" align="center">
+                            <IconClock size={14} />
                             <Box>
-                              <Group gap="xs" wrap="wrap">
-                                <Badge variant="light" color="green" size="xs">
-                                  #{result.playerInfo.number} {result.playerInfo.name}
-                                </Badge>
-                                <Badge variant="light" color="gray" size="xs">
-                                  {result.playerInfo.position}
-                                </Badge>
-                              </Group>
-                            </Box>
-                          )}
-
-                          {/* Timing */}
-                          <Box>
-                            <Group gap="xs" align="center">
-                              <IconClock size={14} />
-                              <Text size="xs" c="dimmed">
-                                {result.timing.start} - {result.timing.end} ({formatDuration(result.timing.duration)})
+                              <Text size="xs" fw={500}>
+                                {formatDuration(result.timing.duration)}
                               </Text>
-                            </Group>
-                          </Box>
-
-                          {/* Metadata */}
-                          <Box>
-                            <Group gap="xs" wrap="wrap">
-                              <Badge variant="light" color="gray" size="xs">
-                                {result.metadata.format}
-                              </Badge>
-                              <Badge variant="light" color="gray" size="xs">
-                                {result.metadata.quality}
-                              </Badge>
-                              {Object.entries(result.metadata.tags).slice(0, 3).map(([key, value]) => (
-                                <Badge key={key} variant="light" color="gray" size="xs">
-                                  {key}: {String(value)}
-                                </Badge>
-                              ))}
-                            </Group>
-                          </Box>
-
-                          {/* Actions */}
-                          <Group gap="xs">
-                            <Button
-                              size="xs"
-                              variant="light"
-                              leftSection={<IconPlayerPlay size={14} />}
-                              onClick={() => handlePreview(result)}
-                            >
-                              Preview
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              leftSection={<IconEye size={14} />}
-                            >
-                              View Details
-                            </Button>
+                              <Text size="xs" c="dimmed">
+                                {result.timing.start} - {result.timing.end}
+                              </Text>
+                            </Box>
                           </Group>
-                        </Stack>
-                      </Card>
-                    </Grid.Col>
-                  ))}
-                </Grid>
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap="xs">
+                            {result.metadata.tags && Object.keys(result.metadata.tags).length > 0 && (
+                              <Group gap="xs" wrap="wrap">
+                                {Object.entries(result.metadata.tags).slice(0, 2).map(([key, value]) => (
+                                  <Badge key={key} variant="light" color="green" size="xs">
+                                    {key}: {String(value)}
+                                  </Badge>
+                                ))}
+                                {Object.keys(result.metadata.tags).length > 2 && (
+                                  <Badge variant="light" color="gray" size="xs">
+                                    +{Object.keys(result.metadata.tags).length - 2} more
+                                  </Badge>
+                                )}
+                              </Group>
+                            )}
+                            {result.contentInfo.venue && (
+                              <Badge variant="light" color="orange" size="xs">
+                                📍 {result.contentInfo.venue}
+                              </Badge>
+                            )}
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs">
+                            <Tooltip label="Select">
+                              <ActionIcon
+                                size="sm"
+                                variant="light"
+                                onClick={() => toggleResultSelection(result.id)}
+                                color={selectedResults.has(result.id) ? 'blue' : 'gray'}
+                              >
+                                <IconEye size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Preview">
+                              <ActionIcon
+                                size="sm"
+                                variant="light"
+                                onClick={() => handlePreview(result)}
+                                color="blue"
+                              >
+                                <IconPlayerPlay size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="View Details">
+                              <ActionIcon
+                                size="sm"
+                                variant="light"
+                                color="gray"
+                              >
+                                <IconEye size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
               )}
 
               {/* No Results */}
@@ -1069,7 +887,7 @@ export default function Search() {
                 </Card>
               )}
 
-              {/* BBC TAMS Pagination */}
+              {/* Pagination */}
               {!loading && !error && totalResults > 0 && (
                 <Card withBorder p="md">
                   <BBCPagination
@@ -1086,205 +904,9 @@ export default function Search() {
           </Card>
         )}
 
-        {/* BBC TAMS Search Strategy Info Box */}
-        <Card withBorder p="xl" radius="lg" shadow="sm" className="dark-info-box">
-          <Stack gap="lg">
-            <Box>
-              <Title order={3} mb="sm" className="dark-text-primary">TAMS v6.0 Search Strategy</Title>
-              <Text size="sm" className="dark-text-secondary" mb="md">
-                Advanced search capabilities following BBC TAMS specification with AI-powered content discovery
-              </Text>
-            </Box>
 
-            <Grid gutter="md">
-              <Grid.Col span={6}>
-                <Box>
-                  <Text fw={500} mb="xs">🔍 Search Modes:</Text>
-                  <Group gap="xs" wrap="wrap" mb="md">
-                    <Badge variant="light" color="blue">Basic Search</Badge>
-                    <Badge variant="light" color="green">Advanced Filters</Badge>
-                    <Badge variant="light" color="purple">AI Discovery</Badge>
-                  </Group>
-                  
-                  <Text fw={500} mb="xs">🎯 Entity Types:</Text>
-                  <Group gap="xs" wrap="wrap" mb="md">
-                    <Badge variant="light" color="green">Sources</Badge>
-                    <Badge variant="light" color="blue">Flows</Badge>
-                    <Badge variant="light" color="orange">Segments</Badge>
-                  </Group>
-                </Box>
-              </Grid.Col>
-              
-              <Grid.Col span={6}>
-                <Box>
-                  <Text fw={500} mb="xs">🚀 Advanced Features:</Text>
-                  <Group gap="xs" wrap="wrap" mb="md">
-                    <Badge variant="light" color="green">Tag-based Filtering</Badge>
-                    <Badge variant="light" color="blue">Temporal Queries</Badge>
-                    <Badge variant="light" color="purple">AI Content Recognition</Badge>
-                    <Badge variant="light" color="orange">Relationship Mapping</Badge>
-                  </Group>
-                  
-                  <Text fw={500} mb="xs">📊 BBC TAMS Compliance:</Text>
-                  <Group gap="xs" wrap="wrap">
-                    <Badge variant="light" color="green">v6.0 Specification</Badge>
-                    <Badge variant="light" color="blue">Cursor Pagination</Badge>
-                    <Badge variant="light" color="purple">Link Headers</Badge>
-                  </Group>
-                </Box>
-              </Grid.Col>
-            </Grid>
 
-            <Alert icon={<IconInfoCircle size={16} />} title="Search Strategy Benefits" color="blue">
-              <Text size="sm">
-                <strong>Multi-Entity Search:</strong> Search across sources, flows, and segments simultaneously<br />
-                <strong>AI-Powered Discovery:</strong> Intelligent content recognition and relationship mapping<br />
-                <strong>BBC TAMS Compliance:</strong> Full adherence to BBC TAMS v6.0 specification<br />
-                <strong>Advanced Filtering:</strong> Complex tag patterns and temporal queries<br />
-                <strong>Performance Optimization:</strong> Deduplication and relationship mapping for efficient results
-              </Text>
-            </Alert>
-          </Stack>
-        </Card>
 
-        {/* Available Games */}
-        <Card withBorder p="xl" radius="lg" shadow="sm" className="search-interface">
-          <Stack gap="lg">
-            <Box>
-              <Title order={3} mb="xs" className="dark-text-primary">Available Football Games</Title>
-              <Text className="dark-text-secondary">Select a specific game to search within, or search across all games</Text>
-            </Box>
-
-            <Grid gutter="md">
-              {footballGames.map((game) => (
-                <Grid.Col key={game.id} span={4}>
-                  <Card 
-                    withBorder 
-                    p="md" 
-                    radius="md"
-                    style={{ 
-                      cursor: 'pointer',
-                      borderColor: selectedGame === game.id ? '#228be6' : undefined,
-                      borderWidth: selectedGame === game.id ? '2px' : '1px'
-                    }}
-                    onClick={() => setSelectedGame(selectedGame === game.id ? null : game.id)}
-                  >
-                    <Stack gap="sm">
-                      <Group justify="space-between" align="center">
-                        <Badge variant="filled" color="blue" size="sm">
-                          {game.gameInfo.homeTeam} vs {game.gameInfo.awayTeam}
-                        </Badge>
-                        {game.gameInfo.score && (
-                          <Badge variant="light" color="green" size="sm">
-                            {game.gameInfo.score}
-                          </Badge>
-                        )}
-                      </Group>
-                      
-                      <Text size="sm" c="dimmed">
-                        {game.gameInfo.date} • {game.gameInfo.venue}
-                      </Text>
-                      
-                      <Text size="xs" c="dimmed">
-                        Duration: {formatDuration(game.timing.duration)} • {game.type}
-                      </Text>
-                      
-                      <Group gap="xs" wrap="wrap">
-                        {Object.entries(game.metadata.tags).slice(0, 3).map(([key, value]) => (
-                          <Badge key={key} variant="light" color="gray" size="xs">
-                            {key}: {String(value)}
-                          </Badge>
-                        ))}
-                      </Group>
-                    </Stack>
-                  </Card>
-                </Grid.Col>
-              ))}
-            </Grid>
-          </Stack>
-        </Card>
-
-        {/* Search Flow Explanation */}
-        <Card withBorder p="lg" radius="md" className="dark-info-box">
-          <Stack gap="md">
-            <Title order={4} className="dark-text-primary">How Advanced Search Works</Title>
-            <Grid gutter="md">
-              <Grid.Col span={3}>
-                <Box ta="center">
-                  <IconSearch size={32} color="blue" />
-                  <Text fw={500} size="sm" mt="xs" className="dark-text-primary">1. Choose Mode</Text>
-                  <Text size="xs" className="dark-text-secondary">Basic, Advanced, or AI-powered</Text>
-                </Box>
-              </Grid.Col>
-              <Grid.Col span={3}>
-                <Box ta="center">
-                  <IconFilter size={32} color="blue" />
-                  <Text fw={500} size="sm" mt="xs" className="dark-text-primary">2. Configure Strategy</Text>
-                  <Text size="xs" className="dark-text-secondary">Set search scope and filters</Text>
-                </Box>
-              </Grid.Col>
-              <Grid.Col span={3}>
-                <Box ta="center">
-                  <IconBrain size={32} color="blue" />
-                  <Text fw={500} size="sm" mt="xs" className="dark-text-primary">3. AI Discovery</Text>
-                  <Text size="xs" className="dark-text-secondary">Intelligent content recognition</Text>
-                </Box>
-              </Grid.Col>
-              <Grid.Col span={3}>
-                <Box ta="center">
-                  <IconVideo size={32} color="blue" />
-                  <Text fw={500} size="sm" mt="xs" className="dark-text-primary">4. View Results</Text>
-                  <Text size="xs" className="dark-text-secondary">Multi-entity search results</Text>
-                </Box>
-              </Grid.Col>
-            </Grid>
-          </Stack>
-        </Card>
-
-        {/* Query History Modal */}
-        <Modal
-          opened={showQueryHistory}
-          onClose={() => setShowQueryHistory(false)}
-          title="Saved Search Queries"
-          size="lg"
-        >
-          <Stack gap="md">
-            {savedQueries.length === 0 ? (
-              <Text c="dimmed" ta="center">No saved queries yet</Text>
-            ) : (
-              savedQueries.map((query) => (
-                <Card key={query.id} withBorder p="md" radius="md">
-                  <Stack gap="sm">
-                    <Group justify="space-between">
-                      <Text fw={500}>{query.name}</Text>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => handleLoadQuery(query)}
-                        >
-                          Load
-                        </Button>
-                        <ActionIcon
-                          size="sm"
-                          variant="light"
-                          color="red"
-                          onClick={() => setSavedQueries((prev: any[]) => prev.filter(q => q.id !== query.id))}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
-                    <Text size="sm" c="dimmed">{query.query}</Text>
-                    <Text size="xs" c="dimmed">
-                      {new Date(query.timestamp).toLocaleString()} • {query.searchMode} mode
-                    </Text>
-                  </Stack>
-                </Card>
-              ))
-            )}
-          </Stack>
-        </Modal>
 
         {/* Video Player Modal */}
         <Modal
@@ -1313,4 +935,4 @@ export default function Search() {
       </Stack>
     </Container>
   );
-} 
+}

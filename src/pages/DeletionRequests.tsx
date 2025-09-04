@@ -351,6 +351,25 @@ export default function DeletionRequests() {
         </Group>
       </Box>
 
+      {/* Info Alert */}
+      <Alert 
+        icon={<IconInfoCircle size={16} />} 
+        color="blue" 
+        title="Deletion Requests Management"
+        mb="md"
+      >
+        <Text size="sm">
+          This page manages deletion requests for TAMS flows and segments. Deletion requests provide 
+          a controlled way to request removal of content with approval workflows, audit trails, and 
+          soft delete capabilities.
+        </Text>
+        <Text size="sm" mt="xs">
+          <strong>Note:</strong> This page currently displays mock data for demonstration purposes. 
+          In a production environment, this would connect to the TAMS backend API for real 
+          deletion request management.
+        </Text>
+      </Alert>
+
       {/* Filter Controls */}
       <Group justify="space-between" mb="md">
         <Group>
