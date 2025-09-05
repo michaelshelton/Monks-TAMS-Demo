@@ -113,7 +113,6 @@ export interface BackendFeatureComparison {
   vastTams: boolean;
   bbcTamsDemo: boolean;
   ibcThiago: boolean;
-  upcomingDemo: boolean;
   description: string;
 }
 

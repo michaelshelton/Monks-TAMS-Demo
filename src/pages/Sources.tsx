@@ -25,7 +25,8 @@ import {
   Alert,
   Loader,
   SimpleGrid,
-  Image
+  Image,
+  Collapse
 } from '@mantine/core';
 import {
   IconPlus,
@@ -42,7 +43,8 @@ import {
   IconCalendar,
   IconMapPin,
   IconActivity,
-  IconInfoCircle
+  IconInfoCircle,
+  IconArrowLeft
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
@@ -119,6 +121,7 @@ export default function Sources() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false); // New state for showing deleted items
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
   
   // BBC TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
@@ -391,22 +394,38 @@ export default function Sources() {
         </Alert>
       )}
 
-      {/* VAST TAMS Info */}
+      {/* VAST TAMS Info - Toggleable */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="What are Sources in TAMS?"
+          title={
+            <Group justify="space-between" w="100%">
+              <Text>What are Sources in TAMS?</Text>
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => setShowInfoBox(!showInfoBox)}
+                rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+              >
+                {showInfoBox ? 'Hide' : 'Show'} Info
+              </Button>
+            </Group>
+          }
           mb="md"
         >
-          <Text size="sm" mb="xs">
-            <strong>Sources</strong> represent the original media inputs in the TAMS system - think of them as the "containers" 
-            that hold your media content before it gets processed into flows and segments.
-          </Text>
-          <Text size="sm" mb="xs">
-            Each source contains metadata like format (video/audio/data), description, tags, and creation information. 
-            Sources are the first step in the TAMS workflow - they define what content is available to be processed.
-          </Text>
+          <Collapse in={showInfoBox}>
+            <Stack gap="xs">
+              <Text size="sm">
+                <strong>Sources</strong> represent the original media inputs in the TAMS system - think of them as the "containers" 
+                that hold your media content before it gets processed into flows and segments.
+              </Text>
+              <Text size="sm">
+                Each source contains metadata like format (video/audio/data), description, tags, and creation information. 
+                Sources are the first step in the TAMS workflow - they define what content is available to be processed.
+              </Text>
+            </Stack>
+          </Collapse>
         </Alert>
       )}
 

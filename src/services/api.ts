@@ -322,8 +322,6 @@ class UnifiedApiClient {
       case 'vast-tams':
         // Use main API proxy to avoid CORS issues
         return import.meta.env.DEV ? '/api' : '/api/proxy';
-      case 'upcoming-demo':
-        return import.meta.env.VITE_BACKEND_UPCOMING_DEMO_URL || 'https://upcoming-demo.example.com';
       default:
         return API_BASE_URL; // Fallback to proxy
     }

@@ -19,7 +19,8 @@ import {
   ActionIcon,
   Tooltip,
   Breadcrumbs,
-  Anchor
+  Anchor,
+  Collapse
 } from '@mantine/core';
 import {
   IconArrowLeft,
@@ -73,6 +74,7 @@ export default function SourceDetails() {
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'configuration'>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [disabled, setDisabled] = useState(false);
+  const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
   
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -350,22 +352,38 @@ export default function SourceDetails() {
         </Alert>
       )}
 
-      {/* VAST TAMS Info */}
+      {/* VAST TAMS Info - Toggleable */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="Source Details in TAMS"
+          title={
+            <Group justify="space-between" w="100%">
+              <Text>Source Details in TAMS</Text>
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => setShowInfoBox(!showInfoBox)}
+                rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+              >
+                {showInfoBox ? 'Hide' : 'Show'} Info
+              </Button>
+            </Group>
+          }
           mb="lg"
         >
-          <Text size="sm" mb="xs">
-            This page shows detailed information about a specific <strong>Source</strong> - the original media input 
-            container in the TAMS system. Here you can view metadata, analytics, and configuration options.
-          </Text>
-          <Text size="sm" mb="xs">
-            Sources contain information like format, tags, creation details, and relationships to flows and collections. 
-            This detailed view helps you understand the content structure and manage source properties.
-          </Text>
+          <Collapse in={showInfoBox}>
+            <Stack gap="xs">
+              <Text size="sm">
+                This page shows detailed information about a specific <strong>Source</strong> - the original media input 
+                container in the TAMS system. Here you can view metadata, analytics, and configuration options.
+              </Text>
+              <Text size="sm">
+                Sources contain information like format, tags, creation details, and relationships to flows and collections. 
+                This detailed view helps you understand the content structure and manage source properties.
+              </Text>
+            </Stack>
+          </Collapse>
         </Alert>
       )}
 

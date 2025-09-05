@@ -35,6 +35,7 @@ import {
   IconInfoCircle,
   IconAlertCircle,
   IconArrowRight,
+  IconArrowLeft,
   IconVideo,
   IconBrain,
   IconDatabase,
@@ -99,7 +100,7 @@ export default function Search() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
   const [searchType, setSearchType] = useState<'sources' | 'flows' | 'segments'>(
-    (searchParams.get('searchType') as 'sources' | 'flows' | 'segments') || 'flows'
+    (searchParams.get('searchType') as 'sources' | 'flows' | 'segments') || 'segments'
   );
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -110,9 +111,12 @@ export default function Search() {
   const [totalResults, setTotalResults] = useState(0);
   const [searchTime, setSearchTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
 
   const [selectedVideo, setSelectedVideo] = useState<SearchResult | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState<SearchResult | null>(null);
+  const [showSegmentDetails, setShowSegmentDetails] = useState(false);
 
   // Search filters aligned with VAST TAMS API
   const [filters, setFilters] = useState({
@@ -319,9 +323,9 @@ export default function Search() {
         {/* Title and Header */}
         <Group justify="space-between" mb="lg">
           <Box>
-            <Title order={2}>Content Discovery</Title>
+            <Title order={2}>Segment Discovery</Title>
             <Text c="dimmed" size="sm" mt="xs">
-              Search across Sources, Flows, and Segments using VAST TAMS API
+              Search and discover media segments across your TAMS library - the core content units
             </Text>
           </Box>
           <Group>
@@ -355,25 +359,45 @@ export default function Search() {
           </Alert>
         )}
 
-        {/* VAST TAMS Info */}
+        {/* VAST TAMS Info - Toggleable */}
         {!error && (
           <Alert 
             icon={<IconInfoCircle size={16} />} 
             color="blue" 
-            title="What is Search in TAMS?"
+            title={
+              <Group justify="space-between" w="100%">
+                <Text>What is Segment Search in TAMS?</Text>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => setShowInfoBox(!showInfoBox)}
+                  rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+                >
+                  {showInfoBox ? 'Hide' : 'Show'} Info
+                </Button>
+              </Group>
+            }
             mb="md"
           >
-            <Text size="sm" mb="xs">
-              <strong>Search</strong> is the content discovery engine in the TAMS system - it allows you to find and explore 
-              sources, flows, and segments across your entire media library using powerful filtering and query capabilities.
-            </Text>
-            <Text size="sm" mb="xs">
-              You can search by text, filter by format, codec, time ranges, tags, and technical specifications. 
-              Search helps you quickly locate specific content and understand relationships between different media objects.
-            </Text>
+            <Collapse in={showInfoBox}>
+              <Stack gap="xs">
+                <Text size="sm">
+                  <strong>Segment Search</strong> is the core discovery engine in TAMS - it allows you to find and explore 
+                  individual media segments, which are the fundamental content units containing actual playable media.
+                </Text>
+                <Text size="sm">
+                  Segments represent specific time ranges of media content with detailed metadata, technical specifications, 
+                  and tags. You can search by category, content type, format, time ranges, and technical specs to find 
+                  exactly the content you need for playback, analysis, or further processing.
+                </Text>
+                <Text size="sm">
+                  <strong>Demo Focus:</strong> Segments are the star of TAMS - they contain the actual media content 
+                  that users interact with and play back.
+                </Text>
+              </Stack>
+            </Collapse>
           </Alert>
         )}
-
 
         {/* Search Type Selection */}
         <Card withBorder p="lg" radius="lg" shadow="sm" className="search-interface">
@@ -655,6 +679,124 @@ export default function Search() {
                       onClick={() => {
                         setFilters(prev => ({ 
                           ...prev, 
+                          tags: { ...prev.tags, category: 'sports' },
+                          tagName: 'category',
+                          tagValue: 'sports'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      🏈 Sports
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          tags: { ...prev.tags, category: 'news' },
+                          tagName: 'category',
+                          tagValue: 'news'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      📰 News
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          tags: { ...prev.tags, category: 'technology' },
+                          tagName: 'category',
+                          tagValue: 'technology'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      💻 Technology
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          tags: { ...prev.tags, content_type: 'conference' },
+                          tagName: 'content_type',
+                          tagValue: 'conference'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      🎤 Conference
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          tags: { ...prev.tags, content_type: 'podcast' },
+                          tagName: 'content_type',
+                          tagValue: 'podcast'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      🎧 Podcast
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:video' }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      📹 Video Only
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:audio' }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      🎵 Audio Only
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          tags: { ...prev.tags, year: '2024' },
+                          tagName: 'year',
+                          tagValue: '2024'
+                        }));
+                        setSearchQuery('');
+                      }}
+                      className="dark-button"
+                    >
+                      📅 2024 Content
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(prev => ({ 
+                          ...prev, 
                           timerange: '[0:0_10:0)'
                         }));
                         setSearchQuery('');
@@ -862,6 +1004,10 @@ export default function Search() {
                                 size="sm"
                                 variant="light"
                                 color="gray"
+                                onClick={() => {
+                                  setSelectedSegment(result);
+                                  setShowSegmentDetails(true);
+                                }}
                               >
                                 <IconEye size={14} />
                               </ActionIcon>
@@ -932,6 +1078,151 @@ export default function Search() {
             />
           )}
         </Modal>
+
+        {/* Segment Details Modal */}
+        {selectedSegment && (
+          <Modal
+            opened={showSegmentDetails}
+            onClose={() => setShowSegmentDetails(false)}
+            title="Segment Details"
+            size="lg"
+          >
+            <Stack gap="md">
+              {/* Segment Header */}
+              <Card withBorder p="md">
+                <Stack gap="sm">
+                  <Title order={3}>{selectedSegment.title}</Title>
+                  {selectedSegment.description && (
+                    <Text c="dimmed">{selectedSegment.description}</Text>
+                  )}
+                  <Group gap="md">
+                    <Badge variant="light" color="blue" size="lg">
+                      {selectedSegment.type.toUpperCase()}
+                    </Badge>
+                    <Badge variant="light" color="green" size="lg">
+                      {selectedSegment.metadata.format}
+                    </Badge>
+                    <Badge variant="light" color="orange" size="lg">
+                      {selectedSegment.metadata.quality}
+                    </Badge>
+                  </Group>
+                </Stack>
+              </Card>
+
+              {/* Content Information */}
+              <Card withBorder p="md">
+                <Title order={4} mb="md">Content Information</Title>
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="sm" fw={500} c="dimmed">Category</Text>
+                    <Text size="sm">{selectedSegment.contentInfo.category}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="sm" fw={500} c="dimmed">Content Type</Text>
+                    <Text size="sm">{selectedSegment.contentInfo.contentType}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="sm" fw={500} c="dimmed">Organization</Text>
+                    <Text size="sm">{selectedSegment.contentInfo.organization}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="sm" fw={500} c="dimmed">Date</Text>
+                    <Text size="sm">{selectedSegment.contentInfo.date}</Text>
+                  </Grid.Col>
+                  {selectedSegment.contentInfo.venue && (
+                    <Grid.Col span={12}>
+                      <Text size="sm" fw={500} c="dimmed">Venue</Text>
+                      <Text size="sm">📍 {selectedSegment.contentInfo.venue}</Text>
+                    </Grid.Col>
+                  )}
+                </Grid>
+              </Card>
+
+              {/* Timing Information */}
+              <Card withBorder p="md">
+                <Title order={4} mb="md">Timing Information</Title>
+                <Grid gutter="md">
+                  <Grid.Col span={4}>
+                    <Text size="sm" fw={500} c="dimmed">Start Time</Text>
+                    <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                      {selectedSegment.timing.start}
+                    </Text>
+                  </Grid.Col>
+                  <Grid.Col span={4}>
+                    <Text size="sm" fw={500} c="dimmed">End Time</Text>
+                    <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                      {selectedSegment.timing.end}
+                    </Text>
+                  </Grid.Col>
+                  <Grid.Col span={4}>
+                    <Text size="sm" fw={500} c="dimmed">Duration</Text>
+                    <Text size="sm" fw={500}>
+                      {Math.floor(selectedSegment.timing.duration / 60)}m {selectedSegment.timing.duration % 60}s
+                    </Text>
+                  </Grid.Col>
+                </Grid>
+              </Card>
+
+              {/* Tags */}
+              {selectedSegment.metadata.tags && Object.keys(selectedSegment.metadata.tags).length > 0 && (
+                <Card withBorder p="md">
+                  <Title order={4} mb="md">Tags</Title>
+                  <Group gap="xs" wrap="wrap">
+                    {Object.entries(selectedSegment.metadata.tags).map(([key, value]) => (
+                      <Badge key={key} variant="light" color="blue" size="sm">
+                        {key}: {String(value)}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Card>
+              )}
+
+              {/* Available URLs */}
+              {selectedSegment.get_urls && selectedSegment.get_urls.length > 0 && (
+                <Card withBorder p="md">
+                  <Title order={4} mb="md">Available URLs</Title>
+                  <Stack gap="xs">
+                    {selectedSegment.get_urls.map((url, index) => (
+                      <Group key={index} gap="xs">
+                        <Badge size="sm" color="green">
+                          GET
+                        </Badge>
+                        <Text size="xs" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {url.url}
+                        </Text>
+                        {url.label && (
+                          <Badge size="xs" variant="light" color="gray">
+                            {url.label}
+                          </Badge>
+                        )}
+                      </Group>
+                    ))}
+                  </Stack>
+                </Card>
+              )}
+
+              {/* Actions */}
+              <Group justify="flex-end" mt="md">
+                <Button
+                  variant="light"
+                  onClick={() => setShowSegmentDetails(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  color="blue"
+                  onClick={() => {
+                    setSelectedVideo(selectedSegment);
+                    setShowVideoPlayer(true);
+                    setShowSegmentDetails(false);
+                  }}
+                >
+                  Play Segment
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
+        )}
       </Stack>
     </Container>
   );

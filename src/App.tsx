@@ -1,4 +1,5 @@
-import { MantineProvider, AppShell, Anchor, Box, createTheme, rem, Text } from '@mantine/core';
+import { MantineProvider, AppShell, Anchor, Box, createTheme, rem, Text, Menu, Button, Group } from '@mantine/core';
+import { IconChevronDown } from '@tabler/icons-react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Landing from './pages/Landing';
 import Flows from './pages/Flows';
@@ -25,30 +26,23 @@ const theme = createTheme({
   defaultRadius: 'md',
 });
 
-const navLinks = [
-  // Home
-  { label: 'Home', to: '/', group: 'core' },
-  
-  // VAST TAMS Core Workflow
-  { label: 'TAMS Workflow', to: '/vast-tams-workflow', group: 'core' },
-  
-  // Content Management (BBC TAMS Core)
-  { label: 'Sources', to: '/sources', group: 'content' },
-  { label: 'Flows', to: '/flows', group: 'content' },
-  { label: 'Flow Collections', to: '/flow-collections', group: 'content' },
-  
-  // Discovery & Search (VAST TAMS Extensions)
-  { label: 'Search', to: '/search', group: 'discovery' },
-  
-  // System & Monitoring (Mixed BBC TAMS + Extensions)
-  { label: 'Service', to: '/service', group: 'system' },
-  { label: 'Webhooks', to: '/webhooks', group: 'system' },
-  { label: 'Analytics', to: '/analytics', group: 'system' },
-  { label: 'Observability', to: '/observability', group: 'system' },
-  
-  // Administration (BBC TAMS Core + Demo)
-  { label: 'Deletion Requests', to: '/deletion-requests', group: 'admin' },
-  
+// Main navigation items (always visible)
+const mainNavLinks = [
+  { label: 'Search', to: '/search' },
+  { label: 'Sources', to: '/sources' },
+  { label: 'Flows', to: '/flows' },
+  { label: 'Flow Collections', to: '/flow-collections' },
+];
+
+// Additional navigation items (in dropdown)
+const additionalNavLinks = [
+  { label: 'Home', to: '/' },
+  { label: 'TAMS Workflow', to: '/vast-tams-workflow' },
+  { label: 'Service', to: '/service' },
+  { label: 'Webhooks', to: '/webhooks' },
+  { label: 'Analytics', to: '/analytics' },
+  { label: 'Observability', to: '/observability' },
+  { label: 'Deletion Requests', to: '/deletion-requests' },
 ];
 
 function AppFooter() {
@@ -68,59 +62,80 @@ function AppFooter() {
 
 function AppLayout() {
   const location = useLocation();
-  
-  // Group navigation links by their group
-  const groupedNavLinks = navLinks.reduce((groups, link) => {
-    const group = link.group || 'other';
-    if (!groups[group]) {
-      groups[group] = [];
-    }
-    groups[group].push(link);
-    return groups;
-  }, {} as Record<string, typeof navLinks>);
 
   return (
     <AppShell padding="md">
       <AppShell.Header h={60} p="md" withBorder={false} style={{ position: 'static' }}>
         
-        {/* Center: Grouped Navigation */}
+        {/* Center: Main Navigation + Dropdown */}
         <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          {Object.entries(groupedNavLinks).map(([groupKey, groupLinks], groupIndex) => (
-            <div key={groupKey} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* Group Links */}
-              {groupLinks.map((link) => (
-                <Anchor
+          {/* Main Navigation Links */}
+          <Group gap="sm">
+            {mainNavLinks.map((link) => (
+              <Anchor
+                key={link.to}
+                component={Link}
+                to={link.to}
+                fw={500}
+                size="sm"
+                c={location.pathname === link.to ? 'blue' : 'gray'}
+                style={{ 
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease',
+                  ...(location.pathname === link.to && {
+                    backgroundColor: 'var(--mantine-color-blue-0)',
+                    color: 'var(--mantine-color-blue-7)'
+                  })
+                }}
+              >
+                {link.label}
+              </Anchor>
+            ))}
+          </Group>
+          
+          {/* Separator */}
+          <div style={{ 
+            width: 1, 
+            height: 24, 
+            backgroundColor: 'var(--mantine-color-gray-3)',
+            margin: '0 8px'
+          }} />
+          
+          {/* Additional Navigation Dropdown */}
+          <Menu shadow="md" width={200}>
+            <Menu.Target>
+              <Button
+                variant="subtle"
+                rightSection={<IconChevronDown size={14} />}
+                size="sm"
+                fw={500}
+                c="gray"
+                style={{ 
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                More
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {additionalNavLinks.map((link) => (
+                <Menu.Item
                   key={link.to}
                   component={Link}
                   to={link.to}
-                  fw={500}
-                  size="sm"
-                  c={location.pathname === link.to ? 'blue' : 'gray'}
-                  style={{ 
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s ease',
-                    ...(location.pathname === link.to && {
-                      backgroundColor: 'var(--mantine-color-blue-0)',
-                      color: 'var(--mantine-color-blue-7)'
-                    })
+                  style={{
+                    color: location.pathname === link.to ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+                    fontWeight: location.pathname === link.to ? 600 : 400,
                   }}
                 >
                   {link.label}
-                </Anchor>
+                </Menu.Item>
               ))}
-              
-              {/* Group Separator (except for last group) */}
-              {groupIndex < Object.keys(groupedNavLinks).length - 1 && (
-                <div style={{ 
-                  width: 1, 
-                  height: 24, 
-                  backgroundColor: 'var(--mantine-color-gray-3)',
-                  margin: '0 8px'
-                }} />
-              )}
-            </div>
-          ))}
+            </Menu.Dropdown>
+          </Menu>
         </div>
         
       </AppShell.Header>

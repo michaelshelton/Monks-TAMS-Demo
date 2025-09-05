@@ -12,8 +12,6 @@ const getBackendTarget = () => {
       return process.env.VITE_BACKEND_IBC_THIAGO_IMPORTED_URL || 'http://localhost:3002';
     case 'vast-tams':
       return process.env.VITE_BACKEND_VAST_TAMS_URL || 'http://34.216.9.25:8000';
-    case 'upcoming-demo':
-      return process.env.VITE_BACKEND_UPCOMING_DEMO_URL || 'https://upcoming-demo.example.com';
     default:
       return 'http://34.216.9.25:8000'; // Default to VAST TAMS
   }

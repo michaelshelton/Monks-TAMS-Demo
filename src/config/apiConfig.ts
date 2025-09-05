@@ -197,48 +197,6 @@ export const BACKEND_APIS: Record<string, BackendApiConfig> = {
       requestsPerMinute: 1000,
     },
   },
-  'upcoming-demo': {
-    id: 'upcoming-demo',
-    name: 'Upcoming Demo',
-    description: 'Custom API with limited feature set for demonstration',
-    baseUrl: getBackendUrl('upcoming-demo', import.meta.env.VITE_BACKEND_UPCOMING_DEMO_URL || 'https://upcoming-demo.example.com'),
-    type: 'custom',
-    version: '1.0',
-    features: {
-      supportsSoftDelete: false,
-      supportsCMCD: false,
-      supportsWebhooks: false,
-      supportsStorageAllocation: false,
-      supportsFlowCollections: false,
-      supportsAdvancedSearch: false,
-      supportsAsyncOperations: false,
-      supportsHealthMonitoring: false,
-    },
-    endpoints: {
-      sources: '/api/sources',
-      flows: '/api/flows',
-      segments: '/api/segments',
-      objects: '/api/objects',
-      analytics: '/api/analytics',
-      webhooks: '/api/webhooks',
-      health: '/api/health',
-      metrics: '/api/metrics',
-      storage: '/api/storage',
-      flowDeleteRequests: '/api/delete-requests',
-    },
-    auth: {
-      type: 'api-key',
-      apiKeyHeader: 'X-API-Key',
-    },
-    cors: {
-      enabled: true,
-      credentials: false,
-    },
-    rateLimiting: {
-      enabled: true,
-      requestsPerMinute: 50,
-    },
-  },
 };
 
 /**
@@ -323,7 +281,6 @@ export function getBackendComparison(): Array<{
   vastTams: boolean;
   ibcThiago: boolean;
   ibcThiagoImported: boolean;
-  upcomingDemo: boolean;
 }> {
   const features = [
     'Soft Delete',
@@ -341,14 +298,12 @@ export function getBackendComparison(): Array<{
     const vastTams = BACKEND_APIS['vast-tams']?.features[key] || false;
     const ibcThiago = BACKEND_APIS['ibc-thiago']?.features[key] || false;
     const ibcThiagoImported = BACKEND_APIS['ibc-thiago-imported']?.features[key] || false;
-    const upcomingDemo = BACKEND_APIS['upcoming-demo']?.features[key] || false;
     
     return {
       feature,
       vastTams,
       ibcThiago,
       ibcThiagoImported,
-      upcomingDemo,
     };
   });
 }

@@ -254,7 +254,6 @@ export function BackendSelector({
                     <Table.Th>VAST TAMS</Table.Th>
                     <Table.Th>IBC Thiago</Table.Th>
                     <Table.Th>IBC Thiago Imported</Table.Th>
-                    <Table.Th>Upcoming Demo</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -288,15 +287,6 @@ export function BackendSelector({
                           leftSection={getFeatureIcon(row.ibcThiagoImported)}
                         >
                           {row.ibcThiagoImported ? 'Yes' : 'No'}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge
-                          size="xs"
-                          color={getFeatureBadgeColor(row.upcomingDemo)}
-                          leftSection={getFeatureIcon(row.upcomingDemo)}
-                        >
-                          {row.upcomingDemo ? 'Yes' : 'No'}
                         </Badge>
                       </Table.Td>
                     </Table.Tr>

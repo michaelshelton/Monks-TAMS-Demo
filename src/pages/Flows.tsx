@@ -24,7 +24,8 @@ import {
   SimpleGrid,
   Chip,
   Tooltip,
-  Divider
+  Divider,
+  Collapse
 } from '@mantine/core';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
@@ -45,7 +46,8 @@ import {
   IconCalendar,
   IconMapPin,
   IconInfoCircle,
-  IconLink
+  IconLink,
+  IconArrowLeft
 } from '@tabler/icons-react';
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import { apiClient } from '../services/api';
@@ -157,6 +159,7 @@ export default function Flows() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
   
   // VAST TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
@@ -486,23 +489,39 @@ export default function Flows() {
         </Alert>
       )}
 
-      {/* VAST TAMS Info */}
+      {/* VAST TAMS Info - Toggleable */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
-          title="What are Flows in TAMS?"
+          title={
+            <Group justify="space-between" w="100%">
+              <Text>What are Flows in TAMS?</Text>
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => setShowInfoBox(!showInfoBox)}
+                rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+              >
+                {showInfoBox ? 'Hide' : 'Show'} Info
+              </Button>
+            </Group>
+          }
           mb="md"
         >
-          <Text size="sm" mb="xs">
-            <strong>Flows</strong> are the processed media content in the TAMS system - they represent individual 
-            media streams that have been created from sources and contain specific video/audio streams, codecs, 
-            and technical specifications.
-          </Text>
-          <Text size="sm" mb="xs">
-            Each flow contains detailed metadata like format, codec, resolution, sample rates, and custom tags. 
-            Flows are the second step in the TAMS workflow - they define how content is encoded and delivered.
-          </Text>
+          <Collapse in={showInfoBox}>
+            <Stack gap="xs">
+              <Text size="sm">
+                <strong>Flows</strong> are the processed media content in the TAMS system - they represent individual 
+                media streams that have been created from sources and contain specific video/audio streams, codecs, 
+                and technical specifications.
+              </Text>
+              <Text size="sm">
+                Each flow contains detailed metadata like format, codec, resolution, sample rates, and custom tags. 
+                Flows are the second step in the TAMS workflow - they define how content is encoded and delivered.
+              </Text>
+            </Stack>
+          </Collapse>
         </Alert>
       )}
 
@@ -537,18 +556,18 @@ export default function Flows() {
           </Group>
           
           <Chip
-            checked={filters.category === 'technology'}
-            onChange={(checked) => setFilter('category', checked ? 'technology' : '')}
+            checked={filters.category === 'sports'}
+            onChange={(checked) => setFilter('category', checked ? 'sports' : '')}
             variant="light"
             size="sm"
-            color="blue"
+            color="green"
           >
-            Technology
+            Sports
           </Chip>
           
           <Chip
-            checked={filters.content_type === 'conference'}
-            onChange={(checked) => setFilter('content_type', checked ? 'conference' : '')}
+            checked={filters.category === 'conference'}
+            onChange={(checked) => setFilter('category', checked ? 'conference' : '')}
             variant="light"
             size="sm"
             color="green"

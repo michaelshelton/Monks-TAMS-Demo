@@ -20,7 +20,8 @@ import {
   Select,
   MultiSelect,
   Loader,
-  Center
+  Center,
+  Collapse
 } from '@mantine/core';
 import {
   IconPlus,
@@ -34,7 +35,8 @@ import {
   IconVideo,
   IconTag,
   IconCalendar,
-  IconUsers
+  IconUsers,
+  IconArrowLeft
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
@@ -69,6 +71,7 @@ export default function FlowCollections() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCollection, setEditingCollection] = useState<FlowCollection | null>(null);
   const [selectedFlows, setSelectedFlows] = useState<string[]>([]);
+  const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
 
   // Form state
   const [formData, setFormData] = useState({
@@ -272,26 +275,42 @@ export default function FlowCollections() {
           </Alert>
         )}
 
-        {/* VAST TAMS Info */}
+        {/* VAST TAMS Info - Toggleable */}
         {!error && (
           <Alert
             icon={<IconInfoCircle size={16} />}
             color="blue"
-            title="What are Flow Collections in TAMS?"
+            title={
+              <Group justify="space-between" w="100%">
+                <Text>What are Flow Collections in TAMS?</Text>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => setShowInfoBox(!showInfoBox)}
+                  rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+                >
+                  {showInfoBox ? 'Hide' : 'Show'} Info
+                </Button>
+              </Group>
+            }
             mb="md"
           >
-            <Text size="sm" mb="xs">
-              <strong>Flow Collections</strong> allow you to group related media flows together for better organization,
-              management, and monitoring. Collections help organize complex media workflows and enable bulk operations.
-            </Text>
-            <Text size="sm" mb="xs">
-              Each collection can contain multiple flows with shared metadata, tags, and management settings.
-              Collections are particularly useful for multi-essence workflows, event-based content, and series management.
-            </Text>
-            <Text size="sm">
-              <strong>Demo Note:</strong> This page demonstrates Flow Collections functionality,
-              showing how to organize and manage related media content efficiently. This page is showing mock data.
-            </Text>
+            <Collapse in={showInfoBox}>
+              <Stack gap="xs">
+                <Text size="sm">
+                  <strong>Flow Collections</strong> allow you to group related media flows together for better organization,
+                  management, and monitoring. Collections help organize complex media workflows and enable bulk operations.
+                </Text>
+                <Text size="sm">
+                  Each collection can contain multiple flows with shared metadata, tags, and management settings.
+                  Collections are particularly useful for multi-essence workflows, event-based content, and series management.
+                </Text>
+                <Text size="sm">
+                  <strong>Demo Note:</strong> This page demonstrates Flow Collections functionality,
+                  showing how to organize and manage related media content efficiently. This page is showing mock data.
+                </Text>
+              </Stack>
+            </Collapse>
           </Alert>
         )}
 
