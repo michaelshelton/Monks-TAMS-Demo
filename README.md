@@ -1,6 +1,6 @@
 # Monks - TAMS Frontend Application on VAST
 
-A React-based frontend for the Time Addressable Media Storage (TAMS) demo application, built with Mantine UI components and Vite.
+A comprehensive React-based frontend for the Time Addressable Media Storage (TAMS) demo application, featuring advanced media management, analytics, observability, and video streaming capabilities. Built with Mantine UI components and Vite.
 
 Backend: https://github.com/jesseVast/vasttams
 
@@ -40,33 +40,108 @@ Backend: https://github.com/jesseVast/vasttams
 
 ```
 frontend/
-├── public/                 # Static assets
+├── public/                 # Static assets and videos
 ├── src/
-│   ├── pages/             # Page components
-│   │   ├── Landing.tsx    # Home page
-│   │   ├── Flows.tsx      # Media flows table
-│   │   ├── Analytics.tsx  # Analytics dashboard
-│   │   ├── Search.tsx     # Search interface
-│   │   ├── Upload.tsx     # Upload interface
-│   │   ├── Segments.tsx   # Media segments
-│   │   └── FlowDetails.tsx # Flow details
-│   ├── App.tsx            # Main app component
-│   ├── main.tsx           # App entry point
-│   └── styles/            # CSS files
+│   ├── pages/             # Page components (17 pages)
+│   │   ├── Landing.tsx           # Home page
+│   │   ├── Sources.tsx           # Media sources management
+│   │   ├── SourceDetails.tsx     # Source details view
+│   │   ├── Flows.tsx             # Media flows table
+│   │   ├── FlowDetails.tsx       # Flow details view
+│   │   ├── FlowCollections.tsx   # Flow collections management
+│   │   ├── Search.tsx            # Advanced search interface
+│   │   ├── SearchResults.tsx     # Search results display
+│   │   ├── Upload.tsx            # Media upload interface
+│   │   ├── VideoCompilation.tsx  # Video compilation engine
+│   │   ├── Analytics.tsx         # Analytics dashboard
+│   │   ├── Observability.tsx     # System observability
+│   │   ├── Service.tsx           # Service management
+│   │   ├── Webhooks.tsx          # Webhook management
+│   │   ├── DeletionRequests.tsx  # Deletion request management
+│   │   ├── HLSTestPage.tsx       # HLS video testing
+│   │   └── VastTamsWorkflow.tsx  # TAMS workflow guide
+│   ├── components/        # Reusable UI components (43 components)
+│   │   ├── AnalyticsDashboard.tsx
+│   │   ├── FlowCollectionManager.tsx
+│   │   ├── HLSVideoPlayer.tsx
+│   │   ├── VideoCompilationEngine.tsx
+│   │   ├── WebhookManagerMantine.tsx
+│   │   └── ... (38 more components)
+│   ├── services/          # API and business logic services
+│   │   ├── clients/       # API client implementations
+│   │   ├── interfaces/    # TypeScript interfaces
+│   │   ├── analytics.ts
+│   │   ├── searchService.ts
+│   │   └── ... (10 more services)
+│   ├── contexts/          # React contexts
+│   │   └── BackendContext.tsx
+│   ├── hooks/             # Custom React hooks
+│   │   ├── useBackendFeatures.ts
+│   │   ├── useBackendStatus.ts
+│   │   └── useFilterPersistence.ts
+│   ├── utils/             # Utility functions
+│   │   ├── videoMerger.ts
+│   │   ├── vastTamsUtils.ts
+│   │   └── ... (3 more utilities)
+│   ├── types/             # TypeScript type definitions
+│   │   └── backend.ts
+│   ├── config/            # Configuration files
+│   │   └── apiConfig.ts
+│   ├── styles/            # CSS and styling
+│   │   └── tams.css
+│   ├── App.tsx            # Main app component with routing
+│   └── main.tsx           # App entry point
 ├── package.json           # Dependencies and scripts
 ├── vite.config.ts         # Vite configuration
 └── README.md             # This file
 ```
 
+## ✨ Key Features
+
+### 🎥 **Media Management**
+- **Sources Management** - Create, configure, and monitor media sources
+- **Flow Management** - Organize and track media flows with advanced filtering
+- **Flow Collections** - Group related flows for better organization
+- **Video Upload** - Upload and manage media files
+- **Video Compilation** - Merge and process multiple video segments
+
+### 🔍 **Advanced Search & Discovery**
+- **Multi-Entity Search** - Search across sources, flows, and segments
+- **Advanced Filtering** - Complex filter combinations with temporal ranges
+- **Search Results** - Rich result display with previews and metadata
+
+### 📊 **Analytics & Monitoring**
+- **Analytics Dashboard** - Comprehensive data visualization
+- **System Observability** - Real-time system health monitoring
+- **Flow Analytics** - Detailed flow performance metrics
+- **Health Monitoring** - Source and flow health indicators
+
+### 🎬 **Video Streaming & Playback**
+- **HLS Video Player** - HTTP Live Streaming support
+- **Video Player with Analytics** - Playback metrics and CMCD support
+- **Segment Video Demo** - Interactive segment exploration
+
+### 🔧 **System Administration**
+- **Webhook Management** - Configure and monitor webhooks
+- **Deletion Requests** - Manage content deletion workflows
+- **Service Management** - System service configuration
+- **Backend Context** - Multi-backend API support
+
+### 🎨 **User Experience**
+- **Responsive Design** - Mobile-first responsive layouts
+- **Advanced UI Components** - Rich interactive components
+
 ## 🛠️ Technology Stack
 
-- **React 18** - UI library
-- **Vite** - Build tool and dev server
-- **Mantine v8** - UI component library
-- **React Router** - Client-side routing
-- **Chart.js** - Data visualization
-- **Tabler Icons** - Icon library
-- **TypeScript** - Type safety
+- **React 19.1.0** - UI library
+- **Vite 7.0.6** - Build tool and dev server
+- **Mantine v8.2.1** - UI component library with hooks
+- **React Router v7.7.1** - Client-side routing
+- **Chart.js 4.5.0** - Data visualization
+- **React Chart.js 2 5.3.0** - Chart.js React integration
+- **HLS.js 1.6.11** - HTTP Live Streaming video player
+- **Tabler Icons 3.34.1** - Icon library
+- **TypeScript 5.5.0** - Type safety
 
 ## 📦 Available Scripts
 
@@ -76,12 +151,32 @@ frontend/
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript type checking
 
+## 🧭 Navigation Structure
+
+The application features a clean, organized navigation system:
+
+### **Main Navigation** (Always Visible)
+- **Search** - Advanced search interface
+- **Sources** - Media sources management
+- **Flows** - Media flows table
+- **Flow Collections** - Flow collections management
+
+### **Additional Navigation** (Dropdown Menu)
+- **Home** - Landing page
+- **TAMS Workflow** - Workflow guide and documentation
+- **Service** - Service management
+- **Webhooks** - Webhook configuration
+- **Analytics** - Analytics dashboard
+- **Observability** - System monitoring
+- **Deletion Requests** - Content deletion management
+
 ## 🎨 Design System
 
 The application uses a custom design system with:
 - **TAMS Design Tokens** - Colors, spacing, typography
 - **Mantine Components** - Pre-built UI components
 - **Responsive Design** - Mobile-friendly layouts
+- **Custom Components** - 43 specialized UI components
 
 ## 🔧 Configuration
 
