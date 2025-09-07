@@ -1,0 +1,572 @@
+/* TAMS Dark Mode Theme - Fixed Selectors */
+/* Comprehensive dark mode styling for the VAST TAMS frontend */
+
+/* Dark mode CSS variables */
+[data-mantine-color-scheme="dark"],
+[data-theme="dark"] {
+  /* Background colors - Various grays for layered depth */
+  --mantine-color-body: #0f0f0f;
+  --mantine-color-bg-0: #0f0f0f;        /* Deepest background */
+  --mantine-color-bg-1: #1a1a1a;        /* Primary surface */
+  --mantine-color-bg-2: #262626;        /* Secondary surface */
+  --mantine-color-bg-3: #333333;        /* Tertiary surface */
+  --mantine-color-bg-4: #404040;        /* Quaternary surface */
+  --mantine-color-bg-5: #4d4d4d;        /* Elevated surface */
+  
+  /* Text colors - High contrast grays */
+  --mantine-color-text-0: #ffffff;      /* Primary text */
+  --mantine-color-text-1: #e5e5e5;      /* Secondary text */
+  --mantine-color-text-2: #b3b3b3;      /* Tertiary text */
+  --mantine-color-text-3: #808080;      /* Quaternary text */
+  --mantine-color-text-4: #666666;      /* Disabled text */
+  
+  /* Border colors - Subtle grays */
+  --mantine-color-border-0: #404040;    /* Primary border */
+  --mantine-color-border-1: #333333;    /* Secondary border */
+  --mantine-color-border-2: #262626;    /* Tertiary border */
+  --mantine-color-border-3: #1a1a1a;    /* Subtle border */
+  
+  /* Accent colors - Blue for highlights */
+  --mantine-color-accent-0: #60a5fa;    /* Light accent */
+  --mantine-color-accent-1: #3b82f6;    /* Primary accent */
+  --mantine-color-accent-2: #1d4ed8;    /* Dark accent */
+  
+  /* Status colors */
+  --mantine-color-success-0: #4ade80;
+  --mantine-color-success-1: #22c55e;
+  --mantine-color-warning-0: #fbbf24;
+  --mantine-color-warning-1: #f59e0b;
+  --mantine-color-error-0: #f87171;
+  --mantine-color-error-1: #ef4444;
+  
+  /* Override Mantine's default dark colors */
+  --mantine-color-dark-0: #0f0f0f;
+  --mantine-color-dark-1: #1a1a1a;
+  --mantine-color-dark-2: #262626;
+  --mantine-color-dark-3: #333333;
+  --mantine-color-dark-4: #404040;
+  --mantine-color-dark-5: #4d4d4d;
+  --mantine-color-dark-6: #666666;
+  --mantine-color-dark-7: #808080;
+  --mantine-color-dark-8: #b3b3b3;
+  --mantine-color-dark-9: #e5e5e5;
+}
+
+/* Dark mode body styling */
+[data-mantine-color-scheme="dark"] body,
+[data-theme="dark"] body {
+  background-color: var(--mantine-color-bg-0) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+/* Dark mode AppShell */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-root,
+[data-theme="dark"] .mantine-AppShell-root {
+  background-color: var(--mantine-color-bg-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header,
+[data-theme="dark"] .mantine-AppShell-header {
+  background-color: var(--mantine-color-bg-2) !important;
+  border-bottom: 1px solid var(--mantine-color-border-1) !important;
+}
+
+/* Override Mantine's default header styling with higher specificity */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-root .mantine-AppShell-header,
+[data-theme="dark"] .mantine-AppShell-root .mantine-AppShell-header {
+  background-color: var(--mantine-color-bg-2) !important;
+  border-bottom: 1px solid var(--mantine-color-border-1) !important;
+}
+
+/* Additional specificity for Mantine's internal styling */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header[data-with-border="true"],
+[data-theme="dark"] .mantine-AppShell-header[data-with-border="true"] {
+  background-color: var(--mantine-color-bg-2) !important;
+  border-bottom: 1px solid var(--mantine-color-border-1) !important;
+}
+
+/* Force override any Mantine default colors */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header,
+[data-theme="dark"] .mantine-AppShell-header {
+  background: var(--mantine-color-bg-2) !important;
+  background-color: var(--mantine-color-bg-2) !important;
+}
+
+/* Override Mantine's color scheme variables for header */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header {
+  --mantine-color-body: var(--mantine-color-bg-2) !important;
+  --mantine-color-bg: var(--mantine-color-bg-2) !important;
+}
+
+/* Target the specific Mantine header class with maximum specificity */
+.mantine-AppShell-root[data-mantine-color-scheme="dark"] .mantine-AppShell-header,
+.mantine-AppShell-root[data-theme="dark"] .mantine-AppShell-header {
+  background-color: var(--mantine-color-bg-2) !important;
+  background: var(--mantine-color-bg-2) !important;
+}
+
+/* Header navigation container */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header .mantine-Group-root,
+[data-theme="dark"] .mantine-AppShell-header .mantine-Group-root {
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-AppShell-navbar,
+[data-theme="dark"] .mantine-AppShell-navbar {
+  background-color: var(--mantine-color-bg-1);
+  border-right: 1px solid var(--mantine-color-border-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main,
+[data-theme="dark"] .mantine-AppShell-main {
+  background-color: var(--mantine-color-bg-0);
+}
+
+/* Dark mode Cards - Various gray levels for different card types */
+[data-mantine-color-scheme="dark"] .mantine-Card-root,
+[data-theme="dark"] .mantine-Card-root {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+  color: var(--mantine-color-text-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Card-root:hover,
+[data-theme="dark"] .mantine-Card-root:hover {
+  background-color: var(--mantine-color-bg-3);
+  border-color: var(--mantine-color-border-0);
+}
+
+/* Dark mode Alerts - Comprehensive styling for all alert types */
+[data-mantine-color-scheme="dark"] .mantine-Alert-root,
+[data-theme="dark"] .mantine-Alert-root {
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-variant="light"],
+[data-theme="dark"] .mantine-Alert-root[data-variant="light"] {
+  background-color: var(--mantine-color-bg-4) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-title,
+[data-theme="dark"] .mantine-Alert-title {
+  color: var(--mantine-color-text-0) !important;
+  font-weight: 600 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-message,
+[data-theme="dark"] .mantine-Alert-message {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-icon,
+[data-theme="dark"] .mantine-Alert-icon {
+  color: var(--mantine-color-accent-1) !important;
+}
+
+/* Alert color variants */
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-color="blue"],
+[data-theme="dark"] .mantine-Alert-root[data-color="blue"] {
+  background-color: var(--mantine-color-bg-3) !important;
+  border-color: var(--mantine-color-accent-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-color="red"],
+[data-theme="dark"] .mantine-Alert-root[data-color="red"] {
+  background-color: var(--mantine-color-bg-3) !important;
+  border-color: var(--mantine-color-error-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-color="green"],
+[data-theme="dark"] .mantine-Alert-root[data-color="green"] {
+  background-color: var(--mantine-color-bg-3) !important;
+  border-color: var(--mantine-color-success-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-color="yellow"],
+[data-theme="dark"] .mantine-Alert-root[data-color="yellow"] {
+  background-color: var(--mantine-color-bg-3) !important;
+  border-color: var(--mantine-color-warning-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root[data-color="orange"],
+[data-theme="dark"] .mantine-Alert-root[data-color="orange"] {
+  background-color: var(--mantine-color-bg-3) !important;
+  border-color: var(--mantine-color-warning-1) !important;
+}
+
+/* Alert text elements */
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Text-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Text-root {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Button-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Button-root {
+  background-color: var(--mantine-color-bg-4) !important;
+  border-color: var(--mantine-color-border-0) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Group-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Group-root {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Stack-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Stack-root {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Box-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Box-root {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Title-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Title-root {
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root strong,
+[data-theme="dark"] .mantine-Alert-root strong {
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Alert-root .mantine-Anchor-root,
+[data-theme="dark"] .mantine-Alert-root .mantine-Anchor-root {
+  color: var(--mantine-color-accent-1) !important;
+}
+
+/* Dark mode Tables */
+[data-mantine-color-scheme="dark"] .mantine-Table-root,
+[data-theme="dark"] .mantine-Table-root {
+  background-color: var(--mantine-color-bg-1);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-thead,
+[data-theme="dark"] .mantine-Table-thead {
+  background-color: var(--mantine-color-bg-2);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-th,
+[data-theme="dark"] .mantine-Table-th {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+  border-bottom: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-td,
+[data-theme="dark"] .mantine-Table-td {
+  background-color: var(--mantine-color-bg-1);
+  color: var(--mantine-color-text-1);
+  border-bottom: 1px solid var(--mantine-color-border-2);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tbody tr:hover,
+[data-theme="dark"] .mantine-Table-tbody tr:hover {
+  background-color: var(--mantine-color-bg-2);
+}
+
+/* Dark mode Buttons */
+[data-mantine-color-scheme="dark"] .mantine-Button-root,
+[data-theme="dark"] .mantine-Button-root {
+  background-color: var(--mantine-color-bg-3);
+  border: 1px solid var(--mantine-color-border-1);
+  color: var(--mantine-color-text-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="filled"],
+[data-theme="dark"] .mantine-Button-root[data-variant="filled"] {
+  background-color: var(--mantine-color-accent-1);
+  border-color: var(--mantine-color-accent-1);
+  color: var(--mantine-color-text-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="light"],
+[data-theme="dark"] .mantine-Button-root[data-variant="light"] {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--mantine-color-text-1);
+}
+
+/* Dark mode Inputs */
+[data-mantine-color-scheme="dark"] .mantine-Input-root,
+[data-theme="dark"] .mantine-Input-root {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-theme="dark"] .mantine-Input-input {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input:focus,
+[data-theme="dark"] .mantine-Input-input:focus {
+  border-color: var(--mantine-color-accent-1);
+}
+
+/* Dark mode Select */
+[data-mantine-color-scheme="dark"] .mantine-Select-dropdown,
+[data-theme="dark"] .mantine-Select-dropdown {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-item,
+[data-theme="dark"] .mantine-Select-item {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-item:hover,
+[data-theme="dark"] .mantine-Select-item:hover {
+  background-color: var(--mantine-color-bg-3);
+}
+
+/* Dark mode Modals */
+[data-mantine-color-scheme="dark"] .mantine-Modal-root,
+[data-theme="dark"] .mantine-Modal-root {
+  background-color: var(--mantine-color-bg-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Modal-header,
+[data-theme="dark"] .mantine-Modal-header {
+  background-color: var(--mantine-color-bg-2);
+  border-bottom: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Modal-content,
+[data-theme="dark"] .mantine-Modal-content {
+  background-color: var(--mantine-color-bg-1);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+/* Dark mode Badges */
+[data-mantine-color-scheme="dark"] .mantine-Badge-root,
+[data-theme="dark"] .mantine-Badge-root {
+  background-color: var(--mantine-color-bg-3);
+  color: var(--mantine-color-text-0);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+/* Dark mode Tooltips */
+[data-mantine-color-scheme="dark"] .mantine-Tooltip-tooltip,
+[data-theme="dark"] .mantine-Tooltip-tooltip {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+/* Dark mode Menu */
+[data-mantine-color-scheme="dark"] .mantine-Menu-dropdown,
+[data-theme="dark"] .mantine-Menu-dropdown {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Menu-item,
+[data-theme="dark"] .mantine-Menu-item {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Menu-item:hover,
+[data-theme="dark"] .mantine-Menu-item:hover {
+  background-color: var(--mantine-color-bg-3);
+}
+
+/* Custom Dark Mode Classes */
+[data-mantine-color-scheme="dark"] .dark-bg-primary,
+[data-theme="dark"] .dark-bg-primary {
+  background-color: var(--mantine-color-bg-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-bg-secondary,
+[data-theme="dark"] .dark-bg-secondary {
+  background-color: var(--mantine-color-bg-2) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-bg-tertiary,
+[data-theme="dark"] .dark-bg-tertiary {
+  background-color: var(--mantine-color-bg-3) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-text-primary,
+[data-theme="dark"] .dark-text-primary {
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-text-secondary,
+[data-theme="dark"] .dark-text-secondary {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-text-tertiary,
+[data-theme="dark"] .dark-text-tertiary {
+  color: var(--mantine-color-text-2) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-modal,
+[data-theme="dark"] .dark-modal {
+  background-color: var(--mantine-color-bg-1) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-info-box,
+[data-theme="dark"] .dark-info-box {
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-info-box .mantine-Text-root,
+[data-theme="dark"] .dark-info-box .mantine-Text-root {
+  color: var(--mantine-color-text-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .dark-button,
+[data-theme="dark"] .dark-button {
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+/* TAMS-Specific Component Styling */
+[data-mantine-color-scheme="dark"] .flow-details-container,
+[data-theme="dark"] .flow-details-container {
+  background-color: var(--mantine-color-bg-1);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .flow-info-box,
+[data-theme="dark"] .flow-info-box {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .segment-player-box,
+[data-theme="dark"] .segment-player-box {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .search-results-container,
+[data-theme="dark"] .search-results-container {
+  background-color: var(--mantine-color-bg-1);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .search-filters-box,
+[data-theme="dark"] .search-filters-box {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .video-details-panel,
+[data-theme="dark"] .video-details-panel {
+  background-color: var(--mantine-color-bg-2);
+  border: 1px solid var(--mantine-color-border-1);
+}
+
+[data-mantine-color-scheme="dark"] .now-playing-card,
+[data-theme="dark"] .now-playing-card {
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .quick-actions-card,
+[data-theme="dark"] .quick-actions-card {
+  background-color: var(--mantine-color-bg-2) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .search-interface,
+[data-theme="dark"] .search-interface {
+  background-color: var(--mantine-color-bg-1) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .search-input,
+[data-theme="dark"] .search-input {
+  background-color: var(--mantine-color-bg-2) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+  color: var(--mantine-color-text-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .video-player-container,
+[data-theme="dark"] .video-player-container {
+  background-color: var(--mantine-color-bg-2) !important;
+  border: 1px solid var(--mantine-color-border-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .video-player-container .mantine-Box-root,
+[data-theme="dark"] .video-player-container .mantine-Box-root {
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 2px dashed var(--mantine-color-border-0) !important;
+}
+
+/* Navigation Styling */
+[data-mantine-color-scheme="dark"] .nav-link,
+[data-theme="dark"] .nav-link {
+  color: var(--mantine-color-text-1) !important;
+  background-color: transparent !important;
+  border: none !important;
+  text-decoration: none !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-mantine-color-scheme="dark"] .nav-link:hover,
+[data-theme="dark"] .nav-link:hover {
+  color: var(--mantine-color-text-0) !important;
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+}
+
+[data-mantine-color-scheme="dark"] .nav-link.active,
+[data-theme="dark"] .nav-link.active {
+  color: var(--mantine-color-text-0) !important;
+  background-color: var(--mantine-color-bg-4) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+  font-weight: 600 !important;
+}
+
+[data-mantine-color-scheme="dark"] .nav-separator,
+[data-theme="dark"] .nav-separator {
+  border-color: var(--mantine-color-border-0) !important;
+}
+
+/* Specific navigation element styling */
+[data-mantine-color-scheme="dark"] .mantine-Anchor-root.nav-link,
+[data-theme="dark"] .mantine-Anchor-root.nav-link {
+  color: var(--mantine-color-text-1) !important;
+  text-decoration: none !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Anchor-root.nav-link:hover,
+[data-theme="dark"] .mantine-Anchor-root.nav-link:hover {
+  color: var(--mantine-color-text-0) !important;
+  text-decoration: none !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root.nav-link,
+[data-theme="dark"] .mantine-Button-root.nav-link {
+  color: var(--mantine-color-text-1) !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root.nav-link:hover,
+[data-theme="dark"] .mantine-Button-root.nav-link:hover {
+  color: var(--mantine-color-text-0) !important;
+  background-color: var(--mantine-color-bg-3) !important;
+  border: 1px solid var(--mantine-color-border-0) !important;
+}

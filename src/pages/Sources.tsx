@@ -354,8 +354,8 @@ export default function Sources() {
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Media Sources</Title>
-          <Text c="dimmed" size="sm" mt="xs">
+          <Title order={2} className="dark-text-primary">Media Sources</Title>
+          <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
             Original media inputs and content containers in the TAMS workflow
           </Text>
         </Box>
@@ -368,12 +368,14 @@ export default function Sources() {
               setError(null);
             }}
             loading={loading}
+            className="dark-button"
           >
             Refresh
           </Button>
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
+            className="dark-button"
           >
             Add Source
           </Button>
@@ -456,7 +458,7 @@ export default function Sources() {
       />
 
       {/* Sources Table */}
-      <Card withBorder>
+      <Card withBorder className="search-interface">
         <Table striped>
           <Table.Thead>
             <Table.Tr>

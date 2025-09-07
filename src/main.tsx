@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '@mantine/core/styles.css';
-//import './styles/tams.css';
+import './styles/tams.css';
+import './styles/dark-mode-fixed.css';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

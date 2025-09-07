@@ -334,8 +334,8 @@ export default function SearchResults() {
         <Box>
           <Group justify="space-between" align="flex-start">
             <Box>
-              <Title order={2} mb="xs">Search Results</Title>
-              <Text c="dimmed" size="sm">
+              <Title order={2} mb="xs" className="dark-text-primary">Search Results</Title>
+              <Text c="dimmed" size="sm" className="dark-text-secondary">
                 Found {filteredResults.length} results for "{filters.query}"
               </Text>
               <Text size="xs" c="dimmed" mt="xs">

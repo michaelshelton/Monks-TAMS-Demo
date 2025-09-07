@@ -625,18 +625,6 @@ export default function FlowDetails() {
     return duration.replace('PT', '').replace('H', 'h ').replace('M', 'm ').replace('S', 's').trim();
   };
 
-  // Generate HLS stream URL for the flow
-  const getHLSStreamUrl = (flowId: string): string => {
-    const backend = import.meta.env.VITE_DEFAULT_BACKEND;
-    if (backend === 'ibc-thiago-imported') {
-      return `http://localhost:3002/flows/${flowId}/stream.m3u8`;
-    } else if (backend === 'vast') {
-      // VAST TAMS backend
-      return `${import.meta.env.VITE_VAST_API_URL || 'http://localhost:8000'}/flows/${flowId}/stream.m3u8`;
-    }
-    // Fallback to other backends
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/flows/${flowId}/stream.m3u8`;
-  };
 
   const handlePlaySegment = (segment: SegmentItem) => {
     console.log('Playing segment:', segment);
@@ -678,45 +666,7 @@ export default function FlowDetails() {
            !!(segment.get_urls && segment.get_urls.length > 0);
   };
 
-  const handlePlayFlow = () => {
-    if (!flowId) return;
-    setSelectedSegment({
-      id: flowId,
-      object_id: flowId,
-      timerange: { start: new Date().toISOString(), end: new Date().toISOString() },
-      description: flow?.label || 'Flow Stream',
-      status: 'active',
-      flow_format: flow?.format || 'video/mp2t'
-    });
-    setShowVideoPlayer(true);
-    // Reset CMCD tracking for new flow
-    cmcdTracker.resetSession();
-    setCmcdMetrics([]);
-    setCmcdSessionActive(true);
-  };
 
-  const handleLoadInlineVideo = async () => {
-    if (!flowId) return;
-    
-    try {
-      setInlineVideoError(null);
-      setShowInlineVideoPlayer(true);
-      
-      // Get the HLS stream URL for the flow
-      const hlsUrl = getHLSStreamUrl(flowId);
-      setInlineVideoUrl(hlsUrl);
-      
-      // Start CMCD tracking for inline video
-      cmcdTracker.resetSession();
-      setCmcdSessionActive(true);
-      setCmcdMetrics([]);
-      
-      console.log('Loading inline video for flow:', flowId, 'URL:', hlsUrl);
-    } catch (error) {
-      console.error('Failed to load inline video:', error);
-      setInlineVideoError('Failed to load video stream');
-    }
-  };
 
   const handleInlineVideoClose = () => {
     setShowInlineVideoPlayer(false);
@@ -1001,8 +951,8 @@ export default function FlowDetails() {
                 {flow.status}
               </Badge>
             </Group>
-            <Title order={2} mb="md">{flow.label}</Title>
-            <Text size="lg" c="dimmed" mb="md">{flow.description}</Text>
+            <Title order={2} mb="md" className="dark-text-primary">{flow.label}</Title>
+            <Text size="lg" c="dimmed" mb="md" className="dark-text-secondary">{flow.description}</Text>
             <Group gap="xs" wrap="wrap">
               {getFormatIcon(flow.format)}
               <Text size="sm">{getFormatLabel(flow.format)}</Text>
@@ -1065,17 +1015,17 @@ export default function FlowDetails() {
           <Collapse in={showInfoBox}>
             <Stack gap="xs">
               <Text size="sm">
-                This page shows detailed information about a specific <strong>Flow</strong> - a processed media stream 
-                with technical specifications and encoding details. Here you can view segments, manage tags, 
+                This page shows detailed information about a specific <strong>Flow</strong> - a container for media segments 
+                with technical specifications and encoding details. Here you can view and play segments, manage tags, 
                 configure storage, and analyze performance.
               </Text>
               <Text size="sm">
                 Flows contain detailed metadata like format, codec, resolution, bitrates, and custom tags. 
-                This detailed view helps you understand the technical specifications and manage flow properties.
+                <strong>Note:</strong> Flows themselves do not contain playable video content - only their segments are playable.
               </Text>
               <Text size="sm">
                 <strong>Demo Note:</strong> This page shows live data from the TAMS backend powered by VAST, demonstrating real-time
-                media flow details and management capabilities.
+                media flow details and segment management capabilities.
               </Text>
             </Stack>
           </Collapse>
@@ -1103,10 +1053,10 @@ export default function FlowDetails() {
       <Grid mb="xl">
             <Grid.Col span={8}>
           {/* Segments Section - Primary Focus */}
-          <Card withBorder p="xl" mb="lg">
+          <Card withBorder p="xl" mb="lg" className="search-interface">
             <Group justify="space-between" mb="md">
               <Group gap="sm">
-                <Title order={3}>Flow Segments</Title>
+                <Title order={3} className="dark-text-primary">Flow Segments</Title>
                 {segmentsLoading && <Loader size="sm" />}
                 {isLiveMode && (
                   <Badge color="red" variant="filled" leftSection={<IconRadio size={12} />}>
@@ -1408,8 +1358,8 @@ export default function FlowDetails() {
         <Tabs.Panel value="overview" pt="xl">
               <Stack gap="lg">
                 {/* Flow Information */}
-                <Card withBorder p="xl">
-                  <Title order={4} mb="md">Flow Information</Title>
+                <Card withBorder p="xl" className="search-interface">
+                  <Title order={4} mb="md" className="dark-text-primary">Flow Information</Title>
                   <Grid>
                     <Grid.Col span={6}>
                       <Stack gap="md">
@@ -1455,9 +1405,9 @@ export default function FlowDetails() {
                 </Card>
 
                 {/* Collection Management */}
-                <Card withBorder p="xl">
+                <Card withBorder p="xl" className="search-interface">
                   <Group justify="space-between" mb="md">
-                    <Title order={4}>Collection Management</Title>
+                    <Title order={4} className="dark-text-primary">Collection Management</Title>
                               <Button 
                       size="sm"
                                 variant="light" 
@@ -1774,11 +1724,11 @@ export default function FlowDetails() {
 
         <Grid.Col span={4}>
           <Stack gap="lg">
-            {/* Video Player Box */}
-            <Card withBorder p="xl">
-              <Title order={4} mb="md">Video Player</Title>
+            {/* Segment Player Box */}
+            <Card withBorder p="xl" className="video-player-container">
+              <Title order={4} mb="md" className="dark-text-primary">Segment Player</Title>
               <Stack gap="md">
-                {!showInlineVideoPlayer ? (
+                {!selectedSegment ? (
                   <Box
                     style={{
                       width: '100%',
@@ -1788,27 +1738,16 @@ export default function FlowDetails() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: '2px dashed #dee2e6',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onClick={handleLoadInlineVideo}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#e9ecef';
-                      e.currentTarget.style.borderColor = '#adb5bd';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f8f9fa';
-                      e.currentTarget.style.borderColor = '#dee2e6';
+                      border: '2px dashed #dee2e6'
                     }}
                   >
                     <Stack gap="md" align="center">
-                      <IconPlayerPlay size={48} color="#6c757d" />
+                      <IconVideo size={48} color="#6c757d" />
                       <Text c="dimmed" size="sm" ta="center">
-                        Click to load flow stream
-                  </Text>
+                        Select a segment to play
+                      </Text>
                       <Text size="xs" c="dimmed" ta="center">
-                        {flow.label}
+                        Flows contain segments, not direct video content
                       </Text>
                     </Stack>
                   </Box>
@@ -1828,8 +1767,8 @@ export default function FlowDetails() {
                         {inlineVideoError && (
                           <Alert color="red" icon={<IconAlertCircle size={16} />}>
                             {inlineVideoError}
-              </Alert>
-            )}
+                          </Alert>
+                        )}
                         <Box 
                           style={{ 
                             position: 'relative',
@@ -1866,15 +1805,15 @@ export default function FlowDetails() {
                             </Badge>
                             <Text size="xs" c="dimmed">
                               Metrics: {cmcdMetrics.length}
-                  </Text>
+                            </Text>
                             <Button
                               variant="light"
                               size="xs"
                               onClick={() => setShowCMCD(!showCMCD)}
                             >
                               {showCMCD ? 'Hide' : 'Show'} CMCD
-                  </Button>
-                </Group>
+                            </Button>
+                          </Group>
                         )}
                       </Stack>
                     ) : (
@@ -1888,7 +1827,7 @@ export default function FlowDetails() {
                           backgroundColor: '#000'
                         }}
                       >
-                        <Text c="white" size="sm">Loading video player...</Text>
+                        <Text c="white" size="sm">Loading segment player...</Text>
                       </Box>
                     )}
                   </Box>
@@ -1900,8 +1839,8 @@ export default function FlowDetails() {
             </Card>
 
             {/* Segment Metadata */}
-              <Card withBorder p="md">
-              <Title order={5} mb="sm">
+              <Card withBorder p="md" className="now-playing-card">
+              <Title order={5} mb="sm" className="dark-text-primary">
                 {selectedSegment ? 'Segment Details' : 'Flow Overview'}
               </Title>
               <Stack gap="sm">
@@ -1998,8 +1937,8 @@ export default function FlowDetails() {
             </Card>
 
             {/* Quick Actions */}
-            <Card withBorder p="xl">
-              <Title order={4} mb="md">Quick Actions</Title>
+            <Card withBorder p="xl" className="quick-actions-card">
+              <Title order={4} mb="md" className="dark-text-primary">Quick Actions</Title>
               <Stack gap="sm">
                           <Button 
                             variant="light" 
@@ -2135,7 +2074,7 @@ export default function FlowDetails() {
                         }}
                         title={selectedSegment.description || flow.label}
                         description={`VAST TAMS segment playback for ${flow.label}`}
-                    onClose={handleVideoPlayerClose}
+                        onClose={handleVideoPlayerClose}
                         showControls={true}
                         autoPlay={true}
                         onError={(error) => {
@@ -2144,19 +2083,29 @@ export default function FlowDetails() {
                         }}
                       />
                     ) : (
-                      // Fallback to HLS stream
-                      <HLSVideoPlayer
-                        hlsUrl={getHLSStreamUrl(flowId || '')}
-                        title={selectedSegment.description || flow.label}
-                        description={`HLS stream for ${flow.label}`}
-                    onClose={handleVideoPlayerClose}
-                        showControls={true}
-                        autoPlay={true}
-                        onError={(error) => {
-                          console.error('HLS Video Player Error:', error);
-                          setError(`Video playback error: ${error}`);
+                      // No video content available for segments without presigned URLs
+                      <Box
+                        style={{
+                          width: '100%',
+                          height: '400px',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px dashed #dee2e6'
                         }}
-                      />
+                      >
+                        <Stack gap="md" align="center">
+                          <IconAlertCircle size={48} color="#6c757d" />
+                          <Text c="dimmed" size="lg" ta="center">
+                            No video content available
+                          </Text>
+                          <Text size="sm" c="dimmed" ta="center">
+                            This segment does not have playable video URLs
+                          </Text>
+                        </Stack>
+                      </Box>
                     )}
                   </Grid.Col>
                   

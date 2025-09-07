@@ -526,8 +526,8 @@ export default function Analytics() {
     <Container size="xl" px="xl" py="xl">
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Analytics Dashboard</Title>
-          <Text c="dimmed" size="sm" mt="xs">
+          <Title order={2} className="dark-text-primary">Analytics Dashboard</Title>
+          <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
             Monitor performance, compliance, and usage patterns across your VAST TAMS implementation
           </Text>
         </Box>

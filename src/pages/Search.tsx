@@ -24,7 +24,9 @@ import {
   Textarea,
   Code,
   Image,
-  Table
+  Table,
+  SimpleGrid,
+  ScrollArea
 } from '@mantine/core';
 import { 
   IconSearch, 
@@ -61,6 +63,8 @@ import { BBCApiOptions } from '../services/api';
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import BBCPagination from '../components/BBCPagination';
 import VideoPlayer from '../components/VideoPlayer';
+import VastTamsVideoPlayer from '../components/VastTamsVideoPlayer';
+import HLSVideoPlayer from '../components/HLSVideoPlayer';
 import FlowAdvancedSearch, { FlowAdvancedSearchFilters } from '../components/FlowAdvancedSearch';
 import { 
   performSearch, 
@@ -68,6 +72,7 @@ import {
   SearchResult, 
   SearchResponse 
 } from '../services/searchService';
+import { cmcdTracker, type CMCDMetrics } from '../services/cmcdService';
 
 // Simplified search interface aligned with VAST TAMS API
 interface TAMSSearchOptions {
@@ -117,6 +122,18 @@ export default function Search() {
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState<SearchResult | null>(null);
   const [showSegmentDetails, setShowSegmentDetails] = useState(false);
+  
+  // Video player state
+  const [showInlineVideoPlayer, setShowInlineVideoPlayer] = useState(false);
+  const [inlineVideoUrl, setInlineVideoUrl] = useState<string | null>(null);
+  const [inlineVideoError, setInlineVideoError] = useState<string | null>(null);
+  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  
+  // CMCD tracking state
+  const [cmcdMetrics, setCmcdMetrics] = useState<CMCDMetrics[]>([]);
+  const [showCMCDPanel, setShowCMCDPanel] = useState(false);
+  const [cmcdSessionActive, setCmcdSessionActive] = useState(false);
+  const [showCMCD, setShowCMCD] = useState(false);
 
   // Search filters aligned with VAST TAMS API
   const [filters, setFilters] = useState({
@@ -273,6 +290,142 @@ export default function Search() {
     }
   };
 
+  // Handle segment playback
+  const handlePlaySegment = (result: SearchResult) => {
+    console.log('Playing segment:', result);
+    
+    // Check if segment has presigned URLs from VAST TAMS
+    if (!result.get_urls || result.get_urls.length === 0) {
+      setError('No playback URLs available for this segment');
+      return;
+    }
+    
+    // Load segment into inline video player
+    setSelectedSegment(result);
+    setShowInlineVideoPlayer(true);
+    
+    // Get the first available URL for playback
+    const playbackUrl = result.get_urls.find(url => url.label?.includes('GET'))?.url || result.get_urls[0]?.url;
+    if (playbackUrl) {
+      setInlineVideoUrl(playbackUrl);
+      setInlineVideoError(null);
+    } else {
+      setInlineVideoError('No valid playback URL found for this segment');
+    }
+    
+    // Reset CMCD tracking for new segment
+    cmcdTracker.resetSession();
+    setCmcdMetrics([]);
+    setCmcdSessionActive(true);
+  };
+
+  // Handle inline video close
+  const handleInlineVideoClose = () => {
+    setShowInlineVideoPlayer(false);
+    setInlineVideoUrl(null);
+    setInlineVideoError(null);
+    setCmcdSessionActive(false);
+    setCmcdMetrics([]);
+  };
+
+  // CMCD metrics tracking effect
+  useEffect(() => {
+    if (cmcdSessionActive) {
+      const interval = setInterval(() => {
+        const session = cmcdTracker.getSession();
+        if (session.metrics && session.metrics.length > 0) {
+          setCmcdMetrics(session.metrics);
+        }
+      }, 1000); // Update every second
+
+      return () => clearInterval(interval);
+    }
+    return undefined;
+  }, [cmcdSessionActive]);
+
+  // CMCD tracking for inline video
+  useEffect(() => {
+    if (cmcdSessionActive && videoRef) {
+      // Start CMCD tracking for the video element
+      cmcdTracker.startVideoTracking(videoRef, selectedSegment?.id, undefined, undefined);
+      
+      // Cleanup
+      return () => {
+        cmcdTracker.stopVideoTracking();
+      };
+    }
+    return undefined;
+  }, [cmcdSessionActive, selectedSegment?.id]);
+
+  // CMCD data display function
+  const renderCMCDData = () => {
+    if (!cmcdMetrics || cmcdMetrics.length === 0) return null;
+
+    const latestMetric = cmcdMetrics[cmcdMetrics.length - 1];
+    if (!latestMetric) return null;
+
+    return (
+      <Collapse in={showCMCD}>
+        <Card mt="md" withBorder>
+          <Group justify="space-between" mb="sm">
+            <Title order={6}>CMCD Data (Common Media Client Data)</Title>
+            <Badge color="blue">VAST TAMS Compliant</Badge>
+          </Group>
+          <SimpleGrid cols={2} spacing="xs">
+            <Box>
+              <Text size="xs" c="dimmed">Object Type</Text>
+              <Code style={{ fontSize: '0.75rem' }}>v</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Duration</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.objectDuration?.toFixed(1) || 'N/A'}s</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Session ID</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.sessionId || 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Load Time</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.loadTime ? `${latestMetric.loadTime}ms` : 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Bitrate</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.bandwidth ? `${(latestMetric.bandwidth / 1000).toFixed(0)}kbps` : 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Buffer Length</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.bufferLength?.toFixed(1) || 'N/A'}s</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Playback Rate</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.playbackRate?.toFixed(2) || 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Quality Level</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.qualityLevel || 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Startup Time</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.startupTime ? `${latestMetric.startupTime.toFixed(2)}s` : 'N/A'}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Rebuffering Events</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.rebufferingEvents || 0}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Decoded Frames</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.decodedFrames || 0}</Code>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Dropped Frames</Text>
+              <Code style={{ fontSize: '0.75rem' }}>{latestMetric.droppedFrames || 0}</Code>
+            </Box>
+          </SimpleGrid>
+        </Card>
+      </Collapse>
+    );
+  };
+
   const handleResultClick = (result: SearchResult) => {
     // Navigate to the appropriate detail page based on result type
     if (result.type === 'source') {
@@ -323,8 +476,8 @@ export default function Search() {
         {/* Title and Header */}
         <Group justify="space-between" mb="lg">
           <Box>
-            <Title order={2}>Segment Discovery</Title>
-            <Text c="dimmed" size="sm" mt="xs">
+            <Title order={2} className="dark-text-primary">TAMS Explorer</Title>
+            <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
               Search and discover media segments across your TAMS library - the core content units
             </Text>
           </Box>
@@ -826,8 +979,11 @@ export default function Search() {
           </Stack>
         </Card>
 
-        {/* Search Results */}
+        {/* Search Results - Broadcast Layout */}
         {showResults && (
+          <Grid gutter="lg">
+            {/* Main Content Area */}
+            <Grid.Col span={8}>
           <Card withBorder p="xl" radius="lg" shadow="sm" className="search-interface">
             <Stack gap="lg">
               {/* Results Header */}
@@ -885,115 +1041,109 @@ export default function Search() {
                 </Group>
               )}
 
-              {/* Search Results Table */}
+                  {/* Search Results List - Broadcast Style */}
               {!loading && !error && (
-                <Table striped>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Content</Table.Th>
-                      <Table.Th>Type & Format</Table.Th>
-                      <Table.Th>Timing</Table.Th>
-                      <Table.Th>Metadata</Table.Th>
-                      <Table.Th>Actions</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                    <ScrollArea h={600}>
+                      <Stack gap="md">
                     {paginatedResults.map((result) => (
-                      <Table.Tr 
+                          <Card 
                         key={result.id}
+                            withBorder 
+                            p="md" 
+                            radius="md"
                         style={{ 
-                          backgroundColor: selectedResults.has(result.id) ? 'var(--mantine-color-blue-0)' : undefined
-                        }}
-                      >
-                        <Table.Td>
-                          <Box>
+                              backgroundColor: selectedResults.has(result.id) ? 'var(--mantine-color-blue-0)' : undefined,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => handlePlaySegment(result)}
+                            onMouseEnter={(e) => {
+                              if (!selectedResults.has(result.id)) {
+                                e.currentTarget.style.backgroundColor = 'var(--mantine-color-gray-0)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!selectedResults.has(result.id)) {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }
+                            }}
+                          >
+                            <Group justify="space-between" align="flex-start">
+                              <Box style={{ flex: 1 }}>
                             <Group gap="xs" align="center" mb="xs">
-                              <Text 
-                                fw={500} 
-                                size="sm"
-                                style={{ cursor: 'pointer', color: '#228be6' }}
-                                onClick={() => handleResultClick(result)}
-                              >
+                                  <Text fw={600} size="md" c="blue">
                                 {result.title}
                               </Text>
-                              <Badge variant="light" color="gray" size="xs">
+                                  <Badge variant="light" color="gray" size="sm">
                                 {result.type}
                               </Badge>
                               {selectedResults.has(result.id) && (
-                                <Badge size="xs" color="blue">SELECTED</Badge>
+                                    <Badge size="sm" color="blue">SELECTED</Badge>
                               )}
                             </Group>
-                            <Text size="xs" c="dimmed" lineClamp={2}>
+                                
+                                <Text size="sm" c="dimmed" mb="sm" lineClamp={2}>
                               {result.description}
                             </Text>
-                            <Text size="xs" c="dimmed" mt="xs">
-                              {result.contentInfo.category} • {result.contentInfo.contentType}
+                                
+                                <Group gap="md" mb="sm">
+                                  <Group gap="xs">
+                                    <IconClock size={14} />
+                                    <Text size="sm" fw={500}>
+                                      {formatDuration(result.timing.duration)}
                             </Text>
-                          </Box>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap="xs">
+                                  </Group>
                             <Badge variant="light" color="blue" size="sm">
                               {result.metadata.format}
                             </Badge>
                             <Badge variant="light" color="green" size="sm">
                               {result.metadata.quality}
                             </Badge>
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Group gap="xs" align="center">
-                            <IconClock size={14} />
-                            <Box>
-                              <Text size="xs" fw={500}>
-                                {formatDuration(result.timing.duration)}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {result.timing.start} - {result.timing.end}
-                              </Text>
-                            </Box>
+                                  {result.contentInfo.venue && (
+                                    <Badge variant="light" color="orange" size="sm">
+                                      📍 {result.contentInfo.venue}
+                                    </Badge>
+                                  )}
                           </Group>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap="xs">
+                                
                             {result.metadata.tags && Object.keys(result.metadata.tags).length > 0 && (
                               <Group gap="xs" wrap="wrap">
-                                {Object.entries(result.metadata.tags).slice(0, 2).map(([key, value]) => (
+                                    {Object.entries(result.metadata.tags).slice(0, 3).map(([key, value]) => (
                                   <Badge key={key} variant="light" color="green" size="xs">
                                     {key}: {String(value)}
                                   </Badge>
                                 ))}
-                                {Object.keys(result.metadata.tags).length > 2 && (
+                                    {Object.keys(result.metadata.tags).length > 3 && (
                                   <Badge variant="light" color="gray" size="xs">
-                                    +{Object.keys(result.metadata.tags).length - 2} more
+                                        +{Object.keys(result.metadata.tags).length - 3} more
                                   </Badge>
                                 )}
                               </Group>
                             )}
-                            {result.contentInfo.venue && (
-                              <Badge variant="light" color="orange" size="xs">
-                                📍 {result.contentInfo.venue}
-                              </Badge>
-                            )}
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
+                              </Box>
+                              
                           <Group gap="xs">
                             <Tooltip label="Select">
                               <ActionIcon
                                 size="sm"
                                 variant="light"
-                                onClick={() => toggleResultSelection(result.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleResultSelection(result.id);
+                                    }}
                                 color={selectedResults.has(result.id) ? 'blue' : 'gray'}
                               >
                                 <IconEye size={14} />
                               </ActionIcon>
                             </Tooltip>
-                            <Tooltip label="Preview">
+                                <Tooltip label="Play Segment">
                               <ActionIcon
                                 size="sm"
                                 variant="light"
-                                onClick={() => handlePreview(result)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePlaySegment(result);
+                                    }}
                                 color="blue"
                               >
                                 <IconPlayerPlay size={14} />
@@ -1004,7 +1154,8 @@ export default function Search() {
                                 size="sm"
                                 variant="light"
                                 color="gray"
-                                onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                   setSelectedSegment(result);
                                   setShowSegmentDetails(true);
                                 }}
@@ -1013,11 +1164,11 @@ export default function Search() {
                               </ActionIcon>
                             </Tooltip>
                           </Group>
-                        </Table.Td>
-                      </Table.Tr>
+                            </Group>
+                          </Card>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                      </Stack>
+                    </ScrollArea>
               )}
 
               {/* No Results */}
@@ -1048,6 +1199,213 @@ export default function Search() {
               )}
             </Stack>
           </Card>
+            </Grid.Col>
+
+            {/* Video Player Sidebar */}
+            <Grid.Col span={4}>
+              <Stack gap="lg">
+                {/* Video Player Box */}
+                <Card withBorder p="xl" className="video-player-container">
+                  <Title order={4} mb="md" className="dark-text-primary">Segment Player</Title>
+                  <Stack gap="md">
+                    {!selectedSegment ? (
+                      <Box
+                        style={{
+                          width: '100%',
+                          height: '300px',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px dashed #dee2e6'
+                        }}
+                      >
+                        <Stack gap="md" align="center">
+                          <IconVideo size={48} color="#6c757d" />
+                          <Text c="dimmed" size="sm" ta="center" className="dark-text-secondary">
+                            Select a segment to play
+                          </Text>
+                          <Text size="xs" c="dimmed" ta="center" className="dark-text-tertiary">
+                            Click on any search result to start playback
+                          </Text>
+                        </Stack>
+                      </Box>
+                    ) : (
+                      <Box
+                        style={{
+                          width: '100%',
+                          height: '300px',
+                          backgroundColor: '#000',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}
+                      >
+                        {showInlineVideoPlayer && inlineVideoUrl ? (
+                          <Stack gap="md">
+                            {inlineVideoError && (
+                              <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                                {inlineVideoError}
+                              </Alert>
+                            )}
+                            <Box 
+                              style={{ 
+                                position: 'relative',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleInlineVideoClose}
+                              title="Click to close video player"
+                            >
+                              <video
+                                ref={setVideoRef}
+                                controls
+                                autoPlay
+                                muted
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'contain'
+                                }}
+                                onError={(e) => {
+                                  console.error('Video playback error:', e);
+                                  setInlineVideoError(`Video playback error: ${e.currentTarget.error?.message || 'Unknown error'}`);
+                                }}
+                                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking video controls
+                              >
+                                <source src={inlineVideoUrl} type="application/x-mpegURL" />
+                                <source src={inlineVideoUrl} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                            </Box>
+                            {cmcdSessionActive && (
+                              <Group gap="xs" justify="center">
+                                <Badge color="green" variant="light" size="sm">
+                                  CMCD Tracking Active
+                                </Badge>
+                                <Text size="xs" c="dimmed">
+                                  Metrics: {cmcdMetrics.length}
+                                </Text>
+                                <Button
+                                  variant="light"
+                                  size="xs"
+                                  onClick={() => setShowCMCD(!showCMCD)}
+                                >
+                                  {showCMCD ? 'Hide' : 'Show'} CMCD
+                                </Button>
+                              </Group>
+                            )}
+                          </Stack>
+                        ) : (
+                          <Box
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: '#000'
+                            }}
+                          >
+                            <Text c="white" size="sm">Loading segment player...</Text>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Stack>
+                  
+                  {/* CMCD Data Display */}
+                  {renderCMCDData()}
+                </Card>
+
+                {/* Selected Segment Info */}
+                <Card withBorder p="md" className="now-playing-card">
+                  <Title order={5} mb="sm" className="dark-text-primary">
+                    {selectedSegment ? 'Now Playing' : 'No Selection'}
+                  </Title>
+                  <Stack gap="sm">
+                    {selectedSegment ? (
+                      <>
+                        <Group justify="space-between">
+                          <Text size="xs" c="dimmed" className="dark-text-secondary">Segment</Text>
+                          <Text size="sm" fw={500} c="blue" className="dark-text-primary">{selectedSegment.title}</Text>
+                        </Group>
+                        <Group justify="space-between">
+                          <Text size="xs" c="dimmed" className="dark-text-secondary">Format</Text>
+                          <Badge variant="light" color="blue" size="sm">
+                            {selectedSegment.metadata.format}
+                          </Badge>
+                        </Group>
+                        <Group justify="space-between">
+                          <Text size="xs" c="dimmed" className="dark-text-secondary">Duration</Text>
+                          <Text size="sm" fw={500} className="dark-text-primary">{formatDuration(selectedSegment.timing.duration)}</Text>
+                        </Group>
+                        <Group justify="space-between">
+                          <Text size="xs" c="dimmed" className="dark-text-secondary">Quality</Text>
+                          <Badge variant="light" color="green" size="sm">
+                            {selectedSegment.metadata.quality}
+                          </Badge>
+                        </Group>
+                        {selectedSegment.metadata.tags && Object.keys(selectedSegment.metadata.tags).length > 0 && (
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs" className="dark-text-secondary">Tags</Text>
+                            <Group gap="xs" wrap="wrap">
+                              {Object.entries(selectedSegment.metadata.tags).slice(0, 2).map(([k,v]) => (
+                                <Badge key={k} color="gray" variant="outline" size="xs">{k}: {v}</Badge>
+                              ))}
+                              {Object.keys(selectedSegment.metadata.tags).length > 2 && (
+                                <Badge color="gray" variant="outline" size="xs">+{Object.keys(selectedSegment.metadata.tags).length - 2}</Badge>
+                              )}
+                            </Group>
+                          </Box>
+                        )}
+                      </>
+                    ) : (
+                      <Text size="sm" c="dimmed" ta="center" className="dark-text-secondary">
+                        Select a segment from the search results to see details and play content
+                      </Text>
+                    )}
+                  </Stack>
+                </Card>
+
+                {/* Quick Actions */}
+                <Card withBorder p="md" className="quick-actions-card">
+                  <Title order={5} mb="sm" className="dark-text-primary">Quick Actions</Title>
+                  <Stack gap="sm">
+                    <Button 
+                      variant="light" 
+                      leftSection={<IconRefresh size={16} />} 
+                      onClick={handleSearch}
+                      loading={loading}
+                      fullWidth
+                      className="dark-button"
+                    >
+                      Refresh Search
+                    </Button>
+                    <Button 
+                      variant="light" 
+                      leftSection={<IconSettings size={16} />} 
+                      onClick={() => setShowCMCDPanel(!showCMCDPanel)}
+                      fullWidth
+                      className="dark-button"
+                    >
+                      {showCMCDPanel ? 'Hide' : 'Show'} Analytics
+                    </Button>
+                    {selectedResults.size > 0 && (
+                      <Button 
+                        variant="light" 
+                        leftSection={<IconDownload size={16} />} 
+                        fullWidth
+                        className="dark-button"
+                      >
+                        Export Selected ({selectedResults.size})
+                      </Button>
+                    )}
+                  </Stack>
+                </Card>
+              </Stack>
+            </Grid.Col>
+          </Grid>
         )}
 
 
@@ -1063,6 +1421,52 @@ export default function Search() {
           fullScreen
         >
           {selectedVideo && (
+            <Stack gap="md">
+              <Group justify="space-between">
+                <Box>
+                  <Title order={4}>{selectedVideo.title}</Title>
+                  <Text size="sm" c="dimmed">{selectedVideo.description} • {formatDuration(selectedVideo.timing.duration)}</Text>
+                </Box>
+                <Group>
+                  <Button variant="light" leftSection={<IconDownload size={16} />}>Download</Button>
+                  <Button variant="light" leftSection={<IconChartBar size={16} />} onClick={() => setShowCMCDPanel(!showCMCDPanel)}>
+                    {showCMCDPanel ? 'Hide' : 'Show'} Analytics
+                  </Button>
+                  <Button variant="light" onClick={() => setShowVideoPlayer(false)}>Close</Button>
+                </Group>
+              </Group>
+              
+              <Grid>
+                <Grid.Col span={showCMCDPanel ? 8 : 12}>
+                  {selectedVideo.get_urls && selectedVideo.get_urls.length > 0 ? (
+                    // Use VAST TAMS Video Player for segments with presigned URLs
+                    <VastTamsVideoPlayer
+                      segment={{
+                        id: selectedVideo.id,
+                        timerange: `${selectedVideo.timing.start}/${selectedVideo.timing.end}`,
+                        get_urls: selectedVideo.get_urls,
+                        format: selectedVideo.metadata.format,
+                        codec: 'h264',
+                        size: 0,
+                        created: new Date().toISOString(),
+                        updated: new Date().toISOString(),
+                        tags: selectedVideo.metadata.tags,
+                        deleted: false,
+                        deleted_at: null,
+                        deleted_by: null
+                      }}
+                      title={selectedVideo.title}
+                      description={selectedVideo.description || 'No description available'}
+                      onClose={() => setShowVideoPlayer(false)}
+                      showControls={true}
+                      autoPlay={true}
+                      onError={(error) => {
+                        console.error('VAST TAMS Video Player Error:', error);
+                        setError(`Video playback error: ${error}`);
+                      }}
+                    />
+                  ) : (
+                    // Fallback to regular video player
             <VideoPlayer
               videoUrl={selectedVideo.previewUrl || ''}
               title={selectedVideo.title}
@@ -1076,6 +1480,88 @@ export default function Search() {
               onClose={() => setShowVideoPlayer(false)}
               showControls={true}
             />
+                  )}
+                </Grid.Col>
+                
+                {showCMCDPanel && (
+                  <Grid.Col span={4}>
+                    <Card withBorder p="md" h="70vh">
+                      <Stack gap="md">
+                        <Group justify="space-between">
+                          <Title order={5}>CMCD Analytics</Title>
+                          <Group gap="xs">
+                            <Badge color="green" variant="light">Live</Badge>
+                            {cmcdSessionActive && <Badge color="blue" variant="light">Active</Badge>}
+                          </Group>
+                        </Group>
+                        
+                        <Divider />
+                        
+                        {/* Real-time metrics */}
+                        <Box>
+                          <Text size="sm" fw={500} mb="xs">Current Metrics</Text>
+                          {cmcdMetrics.length > 0 ? (
+                            <Stack gap="xs">
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Buffer:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const bufferLength = cmcdMetrics[cmcdMetrics.length - 1]?.bufferLength;
+                                    return bufferLength ? `${Math.round(bufferLength)}s` : 'N/A';
+                                  })()}
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Playback Rate:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const playbackRate = cmcdMetrics[cmcdMetrics.length - 1]?.playbackRate;
+                                    return playbackRate ? `${playbackRate}x` : 'N/A';
+                                  })()}
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Duration:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const objectDuration = cmcdMetrics[cmcdMetrics.length - 1]?.objectDuration;
+                                    return objectDuration ? `${Math.round(objectDuration)}s` : 'N/A';
+                                  })()}
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="xs" c="dimmed">Bandwidth:</Text>
+                                <Text size="xs" fw={500}>
+                                  {(() => {
+                                    const bandwidth = cmcdMetrics[cmcdMetrics.length - 1]?.bandwidth;
+                                    return bandwidth ? `${Math.round(bandwidth)} kbps` : 'N/A';
+                                  })()}
+                                </Text>
+                              </Group>
+                            </Stack>
+                          ) : (
+                            <Text size="xs" c="dimmed" ta="center" py="md">
+                              {cmcdSessionActive ? 'Collecting metrics...' : 'Start video playback to see metrics'}
+                            </Text>
+                          )}
+                        </Box>
+                        
+                        <Divider />
+                        
+                        {/* Session info */}
+                        <Box>
+                          <Text size="xs" c="dimmed">Session ID</Text>
+                          <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                            {cmcdTracker.getSession().id}
+                          </Text>
+                          <Text size="xs" c="dimmed" mt="xs">Metrics Count: {cmcdMetrics.length}</Text>
+                        </Box>
+                      </Stack>
+                    </Card>
+                  </Grid.Col>
+                )}
+              </Grid>
+            </Stack>
           )}
         </Modal>
 
@@ -1215,6 +1701,10 @@ export default function Search() {
                     setSelectedVideo(selectedSegment);
                     setShowVideoPlayer(true);
                     setShowSegmentDetails(false);
+                    // Start CMCD tracking for modal video
+                    cmcdTracker.resetSession();
+                    setCmcdMetrics([]);
+                    setCmcdSessionActive(true);
                   }}
                 >
                   Play Segment

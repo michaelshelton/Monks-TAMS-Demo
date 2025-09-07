@@ -230,7 +230,7 @@ export default function Landing() {
                     <Title order={4} style={{ flex: 1 }}>
                       {action.title}
                     </Title>
-                    <Text c="dimmed" size="sm" style={{ flex: 1 }}>
+                    <Text c="dimmed" size="sm" style={{ flex: 1 }} className="dark-text-secondary">
                       {action.description}
                     </Text>
                     <Button 

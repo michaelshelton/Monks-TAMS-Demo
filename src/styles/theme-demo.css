@@ -1,0 +1,195 @@
+/* Theme Demo Styles */
+/* Additional styling for showcasing dark mode functionality */
+
+/* Theme showcase container */
+.theme-showcase {
+  padding: 2rem;
+  border-radius: 8px;
+  border: 2px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  transition: all 0.3s ease;
+}
+
+[data-mantine-color-scheme="dark"] .theme-showcase,
+[data-theme="dark"] .theme-showcase {
+  background-color: var(--mantine-color-bg-1);
+  border-color: var(--mantine-color-border-0);
+}
+
+/* Theme toggle showcase */
+.theme-toggle-showcase {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--mantine-color-gray-0);
+  border-radius: 8px;
+  border: 1px solid var(--mantine-color-gray-3);
+  transition: all 0.3s ease;
+}
+
+[data-mantine-color-scheme="dark"] .theme-toggle-showcase,
+[data-theme="dark"] .theme-toggle-showcase {
+  background-color: var(--mantine-color-bg-2);
+  border-color: var(--mantine-color-border-0);
+}
+
+/* Color palette showcase */
+.color-palette {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.color-swatch {
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.color-swatch.primary {
+  background-color: var(--mantine-color-blue-6);
+  color: white;
+}
+
+.color-swatch.secondary {
+  background-color: var(--mantine-color-gray-6);
+  color: white;
+}
+
+.color-swatch.success {
+  background-color: var(--mantine-color-green-6);
+  color: white;
+}
+
+.color-swatch.warning {
+  background-color: var(--mantine-color-yellow-6);
+  color: black;
+}
+
+.color-swatch.error {
+  background-color: var(--mantine-color-red-6);
+  color: white;
+}
+
+/* Dark mode specific color swatches */
+[data-mantine-color-scheme="dark"] .color-swatch.primary,
+[data-theme="dark"] .color-swatch.primary {
+  background-color: var(--mantine-color-blue-4);
+}
+
+[data-mantine-color-scheme="dark"] .color-swatch.secondary,
+[data-theme="dark"] .color-swatch.secondary {
+  background-color: var(--mantine-color-gray-4);
+}
+
+[data-mantine-color-scheme="dark"] .color-swatch.success,
+[data-theme="dark"] .color-swatch.success {
+  background-color: var(--mantine-color-green-4);
+}
+
+[data-mantine-color-scheme="dark"] .color-swatch.warning,
+[data-theme="dark"] .color-swatch.warning {
+  background-color: var(--mantine-color-yellow-4);
+}
+
+[data-mantine-color-scheme="dark"] .color-swatch.error,
+[data-theme="dark"] .color-swatch.error {
+  background-color: var(--mantine-color-red-4);
+}
+
+/* Component showcase */
+.component-showcase {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.component-card {
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  transition: all 0.3s ease;
+}
+
+[data-mantine-color-scheme="dark"] .component-card,
+[data-theme="dark"] .component-card {
+  background-color: var(--mantine-color-bg-1);
+  border-color: var(--mantine-color-border-0);
+}
+
+/* Theme status indicator */
+.theme-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: var(--mantine-color-blue-0);
+  color: var(--mantine-color-blue-7);
+  border: 1px solid var(--mantine-color-blue-2);
+  transition: all 0.3s ease;
+}
+
+[data-mantine-color-scheme="dark"] .theme-status,
+[data-theme="dark"] .theme-status {
+  background-color: var(--mantine-color-bg-2);
+  color: var(--mantine-color-text-0);
+  border-color: var(--mantine-color-border-0);
+}
+
+/* Smooth transitions for all theme changes */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Focus states for better accessibility */
+[data-mantine-color-scheme="dark"] *:focus,
+[data-theme="dark"] *:focus {
+  outline: 2px solid var(--mantine-color-accent-1);
+  outline-offset: 2px;
+}
+
+/* Selection colors */
+[data-mantine-color-scheme="dark"] ::selection,
+[data-theme="dark"] ::selection {
+  background-color: var(--mantine-color-accent-1);
+  color: white;
+}
+
+/* Scrollbar styling for dark mode */
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar,
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-track,
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--mantine-color-bg-1);
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb,
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--mantine-color-bg-3);
+  border-radius: 4px;
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--mantine-color-text-3);
+}
+
+/* Firefox scrollbar styling */
+[data-mantine-color-scheme="dark"] *,
+[data-theme="dark"] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mantine-color-bg-3) var(--mantine-color-bg-1);
+}

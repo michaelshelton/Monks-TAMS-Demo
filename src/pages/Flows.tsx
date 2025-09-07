@@ -452,8 +452,8 @@ export default function Flows() {
       {/* Title and Header */}
       <Group justify="space-between" mb="lg">
         <Box>
-          <Title order={2}>Media Flows</Title>
-          <Text c="dimmed" size="sm" mt="xs">
+          <Title order={2} className="dark-text-primary">Media Flows</Title>
+          <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
             Processed media streams with technical specifications and encoding details
           </Text>
         </Box>
@@ -463,12 +463,14 @@ export default function Flows() {
             leftSection={<IconRefresh size={16} />}
             onClick={handleRefresh}
             loading={loading}
+            className="dark-button"
           >
             Refresh
           </Button>
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
+            className="dark-button"
           >
             Add Flow
           </Button>
@@ -669,7 +671,7 @@ export default function Flows() {
       </Box>
 
       {/* Flows Table */}
-      <Card withBorder>
+      <Card withBorder className="search-interface">
         <Table striped>
           <Table.Thead>
             <Table.Tr>

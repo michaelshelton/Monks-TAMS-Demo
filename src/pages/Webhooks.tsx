@@ -272,8 +272,8 @@ export const Webhooks: React.FC = () => {
         {/* Page Header */}
         <Group justify="space-between" mb="lg">
           <Box>
-            <Title order={2}>Webhook Management</Title>
-            <Text c="dimmed" size="sm" mt="xs">
+            <Title order={2} className="dark-text-primary">Webhook Management</Title>
+            <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
               Event-driven notifications for real-time TAMS system integration
             </Text>
           </Box>

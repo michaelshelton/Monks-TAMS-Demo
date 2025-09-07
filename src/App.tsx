@@ -19,11 +19,34 @@ import VastTamsWorkflow from './pages/VastTamsWorkflow';
 import { Webhooks } from './pages/Webhooks';
 import FlowCollections from './pages/FlowCollections';
 import { BackendProvider } from './contexts/BackendContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { ThemeToggle } from './components/ThemeToggle';
+import './styles/dark-mode-fixed.css';
 
 const theme = createTheme({
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
   primaryColor: 'blue',
   defaultRadius: 'md',
+  colors: {
+    dark: [
+      '#0f0f0f', // dark-0 - Deepest background
+      '#1a1a1a', // dark-1 - Primary surface
+      '#262626', // dark-2 - Secondary surface (navbar)
+      '#333333', // dark-3 - Tertiary surface
+      '#404040', // dark-4 - Quaternary surface
+      '#4d4d4d', // dark-5 - Elevated surface
+      '#666666', // dark-6 - Text tertiary
+      '#808080', // dark-7 - Text quaternary
+      '#b3b3b3', // dark-8 - Text secondary
+      '#e5e5e5', // dark-9 - Text primary
+    ],
+  },
+  primaryShade: { light: 6, dark: 4 },
+  defaultGradient: {
+    from: 'blue',
+    to: 'cyan',
+    deg: 45,
+  },
 });
 
 // Main navigation items (always visible)
@@ -66,76 +89,89 @@ function AppLayout() {
   return (
     <AppShell padding="md">
       <AppShell.Header h={60} p="md" withBorder={false} style={{ position: 'static' }}>
-        
-        {/* Center: Main Navigation + Dropdown */}
-        <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          {/* Main Navigation Links */}
-          <Group gap="sm">
-            {mainNavLinks.map((link) => (
-              <Anchor
-                key={link.to}
-                component={Link}
-                to={link.to}
-                fw={500}
-                size="sm"
-                c={location.pathname === link.to ? 'blue' : 'gray'}
-                style={{ 
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s ease',
-                  ...(location.pathname === link.to && {
-                    backgroundColor: 'var(--mantine-color-blue-0)',
-                    color: 'var(--mantine-color-blue-7)'
-                  })
-                }}
-              >
-                {link.label}
-              </Anchor>
-            ))}
-          </Group>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          {/* Left: Theme Toggle */}
+          <ThemeToggle />
           
-          {/* Separator */}
-          <div style={{ 
-            width: 1, 
-            height: 24, 
-            backgroundColor: 'var(--mantine-color-gray-3)',
-            margin: '0 8px'
-          }} />
-          
-          {/* Additional Navigation Dropdown */}
-          <Menu shadow="md" width={200}>
-            <Menu.Target>
-              <Button
-                variant="subtle"
-                rightSection={<IconChevronDown size={14} />}
-                size="sm"
-                fw={500}
-                c="gray"
-                style={{ 
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                More
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {additionalNavLinks.map((link) => (
-                <Menu.Item
+          {/* Center: Main Navigation + Dropdown */}
+          <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            {/* Main Navigation Links */}
+            <Group gap="sm">
+              {mainNavLinks.map((link) => (
+                <Anchor
                   key={link.to}
                   component={Link}
                   to={link.to}
-                  style={{
-                    color: location.pathname === link.to ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
-                    fontWeight: location.pathname === link.to ? 600 : 400,
+                  fw={500}
+                  size="sm"
+                  c={location.pathname === link.to ? 'blue' : 'gray'}
+                  className={`nav-link ${location.pathname === link.to ? 'active' : ''}`}
+                  style={{ 
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    color: location.pathname === link.to 
+                      ? 'var(--mantine-color-blue-6)' 
+                      : 'var(--mantine-color-gray-6)',
+                    ...(location.pathname === link.to && {
+                      backgroundColor: 'var(--mantine-color-blue-0)',
+                      color: 'var(--mantine-color-blue-7)'
+                    })
                   }}
                 >
                   {link.label}
-                </Menu.Item>
+                </Anchor>
               ))}
-            </Menu.Dropdown>
-          </Menu>
+            </Group>
+            
+            {/* Separator */}
+            <div className="nav-separator" style={{ 
+              width: 1, 
+              height: 24, 
+              backgroundColor: 'var(--mantine-color-gray-3)',
+              margin: '0 8px'
+            }} />
+            
+            {/* Additional Navigation Dropdown */}
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <Button
+                  variant="subtle"
+                  rightSection={<IconChevronDown size={14} />}
+                  size="sm"
+                  fw={500}
+                  c="gray"
+                  className="nav-link"
+                  style={{ 
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    color: 'var(--mantine-color-gray-6)',
+                  }}
+                >
+                  More
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {additionalNavLinks.map((link) => (
+                  <Menu.Item
+                    key={link.to}
+                    component={Link}
+                    to={link.to}
+                    style={{
+                      color: location.pathname === link.to ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+                      fontWeight: location.pathname === link.to ? 600 : 400,
+                    }}
+                  >
+                    {link.label}
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
+          </div>
+          
+          {/* Right: Empty space for balance */}
+          <div style={{ width: '120px' }} />
         </div>
         
       </AppShell.Header>
@@ -171,7 +207,9 @@ function AppLayout() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { colorScheme } = useTheme();
+  
   return (
     <MantineProvider theme={theme} withCssVariables>
       <BackendProvider>
@@ -180,5 +218,13 @@ export default function App() {
         </Router>
       </BackendProvider>
     </MantineProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 } 

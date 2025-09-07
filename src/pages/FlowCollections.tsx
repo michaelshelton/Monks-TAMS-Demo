@@ -238,8 +238,8 @@ export default function FlowCollections() {
         {/* Header */}
         <Group justify="space-between" mb="lg">
           <Box>
-            <Title order={2}>Flow Collections</Title>
-            <Text c="dimmed" size="sm" mt="xs">
+            <Title order={2} className="dark-text-primary">Flow Collections</Title>
+            <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
               Organize and manage related media flows in logical groups
             </Text>
           </Box>

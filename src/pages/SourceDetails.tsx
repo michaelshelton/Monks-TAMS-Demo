@@ -275,7 +275,7 @@ export default function SourceDetails() {
         <Box>
           <Group gap="sm" align="center" mb="xs">
             {getFormatIcon(source.format)}
-            <Title order={2}>{source.label || 'Unnamed Source'}</Title>
+            <Title order={2} className="dark-text-primary">{source.label || 'Unnamed Source'}</Title>
             <Badge 
               variant="light" 
               color={getStatusColor(source.deleted)}
@@ -284,7 +284,7 @@ export default function SourceDetails() {
               {source.deleted ? 'Deleted' : 'Active'}
             </Badge>
           </Group>
-          <Text c="dimmed" size="sm" mb="xs">
+          <Text c="dimmed" size="sm" mb="xs" className="dark-text-secondary">
             {source.description || 'No description available'}
           </Text>
           <Group gap="xs">
@@ -405,8 +405,8 @@ export default function SourceDetails() {
         <Tabs.Panel value="overview" pt="xl">
           <Stack gap="xl">
             {/* Basic Information */}
-            <Card withBorder>
-              <Title order={4} mb="md">Basic Information</Title>
+            <Card withBorder className="search-interface">
+              <Title order={4} mb="md" className="dark-text-primary">Basic Information</Title>
               <Grid>
                 <Grid.Col span={6}>
                   <Stack gap="md">
@@ -454,8 +454,8 @@ export default function SourceDetails() {
 
             {/* Media Information */}
             {source.tags && (source.tags.category || source.tags.content_type || source.tags.speaker) && (
-              <Card withBorder>
-                <Title order={4} mb="md">Media Information</Title>
+              <Card withBorder className="search-interface">
+                <Title order={4} mb="md" className="dark-text-primary">Media Information</Title>
                 <Grid>
                   <Grid.Col span={6}>
                     <Stack gap="md">
@@ -533,8 +533,8 @@ export default function SourceDetails() {
 
             {/* Tags */}
             {source.tags && Object.keys(source.tags).length > 0 && (
-              <Card withBorder>
-                <Title order={4} mb="md">Tags & Metadata</Title>
+              <Card withBorder className="search-interface">
+                <Title order={4} mb="md" className="dark-text-primary">Tags & Metadata</Title>
                 <Group gap="xs" wrap="wrap">
                   {Object.entries(source.tags).map(([key, value]) => (
                     <Badge key={key} size="lg" variant="light" color="blue">
