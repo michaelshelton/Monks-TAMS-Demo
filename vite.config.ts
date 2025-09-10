@@ -11,7 +11,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to local TAMS
       '/api': {
-        target: 'http://host.docker.internal:3000/api/v1',
+        target: 'http://tams-api:3000/api/v1',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, options) => {
@@ -26,9 +26,29 @@ export default defineConfig({
           });
         },
       },
+      // Proxy health endpoint
+      '/health': {
+        target: 'http://tams-api:3000',
+        changeOrigin: true,
+      },
+      // Proxy service endpoint
+      '/service': {
+        target: 'http://tams-api:3000',
+        changeOrigin: true,
+      },
+      // Proxy flows endpoint for stats
+      '/flows': {
+        target: 'http://tams-api:3000',
+        changeOrigin: true,
+      },
+      // Proxy sources endpoint
+      '/sources': {
+        target: 'http://tams-api:3000',
+        changeOrigin: true,
+      },
       // WebSocket proxy for real-time updates
       '/ws': {
-        target: 'ws://host.docker.internal:3001',
+        target: 'ws://tams-api:3001',
         ws: true,
         changeOrigin: true,
       },

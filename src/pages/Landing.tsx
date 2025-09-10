@@ -16,11 +16,13 @@ import {
   IconServer,
   IconDatabase,
   IconPlayerPlay,
+  IconHeartbeat,
 } from '@tabler/icons-react';
 
 export default function Landing() {
   const navigate = useNavigate();
 
+  // Feature cards with icons
   const features = [
     {
       icon: IconVideo,
@@ -44,6 +46,14 @@ export default function Landing() {
       action: () => navigate('/flows'),
       color: 'orange',
     },
+    {
+      icon: IconHeartbeat,
+      title: 'Health & Performance',
+      description: 'Monitor system health, storage metrics, and performance',
+      action: () => navigate('/health-performance'),
+      color: 'purple',
+      badge: 'Monitor',
+    },
   ];
 
   return (
@@ -59,7 +69,7 @@ export default function Landing() {
           </Text>
         </div>
 
-        <SimpleGrid cols={3} spacing="lg" w="100%" mt="xl">
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" w="100%" mt="xl">
           {features.map((feature) => (
             <Card
               key={feature.title}
@@ -72,7 +82,10 @@ export default function Landing() {
             >
               <Stack gap="md">
                 <Group justify="space-between">
-                  <feature.icon size={32} color={`var(--mantine-color-${feature.color}-6)`} />
+                  {React.createElement(feature.icon, { 
+                    size: 32, 
+                    color: `var(--mantine-color-${feature.color}-6)` 
+                  })}
                   {feature.badge && (
                     <Badge color={feature.color} variant="dot">
                       {feature.badge}
@@ -91,12 +104,13 @@ export default function Landing() {
                   fullWidth
                   variant="light"
                   color={feature.color}
+                  size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     feature.action();
                   }}
                 >
-                  Explore {feature.title}
+                  {feature.title === 'Health & Performance' ? 'View Metrics' : `Explore ${feature.title}`}
                 </Button>
               </Stack>
             </Card>

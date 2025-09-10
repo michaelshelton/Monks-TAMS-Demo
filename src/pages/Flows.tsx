@@ -14,6 +14,7 @@ import {
   Loader,
   TextInput,
   ActionIcon,
+  ThemeIcon,
 } from '@mantine/core';
 import {
   IconVideo,
@@ -93,7 +94,15 @@ export default function Flows() {
   return (
     <Container size="xl">
       <Group justify="space-between" mb="lg">
-        <Title order={1}>Flows</Title>
+        <Group gap="sm">
+          <ThemeIcon size="xl" radius="md" variant="gradient" gradient={{ from: 'blue', to: 'cyan', deg: 45 }}>
+            <IconVideo size={28} />
+          </ThemeIcon>
+          <div>
+            <Title order={1}>Flows</Title>
+            <Text size="sm" c="dimmed">Manage video flows and streams</Text>
+          </div>
+        </Group>
         <Group>
           <TextInput
             placeholder="Search flows..."

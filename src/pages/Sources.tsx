@@ -14,6 +14,7 @@ import {
   Loader,
   TextInput,
   ActionIcon,
+  ThemeIcon,
 } from '@mantine/core';
 import {
   IconServer,
@@ -80,7 +81,15 @@ export default function Sources() {
   return (
     <Container size="xl">
       <Group justify="space-between" mb="lg">
-        <Title order={1}>Sources</Title>
+        <Group gap="sm">
+          <ThemeIcon size="xl" radius="md" variant="gradient" gradient={{ from: 'green', to: 'lime', deg: 45 }}>
+            <IconServer size={28} />
+          </ThemeIcon>
+          <div>
+            <Title order={1}>Sources</Title>
+            <Text size="sm" c="dimmed">Manage media sources</Text>
+          </div>
+        </Group>
         <Group>
           <TextInput
             placeholder="Search sources..."

@@ -15,6 +15,7 @@ import {
   Stack,
   SimpleGrid,
   Divider,
+  ThemeIcon,
 } from '@mantine/core';
 import {
   IconArrowLeft,
@@ -195,7 +196,15 @@ export default function FlowDetails() {
           >
             Back
           </Button>
-          <Title order={1}>Flow Details</Title>
+          <Group gap="sm">
+            <ThemeIcon size="xl" radius="md" variant="gradient" gradient={{ from: 'indigo', to: 'blue', deg: 45 }}>
+              <IconPlayerPlay size={28} />
+            </ThemeIcon>
+            <div>
+              <Title order={1}>Flow Details</Title>
+              <Text size="sm" c="dimmed">Stream information and segments</Text>
+            </div>
+          </Group>
         </Group>
         <Button onClick={fetchFlowDetails} leftSection={<IconRefresh size={16} />}>
           Refresh

@@ -5,6 +5,7 @@ import Flows from './pages/Flows';
 import FlowDetails from './pages/FlowDetails';
 import Sources from './pages/Sources';
 import SourceDetails from './pages/SourceDetails';
+import HealthPerformance from './pages/HealthPerformance';
 import './styles/dark-mode-fixed.css';
 
 const theme = createTheme({
@@ -38,6 +39,7 @@ const mainNavLinks = [
   { label: 'Home', to: '/' },
   { label: 'Sources', to: '/sources' },
   { label: 'Flows', to: '/flows' },
+  { label: 'Health & Performance', to: '/health-performance' },
 ];
 
 function AppFooter() {
@@ -108,6 +110,7 @@ function AppLayout() {
           <Route path="/source-details/:sourceId" element={<SourceDetails />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/flow-details/:flowId" element={<FlowDetails />} />
+          <Route path="/health-performance" element={<HealthPerformance />} />
         </Routes>
         
         {/* Footer at bottom of content */}

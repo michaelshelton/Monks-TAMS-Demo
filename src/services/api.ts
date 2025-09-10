@@ -32,6 +32,30 @@ async function request(endpoint: string, options?: RequestInit) {
   }
 }
 
+// Helper function for making direct requests (without /api prefix)
+async function directRequest(endpoint: string, options?: RequestInit) {
+  const url = endpoint;
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API request failed: ${endpoint}`, error);
+    throw error;
+  }
+}
+
 // Flow APIs
 export const flowsApi = {
   list: (params?: { tag?: Record<string, string> }) => {
@@ -127,11 +151,21 @@ export function connectWebSocket(flowId: string, onMessage: (data: any) => void)
   return ws;
 }
 
+// Health and Service APIs
+export const healthApi = {
+  getHealth: () => directRequest('/health'),
+  
+  getService: () => directRequest('/service'),
+  
+  getFlowStats: (flowId: string) => directRequest(`/flows/${flowId}/stats`),
+};
+
 // Export a single API client object
 export const apiClient = {
   flows: flowsApi,
   sources: sourcesApi,
   segments: segmentsApi,
+  health: healthApi,
   connectWebSocket,
 };
 

@@ -14,6 +14,7 @@ import {
   Loader,
   Stack,
   SimpleGrid,
+  ThemeIcon,
 } from '@mantine/core';
 import {
   IconArrowLeft,
@@ -111,7 +112,15 @@ export default function SourceDetails() {
           >
             Back
           </Button>
-          <Title order={1}>Source Details</Title>
+          <Group gap="sm">
+            <ThemeIcon size="xl" radius="md" variant="gradient" gradient={{ from: 'teal', to: 'green', deg: 45 }}>
+              <IconServer size={28} />
+            </ThemeIcon>
+            <div>
+              <Title order={1}>Source Details</Title>
+              <Text size="sm" c="dimmed">Source information and flows</Text>
+            </div>
+          </Group>
         </Group>
         <Button onClick={fetchSourceDetails} leftSection={<IconRefresh size={16} />}>
           Refresh
