@@ -3,7 +3,7 @@
 
 # Stage 1: Build Stage
 # This stage compiles the React application into static files
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory in the container
 WORKDIR /app
