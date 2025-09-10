@@ -82,9 +82,10 @@ export default function Landing() {
             >
               <Stack gap="md">
                 <Group justify="space-between">
-                  {React.createElement(feature.icon, { 
+                  {feature.icon && React.createElement(feature.icon, { 
                     size: 32, 
-                    color: `var(--mantine-color-${feature.color}-6)` 
+                    style: { color: `var(--mantine-color-${feature.color}-6)` },
+                    stroke: 2
                   })}
                   {feature.badge && (
                     <Badge color={feature.color} variant="dot">

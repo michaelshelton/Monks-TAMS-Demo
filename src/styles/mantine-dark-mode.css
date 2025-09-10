@@ -1,0 +1,147 @@
+/* Mantine Dark Mode Overrides */
+
+/* Ensure dark mode colors are applied */
+[data-mantine-color-scheme="dark"] {
+  --mantine-color-body: #1a1b1e;
+  --mantine-color-text: #c1c2c5;
+  background-color: #1a1b1e;
+  color: #c1c2c5;
+}
+
+/* Ensure icon colors are visible */
+.tabler-icon {
+  stroke: currentColor;
+}
+
+/* Fix Card components in dark mode - more specific */
+[data-mantine-color-scheme="dark"] .mantine-Card-root {
+  background-color: #25262b !important;
+  border-color: #373A40 !important;
+  color: #c1c2c5 !important;
+}
+
+/* Fix nested cards */
+[data-mantine-color-scheme="dark"] .mantine-Card-root .mantine-Card-root {
+  background-color: #2C2E33 !important;
+}
+
+/* Fix Table components in dark mode - more specific */
+[data-mantine-color-scheme="dark"] .mantine-Table-root {
+  background-color: transparent !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-table {
+  color: #c1c2c5 !important;
+  background-color: transparent !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-thead {
+  background-color: #2C2E33 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-thead tr {
+  background-color: #2C2E33 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-th {
+  color: #909296 !important;
+  background-color: #2C2E33 !important;
+  border-bottom: 1px solid #373A40 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tbody {
+  background-color: #25262b !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tbody tr {
+  background-color: #25262b !important;
+  border-bottom: 1px solid #373A40 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tbody .mantine-Table-tr {
+  background-color: #25262b !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-td {
+  color: #c1c2c5 !important;
+  background-color: transparent !important;
+  border-bottom: 1px solid #373A40 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tr[data-hover="true"]:hover {
+  background-color: #2C2E33 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tr[data-hover="true"]:hover td {
+  background-color: transparent !important;
+}
+
+/* Fix Text components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Text-root {
+  color: #c1c2c5 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Title-root {
+  color: #f1f3f5 !important;
+}
+
+/* Fix Button components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="light"] {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #c1c2c5;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="light"]:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Fix Badge components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Badge-root {
+  background-color: #373A40;
+  color: #c1c2c5;
+}
+
+/* Fix Alert components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Alert-root {
+  background-color: #25262b !important;
+  border-color: #373A40 !important;
+  color: #c1c2c5 !important;
+}
+
+/* Fix Input components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-input {
+  background-color: #25262b !important;
+  border-color: #373A40 !important;
+  color: #c1c2c5 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input:focus,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-input:focus {
+  border-color: #4c6ef5 !important;
+}
+
+/* Fix AppShell components in dark mode */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-root {
+  background-color: #1a1b1e !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-AppShell-header {
+  background-color: #25262b !important;
+  border-bottom-color: #373A40 !important;
+}
+
+/* Fix navigation links in dark mode */
+[data-mantine-color-scheme="dark"] .nav-link {
+  color: var(--mantine-color-gray-3);
+}
+
+[data-mantine-color-scheme="dark"] .nav-link.active {
+  background-color: var(--mantine-color-dark-5);
+  color: var(--mantine-color-blue-4);
+}
+
+/* Fix dimmed text in dark mode */
+[data-mantine-color-scheme="dark"] [data-dimmed] {
+  color: var(--mantine-color-gray-4);
+}
