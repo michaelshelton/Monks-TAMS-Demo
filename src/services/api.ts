@@ -120,7 +120,16 @@ export function parseLinkHeader(linkHeader: string): BBCLinkHeader[] {
     
     if (url && rel) {
       try {
-        const urlObj = new URL(url);
+        // Handle both absolute and relative URLs
+        let urlObj: URL;
+        try {
+          urlObj = new URL(url);
+        } catch {
+          // If URL is relative, construct absolute URL using current origin
+          // For API responses, relative URLs are relative to the API base
+          urlObj = new URL(url, window.location.origin);
+        }
+        
         const queryParams = urlObj.searchParams;
         
         // Extract BBC TAMS specific parameters
@@ -143,7 +152,8 @@ export function parseLinkHeader(linkHeader: string): BBCLinkHeader[] {
           params.label = queryParams.get('label') || '';
         }
       } catch (error) {
-        console.warn('Failed to parse URL parameters from Link header:', error);
+        // Silently ignore Link header parsing errors - they're non-fatal
+        // The URL might be relative or malformed, but we can still use the response data
       }
       
       links.push({ url, rel, params });
@@ -200,7 +210,11 @@ export function buildBBCQueryString(options: BBCApiOptions): string {
   }
   
   if (options.limit) {
-    params.push(`limit=${options.limit}`);
+    // Ensure limit is an integer (API validation requires integer type)
+    const limitValue = typeof options.limit === 'number' ? options.limit : parseInt(String(options.limit), 10);
+    if (!isNaN(limitValue)) {
+      params.push(`limit=${limitValue}`);
+    }
   }
   
   if (options.timerange) {
@@ -290,6 +304,7 @@ class UnifiedApiClient {
 
   /**
    * Detect which backend is currently being used
+   * Always defaults to 'vast-tams' (monks_tams_api) unless explicitly overridden
    */
   private detectBackend(): string {
     // Check environment variable first
@@ -304,7 +319,7 @@ class UnifiedApiClient {
       return storedBackend;
     }
     
-    // Default to vast-tams for better reliability
+    // Default to vast-tams (monks_tams_api)
     return 'vast-tams';
   }
 
@@ -312,38 +327,86 @@ class UnifiedApiClient {
    * Get the correct backend URL based on the current backend configuration
    */
   private getBackendUrl(): string {
-    const backend = this.currentBackend;
-    
-    switch (backend) {
-      case 'ibc-thiago':
-        return import.meta.env.VITE_BACKEND_IBC_THIAGO_URL || 'http://localhost:3000';
-      case 'ibc-thiago-imported':
-        return import.meta.env.VITE_BACKEND_IBC_THIAGO_IMPORTED_URL || 'http://localhost:3002';
-      case 'vast-tams':
-        // Use main API proxy to avoid CORS issues
-        return import.meta.env.DEV ? '/api' : '/api/proxy';
-      default:
-        return API_BASE_URL; // Fallback to proxy
-    }
+    // Simplified to always use local TAMS API
+    // In development, use Vite proxy (/api) which forwards to localhost:3000
+    // In production, use /api/proxy (Vercel proxy)
+    return import.meta.env.DEV ? '/api' : '/api/proxy';
   }
+
+  private initializationPromise: Promise<void> | null = null;
 
   /**
    * Initialize the appropriate API client using the service factory
+   * Always uses vast-tams (monks_tams_api) backend
    */
   private async initializeApiClient(): Promise<void> {
-    try {
-      const { apiServiceFactory } = await import('./apiServiceFactory');
-      const { getCurrentBackendConfig } = await import('../config/apiConfig');
-      
-      const config = getCurrentBackendConfig();
-      this.apiClient = await apiServiceFactory.createClient(
-        config.type as any,
-        config
-      );
-    } catch (error) {
-      console.warn('Failed to initialize API client with service factory, falling back to legacy mode:', error);
-      // Fall back to legacy implementation
+    // If already initialized, return immediately
+    if (this.apiClient) {
+      return;
     }
+
+    // If already initializing, return the existing promise
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = (async () => {
+      try {
+        const { apiServiceFactory } = await import('./apiServiceFactory');
+        const { getCurrentBackendConfig } = await import('../config/apiConfig');
+        
+        // Ensure we're using vast-tams backend (monks_tams_api)
+        const config = getCurrentBackendConfig();
+        
+        // Override to ensure vast-tams if not already set
+        if (config.id !== 'vast-tams') {
+          const { getBackendConfig } = await import('../config/apiConfig');
+          const vastTamsConfig = getBackendConfig('vast-tams');
+          if (vastTamsConfig) {
+            this.apiClient = await apiServiceFactory.createClient(
+              'vast-tams',
+              vastTamsConfig
+            );
+            console.log('Initialized API client with vast-tams (monks_tams_api) backend');
+            this.initializationPromise = null; // Clear promise on success
+            return;
+          }
+        }
+        
+        this.apiClient = await apiServiceFactory.createClient(
+          config.type as any,
+          config
+        );
+        console.log(`Initialized API client with ${config.id} backend`);
+        this.initializationPromise = null; // Clear promise on success
+      } catch (error) {
+        console.warn('Failed to initialize API client with service factory, falling back to legacy mode:', error);
+        // Clear promise on failure so we can retry if needed
+        this.initializationPromise = null;
+        // Fall back to legacy implementation
+      }
+    })();
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * Ensure API client is initialized before making requests
+   */
+  private async ensureApiClientInitialized(): Promise<void> {
+    // If already initialized, no need to wait
+    if (this.apiClient) {
+      return;
+    }
+
+    // If initializing, wait for it
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+      return;
+    }
+
+    // Otherwise, start initialization
+    await this.initializeApiClient();
   }
 
   /**
@@ -386,36 +449,117 @@ class UnifiedApiClient {
 
   /**
    * BBC TAMS compliant GET request with pagination support
+   * Handles multiple response formats from different API versions
    */
   async bbcTamsGet<T>(endpoint: string, options: BBCApiOptions = {}): Promise<BBCApiResponse<T>> {
     const queryString = buildBBCQueryString(options);
     const url = `${this.baseUrl}${endpoint}${queryString}`;
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+    let responseData;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      // Check response status first
+      if (!response.ok) {
+        // Try to parse error response
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            throw new Error(`TAMS API error: ${errorData.error.message || errorData.error.code || 'Unknown error'}`);
+          }
+        } catch (parseError) {
+          // If we can't parse the error, use status text
+        }
+        throw new Error(`TAMS API error: ${response.status} ${response.statusText || 'Bad Request'}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`BBC TAMS API error: ${response.status} ${response.statusText}`);
+      // Parse successful response
+      responseData = await response.json();
+
+      // Check if response contains an error (even if status is 200)
+      if (responseData.error) {
+        // Handle both string and object error formats
+        let errorMessage = 'Unknown error';
+        if (typeof responseData.error === 'string') {
+          // Error is a string (e.g., "ValidationError")
+          errorMessage = responseData.message || responseData.error;
+        } else if (responseData.error.message) {
+          // Error is an object with message property
+          errorMessage = responseData.error.message;
+        } else if (responseData.error.code) {
+          // Error is an object with code property
+          errorMessage = responseData.error.code;
+        } else if (responseData.message) {
+          // Fallback to top-level message
+          errorMessage = responseData.message;
+        }
+        throw new Error(`TAMS API error: ${errorMessage}`);
+      }
+
+      // Continue with response processing
+      const pagination = parseBBCHeaders(response.headers);
+      const links = parseLinkHeader(response.headers.get('Link') || '');
+
+      // Handle different response formats from new API vs BBC TAMS format
+      let data: T[];
+      let count: number | undefined;
+
+      if (Array.isArray(responseData)) {
+        // New API format: direct array (e.g., /flows returns array)
+        data = responseData;
+        count = responseData.length;
+      } else if (responseData.data) {
+        // BBC TAMS format: { data: [...], pagination: {...} }
+        data = Array.isArray(responseData.data) ? responseData.data : [responseData.data];
+        count = responseData.pagination?.count;
+      } else if (responseData.sources) {
+        // New API format: { sources: [...], count }
+        data = responseData.sources;
+        count = responseData.count;
+      } else if (responseData.flows) {
+        // Alternative format: { flows: [...], count }
+        data = responseData.flows;
+        count = responseData.count;
+      } else {
+        // Single object or unknown format
+        data = [responseData];
+        count = 1;
+      }
+
+      // Merge pagination info from headers and response
+      const mergedPagination: BBCPaginationMeta = {
+        ...pagination,
+        count: count || pagination.count || data.length
+      };
+
+      return {
+        data,
+        pagination: mergedPagination,
+        links
+      };
+    } catch (error: any) {
+      // Re-throw if it's already an Error with a message
+      if (error instanceof Error && error.message.includes('TAMS API error')) {
+        throw error;
+      }
+      // Handle network errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error(`Network error: Could not connect to ${url}. Is the backend running on http://localhost:3000?`);
+      }
+      // Handle JSON parse errors
+      if (error instanceof SyntaxError) {
+        throw new Error(`Invalid JSON response from API: ${error.message}`);
+      }
+      // Re-throw other errors with more context
+      const errorMsg = error?.message || String(error) || 'Unknown error';
+      throw new Error(`TAMS API error: ${errorMsg}`);
     }
-
-    const responseData = await response.json();
-    const pagination = parseBBCHeaders(response.headers);
-    const links = parseLinkHeader(response.headers.get('Link') || '');
-
-    // Extract data from the response structure
-    const data = responseData.data || responseData;
-    const backendPaging = responseData.paging;
-
-    return {
-      data,
-      pagination: pagination || backendPaging,
-      links
-    };
   }
 
   /**
@@ -435,7 +579,7 @@ class UnifiedApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`BBC TAMS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText || 'Bad Request'}`);
     }
 
     return response.json();
@@ -458,7 +602,7 @@ class UnifiedApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`BBC TAMS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText || 'Bad Request'}`);
     }
 
     return response.json();
@@ -480,7 +624,7 @@ class UnifiedApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`BBC TAMS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText || 'Bad Request'}`);
     }
   }
 
@@ -500,7 +644,7 @@ class UnifiedApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`BBC TAMS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText || 'Bad Request'}`);
     }
 
     return parseBBCHeaders(response.headers);
@@ -552,7 +696,34 @@ class UnifiedApiClient {
     if (this.isIBCThiagoBackend()) {
       return getIBCThiagoHealth();
     }
-    return this.request('/health');
+    
+    // Health endpoint returns a single object: { status, timestamp, services }
+    // Use direct request since it's not a collection endpoint
+    try {
+      const response = await fetch(`${this.baseUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      // Health endpoint can return 200 (healthy) or 503 (degraded/unhealthy)
+      // Both are valid responses, so we only throw on network errors
+      if (!response.ok && response.status !== 503) {
+        throw new Error(`Health check failed: ${response.status} ${response.statusText || 'Bad Request'}`);
+      }
+
+      const healthData = await response.json();
+      return healthData;
+    } catch (error: any) {
+      // Handle network errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error(`Network error: Could not connect to ${this.baseUrl}/health. Is the backend running on http://localhost:3000?`);
+      }
+      console.error('Health check failed:', error);
+      throw error;
+    }
   }
 
   // Metrics
@@ -565,16 +736,25 @@ class UnifiedApiClient {
     return this.request('/service');
   }
 
+  // Storage backends
+  async getStorageBackends(): Promise<any> {
+    return this.request('/service/storage-backends');
+  }
+
   // BBC TAMS Sources API
   async getSources(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
+    // Ensure API client is initialized before making the request
+    await this.ensureApiClientInitialized();
+    
+    // Always use the service factory API client (monks_tams_api / vast-tams)
     const client = this.getApiClient();
     if (client) {
       return client.getSources(options);
     }
     
-    if (this.isIBCThiagoBackend()) {
-      return getIBCThiagoSources(options);
-    }
+    // Fallback: ensure we're using vast-tams backend (monks_tams_api)
+    // Remove IBC Thiago fallback - we only use monks_tams_api
+    console.warn('API client not initialized after wait, using direct bbcTamsGet for vast-tams backend');
     return this.bbcTamsGet('/sources', options);
   }
 
@@ -585,8 +765,8 @@ class UnifiedApiClient {
     return this.request(`/sources/${id}`);
   }
 
-  async createSource(source: any): Promise<any> {
-    return this.request('/sources', {
+  async createSource(sourceId: string, source: any): Promise<any> {
+    return this.request(`/sources/${sourceId}`, {
       method: 'POST',
       body: JSON.stringify(source),
     });
@@ -632,8 +812,8 @@ class UnifiedApiClient {
     return this.request(`/flows/${id}`);
   }
 
-  async createFlow(flow: any): Promise<any> {
-    return this.request('/flows', {
+  async createFlow(flowId: string, flow: any): Promise<any> {
+    return this.request(`/flows/${flowId}`, {
       method: 'POST',
       body: JSON.stringify(flow),
     });
@@ -664,6 +844,12 @@ class UnifiedApiClient {
     });
   }
 
+  async cleanupFlow(id: string, hours: number = 24): Promise<any> {
+    return this.request(`/flows/${id}/cleanup?hours=${hours}`, {
+      method: 'DELETE',
+    });
+  }
+
   // BBC TAMS Flow Tags Management
   async getFlowTags(flowId: string): Promise<Record<string, string>> {
     return this.request(`/flows/${flowId}/tags`);
@@ -678,6 +864,27 @@ class UnifiedApiClient {
 
   async deleteFlowTag(flowId: string, tagName: string): Promise<any> {
     return this.request(`/flows/${flowId}/tags/${tagName}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // BBC TAMS Source Tags Management
+  async getSourceTags(sourceId: string): Promise<Record<string, string>> {
+    // Source tags are included in the source details response
+    const source = await this.getSource(sourceId);
+    return source.tags || {};
+  }
+
+  async setSourceTag(sourceId: string, tagName: string, tagValue: string): Promise<any> {
+    // API expects array of values according to BBC TAMS spec
+    return this.request(`/sources/${sourceId}/tags/${tagName}`, {
+      method: 'PUT',
+      body: JSON.stringify([tagValue]),
+    });
+  }
+
+  async deleteSourceTag(sourceId: string, tagName: string): Promise<any> {
+    return this.request(`/sources/${sourceId}/tags/${tagName}`, {
       method: 'DELETE',
     });
   }
@@ -736,7 +943,38 @@ class UnifiedApiClient {
     });
   }
 
+  // BBC TAMS Source Label Management
+  async setSourceLabel(sourceId: string, label: string): Promise<any> {
+    return this.request(`/sources/${sourceId}/label`, {
+      method: 'PUT',
+      body: JSON.stringify({ label }),
+    });
+  }
+
+  async deleteSourceLabel(sourceId: string): Promise<any> {
+    return this.request(`/sources/${sourceId}/label`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setSourceDescription(sourceId: string, description: string): Promise<any> {
+    return this.request(`/sources/${sourceId}/description`, {
+      method: 'PUT',
+      body: JSON.stringify({ description }),
+    });
+  }
+
+  async deleteSourceDescription(sourceId: string): Promise<any> {
+    return this.request(`/sources/${sourceId}/description`, {
+      method: 'DELETE',
+    });
+  }
+
   // BBC TAMS Segments API
+  async getFlowStats(flowId: string): Promise<any> {
+    return this.request(`/flows/${flowId}/stats`);
+  }
+
   async getFlowSegments(flowId: string, options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     if (this.isIBCThiagoBackend()) {
       return getIBCThiagoFlowSegments(flowId, options);
@@ -779,6 +1017,13 @@ class UnifiedApiClient {
     });
   }
 
+  async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
+    return this.request(`/flows/${flowId}/segments/${segmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
   // BBC TAMS Objects API
   async getObjects(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     return this.bbcTamsGet('/objects', options);
@@ -804,6 +1049,30 @@ class UnifiedApiClient {
     return this.request(endpoint, {
       method: 'DELETE',
     });
+  }
+
+  // QC (Quality Control) API
+  async getQCStatistics(): Promise<any> {
+    return this.request('/api/v1/qc/statistics');
+  }
+
+  async getQCFailedChunks(limit: number = 20, offset: number = 0): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (limit) queryParams.append('limit', limit.toString());
+    if (offset) queryParams.append('offset', offset.toString());
+    const endpoint = `/api/v1/qc/failed-chunks${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async getQCMarkersForFlow(flowId: string): Promise<any> {
+    return this.request(`/api/v1/flows/${flowId}/qc-markers`);
+  }
+
+  async getQCByQuality(min: number = 0, max: number = 100): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('min', min.toString());
+    queryParams.append('max', max.toString());
+    return this.request(`/api/v1/qc/by-quality?${queryParams.toString()}`);
   }
 
   // BBC TAMS Field Operations API

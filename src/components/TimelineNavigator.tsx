@@ -181,7 +181,7 @@ export default function TimelineNavigator({
           <Group gap="xs">
             <IconClock size={20} />
             <Text fw={500}>Timeline Navigator</Text>
-            <Badge variant="light" color="blue">BBC TAMS v6.0</Badge>
+            <Badge variant="light" color="blue">TAMS v6.0</Badge>
           </Group>
           
           {showZoom && (
@@ -411,9 +411,9 @@ export default function TimelineNavigator({
         </Group>
 
         {/* BBC TAMS Info */}
-        <Alert color="blue" title="BBC TAMS Timeline Navigation" icon={<IconInfoCircle size={16} />}>
+        <Alert color="blue" title="TAMS Timeline Navigation" icon={<IconInfoCircle size={16} />}>
           <Text size="xs">
-            This timeline navigator provides BBC TAMS v6.0 compliant navigation for time-addressable media flows. 
+            This timeline navigator provides TAMS v6.0 compliant navigation for time-addressable media flows. 
             It supports timeline-based positioning, segment visualization, and precise time control as specified 
             in the BBC TAMS API specification.
           </Text>

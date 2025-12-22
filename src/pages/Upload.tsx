@@ -197,7 +197,11 @@ export default function Upload() {
       }
 
       // Create the flow using the API
-      const response = await apiClient.createFlow(flowData);
+      // Extract flowId from flowData and pass it as first argument
+      const flowId = flowData.id;
+      const flowPayload = { ...flowData };
+      delete flowPayload.id; // Remove id from payload as it's in the URL
+      const response = await apiClient.createFlow(flowId, flowPayload);
       
       // Update progress to 100%
       setUploadProgress(100);

@@ -52,7 +52,6 @@ import {
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import { apiClient } from '../services/api';
 import { BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
-import BBCPagination from '../components/BBCPagination';
 
 // Enhanced Flow interface
 interface Flow {
@@ -85,12 +84,9 @@ interface Flow {
   deleted?: boolean;
   deleted_at?: string | null;
   deleted_by?: string | null;
-  // Collection fields
-  collection_id?: string;
-  collection_label?: string;
 }
 
-// VAST TAMS Flows - fetched from real backend API
+// TAMS Flows - fetched from real backend API
 
 // BBC TAMS content formats and codecs
 const BBC_CONTENT_FORMATS = [
@@ -151,6 +147,75 @@ const getStatusColor = (status: string) => {
   }
 };
 
+// Mock flows data for demo mode - matches actual API structure
+const createMockFlows = (): Flow[] => {
+  const now = new Date();
+  const flows: Flow[] = [];
+  
+  const formats = [
+    'urn:x-nmos:format:video',
+    'urn:x-nmos:format:audio',
+    'urn:x-nmos:format:data',
+    'urn:x-tam:format:image'
+  ];
+  
+  const categories = ['conference', 'sports', 'entertainment', 'business', 'news'];
+  const contentTypes = ['presentation', 'podcast', 'training', 'webinar', 'live'];
+  const years = ['2024', '2023', '2022'];
+  
+  for (let i = 0; i < 15; i++) {
+    const created = new Date(now.getTime() - (i * 2 * 24 * 60 * 60 * 1000)); // Staggered dates
+    const format = formats[i % formats.length]!;
+    const category = categories[i % categories.length]!;
+    const contentType = contentTypes[i % contentTypes.length]!;
+    const year = years[i % years.length]!;
+    
+    flows.push({
+      id: `demo-flow-${i + 1}-${crypto.randomUUID().substring(0, 8)}`,
+      source_id: `demo-source-${i + 1}-${crypto.randomUUID().substring(0, 8)}`,
+      format: format,
+      codec: format === 'urn:x-nmos:format:video' ? 'video/h264' : 
+             format === 'urn:x-nmos:format:audio' ? 'audio/aac' : 
+             format === 'urn:x-nmos:format:data' ? 'application/json' : 'image/jpeg',
+      label: `Demo Flow ${i + 1} - ${category.charAt(0).toUpperCase() + category.slice(1)} ${contentType}`,
+      description: `This is a demo flow showing ${format.split(':').pop() || 'content'} content for ${category} ${contentType} from ${year}.`,
+      created_by: 'demo-user',
+      updated_by: 'demo-user',
+      created: created.toISOString(),
+      updated: created.toISOString(),
+      tags: {
+        category: category,
+        content_type: contentType,
+        year: year,
+        quality: i % 3 === 0 ? 'high' : i % 3 === 1 ? 'medium' : 'low',
+        location: i % 2 === 0 ? 'London' : 'New York',
+        speaker: i % 4 === 0 ? 'John Doe' : i % 4 === 1 ? 'Jane Smith' : i % 4 === 2 ? 'Bob Johnson' : 'Alice Williams'
+      },
+      read_only: false,
+      // Video-specific fields (for video flows)
+      ...(format === 'urn:x-nmos:format:video' && {
+        frame_width: 1920,
+        frame_height: 1080,
+        frame_rate: '25/1'
+      }),
+      // Audio-specific fields (for audio flows)
+      ...(format === 'urn:x-nmos:format:audio' && {
+        sample_rate: 44100,
+        bits_per_sample: 16,
+        channels: 2
+      }),
+      container: format === 'urn:x-nmos:format:video' ? 'video/mp4' : 
+                 format === 'urn:x-nmos:format:audio' ? 'audio/mp4' : 
+                 format === 'urn:x-nmos:format:data' ? 'application/json' : 'image/jpeg',
+      status: i % 5 === 0 ? 'processing' : 'active',
+      views: Math.floor(Math.random() * 1000),
+      duration: `${Math.floor(Math.random() * 60)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`
+    });
+  }
+  
+  return flows;
+};
+
 export default function Flows() {
   const navigate = useNavigate();
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -160,10 +225,15 @@ export default function Flows() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showInfoBox, setShowInfoBox] = useState(true); // State for collapsible info box
+  const [isDemoMode, setIsDemoMode] = useState(false); // Track if we're using demo data
   
   // VAST TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  
+  // Client-side pagination state
+  const [activePage, setActivePage] = useState(1);
+  const itemsPerPage = 10;
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters, setFilter } = useFilterPersistence('flows');
@@ -188,46 +258,126 @@ export default function Flows() {
       setError(null);
       
       const options: BBCApiOptions = {
-        limit: 10,
-        custom: { show_deleted: false }
+        // Issue #3: limit parameter still causes validation errors
+        // Backend expects integer but query strings are strings (AJV doesn't coerce types)
+        // TODO: Re-enable when backend adds query parameter coercion middleware
+        // limit: 10, // Disabled due to Issue #3 (query parameter validation)
+        // Issue #4: show_deleted is not a valid query parameter (schema rejects additionalProperties)
+        // Filtering deleted flows will be handled client-side if needed
       };
       
       if (cursor) {
         options.page = cursor;
       }
 
-      // Apply filters to VAST TAMS API
-      if (filters.format) options.format = filters.format;
-      if (filters.category) options.tags = { ...options.tags, category: filters.category };
-      if (filters.content_type) options.tags = { ...options.tags, content_type: filters.content_type };
-      if (filters.year) options.tags = { ...options.tags, year: filters.year };
+      // Apply filters to VAST TAMS API (server-side filtering)
+      if (filters.format) {
+        options.format = filters.format;
+      }
+      // Tag filters - API supports tag.<name> query parameters
+      if (filters.category) {
+        options.tags = { ...(options.tags || {}), category: filters.category };
+      }
+      if (filters.content_type) {
+        options.tags = { ...(options.tags || {}), content_type: filters.content_type };
+      }
+      if (filters.year) {
+        options.tags = { ...(options.tags || {}), year: filters.year };
+      }
 
-      console.log('Fetching flows from VAST TAMS API with options:', options);
+      console.log('Fetching flows from TAMS API with options:', options);
       const response = await apiClient.getFlows(options);
-      console.log('VAST TAMS flows API response:', response);
+      console.log('TAMS flows API response:', response);
       
-      setFlows(response.data);
-      setBbcPagination(response.pagination);
-      setCurrentCursor(cursor || null);
-      setError(null);
-    } catch (err: any) {
-      console.error('VAST TAMS flows API error:', err);
+      // Handle different response formats
+      // The API returns a direct array of flows with pagination in headers
+      // bbcTamsGet normalizes to { data: [...], pagination: {...} }
+      // Note: API returns _id (MongoDB format), normalize to id for frontend
+      let flowsData: Flow[] = [];
+      let paginationData: BBCPaginationMeta = {};
       
-      // Set appropriate error message based on error type
-      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-        setError('VAST TAMS backend temporarily unavailable - please try again later');
-      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
-        setError('Network connection issue - please check your connection and try again');
-      } else if (err?.message?.includes('404')) {
-        setError('VAST TAMS API endpoint not found - please check backend configuration');
-      } else {
-        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+      if (response && response.data && Array.isArray(response.data)) {
+        // Normalized BBC TAMS format from bbcTamsGet
+        // Normalize _id to id (API returns _id from MongoDB)
+        flowsData = response.data.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        paginationData = response.pagination || {};
+      } else if (response && 'flows' in response && Array.isArray((response as any).flows)) {
+        // Alternative format: { flows: [...], count }
+        flowsData = (response as any).flows.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        paginationData = {
+          count: (response as any).count || (response as any).flows.length,
+          limit: options.limit || 50
+        };
+      } else if (Array.isArray(response)) {
+        // Direct array response (when API works correctly)
+        flowsData = response.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        paginationData = {
+          count: response.length,
+          limit: options.limit || 50
+        };
       }
       
-      // Clear flows on error
-      setFlows([]);
-      setBbcPagination({});
-      setCurrentCursor(null);
+      setFlows(flowsData);
+      setBbcPagination(paginationData);
+      setCurrentCursor(cursor || null);
+      setError(null);
+      setIsDemoMode(false); // API is working, not in demo mode
+      // Reset to first page when flows change
+      setActivePage(1);
+    } catch (err: any) {
+      console.error('TAMS flows API error:', err);
+      
+      // Check if it's a network/connection error
+      const isNetworkError = err?.message?.includes('Network') || 
+                             err?.message?.includes('fetch') || 
+                             err?.message?.includes('CORS') ||
+                             err?.name === 'TypeError' ||
+                             err?.message?.includes('Could not connect');
+      
+      // Check if it's a validation error (Issue #3 - still broken)
+      const isValidationError = err?.message?.includes('ValidationError') ||
+                                  err?.message?.includes('must be integer') ||
+                                  err?.message?.includes('Invalid request data');
+      
+      if (isNetworkError) {
+        // Network errors: fall back to demo data
+        console.warn('Network error, falling back to demo data');
+        const mockFlows = createMockFlows();
+        setFlows(mockFlows);
+        setBbcPagination({
+          count: mockFlows.length,
+          limit: 50
+        });
+        setCurrentCursor(null);
+        setIsDemoMode(true);
+        setError(null); // Don't show error for network issues, use demo data
+      } else if (isValidationError) {
+        // Validation errors: show error but don't use demo data
+        // Issue #3: limit parameter validation still broken
+        setError('API validation error. Some query parameters may not be supported yet. Please try without filters.');
+        setIsDemoMode(false);
+        setFlows([]);
+        setBbcPagination({});
+        setCurrentCursor(null);
+      } else {
+        // Other errors: show error message
+        // Issue #1 is now fixed, so binding errors should not occur
+        const errorMsg = err?.message || 'Unknown error occurred';
+        setError(`Failed to load flows: ${errorMsg}`);
+        setIsDemoMode(false);
+        setFlows([]);
+        setBbcPagination({});
+        setCurrentCursor(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -251,28 +401,42 @@ export default function Flows() {
 
   // Refresh data function
   const handleRefresh = () => {
+    setIsDemoMode(false); // Reset demo mode when refreshing
     fetchFlowsVastTams();
     setError(null);
   };
 
-  // Handle VAST TAMS pagination
-  const handleVastTamsPageChange = (cursor: string | null) => {
-    if (cursor) {
-      fetchFlowsVastTams(cursor);
-    }
-  };
 
 
   const handleCreateFlow = async (newFlow: Omit<Flow, 'id' | 'created' | 'updated'>) => {
+    // In demo mode, show a message that creation won't work
+    if (isDemoMode) {
+      setError('Cannot create flows in demo mode. Please ensure the TAMS API is available.');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.createFlow(newFlow);
-      setFlows(prev => [...prev, response]);
+      // Generate a UUID for the flow ID (required by API)
+      const flowId = crypto.randomUUID();
+      
+      // The API expects POST /flows/:id with the flow data
+      const flowData = {
+        id: flowId,
+        ...newFlow
+      };
+      
+      const response = await apiClient.createFlow(flowId, flowData);
+      
+      // Refresh the flows list to get the new flow
+      await fetchFlowsVastTams();
       setShowCreateModal(false);
-    } catch (err) {
-      setError('Failed to create flow');
-      console.error(err);
+      setError(null);
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to create flow';
+      setError(errorMsg);
+      console.error('Create flow error:', err);
     } finally {
       setLoading(false);
     }
@@ -359,6 +523,9 @@ export default function Flows() {
     }
   ];
 
+  // Client-side filtering for filters not supported by API
+  // Note: Format, category, content_type, and year filters are applied server-side via API (tag.category, tag.content_type, tag.year)
+  // Status and created date filters are client-side only (not in API)
   const filteredFlows = flows.filter(flow => {
     // Search filter
     const searchTerm = filters.search?.toLowerCase();
@@ -366,44 +533,28 @@ export default function Flows() {
       flow.label?.toLowerCase().includes(searchTerm) ||
       flow.description?.toLowerCase().includes(searchTerm);
 
-    // Format filter
-    const formatFilter = filters.format;
-    const matchesFormat = !formatFilter || flow.format === formatFilter;
+    // Format, category, content_type, and year are filtered server-side via API
 
-    // Category filter
-    const categoryFilter = filters.category;
-    const matchesCategory = !categoryFilter || 
-      flow.tags?.['category'] === categoryFilter;
-
-    // Content type filter
-    const contentTypeFilter = filters.content_type;
-    const matchesContentType = !contentTypeFilter || 
-      flow.tags?.['content_type'] === contentTypeFilter;
-
-    // Year filter
-    const yearFilter = filters.year;
-    const matchesYear = !yearFilter || 
-      flow.tags?.['year'] === yearFilter;
-
-    // Status filter
+    // Status filter - NOTE: status is NOT in the API schema, this is client-side only
+    // The API doesn't have a status field for flows, so this only works with demo data
     const statusFilter = filters.status;
     const matchesStatus = !statusFilter || flow.status === statusFilter;
 
-    // Created date filter
+    // Created date filter - NOTE: created date filtering is NOT supported by the API
+    // The API only supports timerange (for flow content time), not creation dates
+    // This is client-side only and won't filter real API data server-side
     const createdFilter = filters.created;
     const matchesCreated = !createdFilter || (() => {
-      // Simplified date filtering for demo
+      if (!flow.created) return true;
+      const flowDate = new Date(flow.created);
+      const now = new Date();
       switch (createdFilter) {
-        case 'today':
-        case 'yesterday':
         case 'last_7_days':
+          return (now.getTime() - flowDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
         case 'last_30_days':
-        case 'last_90_days':
+          return (now.getTime() - flowDate.getTime()) <= 30 * 24 * 60 * 60 * 1000;
         case 'this_month':
-        case 'last_month':
-        case 'this_year':
-        case 'last_year':
-          return true; // For demo, show all items
+          return flowDate.getMonth() === now.getMonth() && flowDate.getFullYear() === now.getFullYear();
         default:
           return true;
       }
@@ -416,9 +567,15 @@ export default function Flows() {
         `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())
       ));
 
-    return matchesSearch && matchesFormat && matchesCategory && matchesContentType && 
-           matchesYear && matchesStatus && matchesCreated && matchesTags;
+    // Format, category, content_type, and year are filtered server-side via API
+    return matchesSearch && matchesStatus && matchesCreated && matchesTags;
   });
+
+  // Client-side pagination for filtered flows
+  const totalPages = Math.ceil(filteredFlows.length / itemsPerPage);
+  const startIndex = (activePage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedFlows = filteredFlows.slice(startIndex, endIndex);
 
   // BBC TAMS filter handlers
   const handleBbcFiltersChange = useCallback((newFilters: any) => {
@@ -460,6 +617,14 @@ export default function Flows() {
         <Group>
           <Button
             variant="light"
+            leftSection={<IconInfoCircle size={16} />}
+            onClick={() => navigate('/flow-details/demo')}
+            className="dark-button"
+          >
+            View Demo Flow
+          </Button>
+          <Button
+            variant="light"
             leftSection={<IconRefresh size={16} />}
             onClick={handleRefresh}
             loading={loading}
@@ -477,12 +642,29 @@ export default function Flows() {
         </Group>
       </Group>
 
-      {/* Error Alert */}
-      {error && (
+      {/* Demo Mode Alert */}
+      {isDemoMode && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="Demo Mode - Mock Data"
+          withCloseButton
+          onClose={() => setIsDemoMode(false)}
+          mb="md"
+        >
+          <Text size="sm">
+            The TAMS API is currently unavailable. You are viewing <strong>demo flows data</strong> to allow you to test the interface.
+            All features work with this demo data, but changes won't be saved to the backend.
+          </Text>
+        </Alert>
+      )}
+
+      {/* Error Alert - only show if not in demo mode */}
+      {error && !isDemoMode && (
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color="red" 
-          title="VAST TAMS Connection Error"
+          title="TAMS Connection Error"
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -491,7 +673,7 @@ export default function Flows() {
         </Alert>
       )}
 
-      {/* VAST TAMS Info - Toggleable */}
+      {/* TAMS Info - Toggleable */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
@@ -545,11 +727,11 @@ export default function Flows() {
         </Group>
       </Group>
 
-      {/* Quick Media Filters */}
+      {/* Quick Filters - API-Supported Filters Only */}
       <Card withBorder mb="md" p="sm">
         <Group gap="md" align="center">
           <Group gap="xs">
-            <Text size="sm" fw={500} c="dimmed">Quick Filters:</Text>
+            <Text size="sm" fw={500} c="dimmed">Quick Filters (API-Supported):</Text>
             {hasActiveFilters && (
               <Badge size="xs" variant="light" color="blue">
                 {Object.keys(filters).length} active
@@ -557,81 +739,74 @@ export default function Flows() {
             )}
           </Group>
           
-          <Chip
-            checked={filters.category === 'sports'}
-            onChange={(checked) => setFilter('category', checked ? 'sports' : '')}
-            variant="light"
-            size="sm"
-            color="green"
-          >
-            Sports
-          </Chip>
-          
-          <Chip
-            checked={filters.category === 'conference'}
-            onChange={(checked) => setFilter('category', checked ? 'conference' : '')}
-            variant="light"
-            size="sm"
-            color="green"
-          >
-            Conference
-          </Chip>
-          
-          <Chip
-            checked={filters.content_type === 'podcast'}
-            onChange={(checked) => setFilter('content_type', checked ? 'podcast' : '')}
-            variant="light"
-            size="sm"
-            color="red"
-          >
-            Podcast
-          </Chip>
-          
-          <Chip
-            checked={filters.year === '2024'}
-            onChange={(checked) => setFilter('year', checked ? '2024' : '')}
-            variant="light"
-            size="sm"
-            color="orange"
-          >
-            Year 2024
-          </Chip>
-          
-          {/* Quick Timerange Filters */}
+          {/* Format Filters - Direct API support */}
           <Divider orientation="vertical" />
           <Group gap="xs">
-            <Text size="xs" c="dimmed">Time:</Text>
+            <Text size="xs" c="dimmed">Format:</Text>
             <Chip
-              checked={filters.created === 'last_7_days'}
-              onChange={(checked) => setFilter('created', checked ? 'last_7_days' : '')}
+              checked={filters.format === 'urn:x-nmos:format:video'}
+              onChange={(checked) => setFilter('format', checked ? 'urn:x-nmos:format:video' : '')}
               variant="light"
-              size="xs"
-              color="gray"
+              size="sm"
+              color="blue"
             >
-              Last 7 days
+              Video
             </Chip>
             <Chip
-              checked={filters.created === 'last_30_days'}
-              onChange={(checked) => setFilter('created', checked ? 'last_30_days' : '')}
+              checked={filters.format === 'urn:x-nmos:format:audio'}
+              onChange={(checked) => setFilter('format', checked ? 'urn:x-nmos:format:audio' : '')}
               variant="light"
-              size="xs"
-              color="gray"
+              size="sm"
+              color="blue"
             >
-              Last 30 days
+              Audio
+            </Chip>
+          </Group>
+          
+          {/* Tag-based Filters - API supports via tag.<name> */}
+          <Divider orientation="vertical" />
+          <Group gap="xs">
+            <Text size="xs" c="dimmed">Tags:</Text>
+            <Chip
+              checked={filters.category === 'sports'}
+              onChange={(checked) => setFilter('category', checked ? 'sports' : '')}
+              variant="light"
+              size="sm"
+              color="green"
+            >
+              Sports
             </Chip>
             <Chip
-              checked={filters.created === 'this_month'}
-              onChange={(checked) => setFilter('created', checked ? 'this_month' : '')}
+              checked={filters.category === 'conference'}
+              onChange={(checked) => setFilter('category', checked ? 'conference' : '')}
               variant="light"
-              size="xs"
-              color="gray"
+              size="sm"
+              color="green"
             >
-              This month
+              Conference
+            </Chip>
+            <Chip
+              checked={filters.content_type === 'podcast'}
+              onChange={(checked) => setFilter('content_type', checked ? 'podcast' : '')}
+              variant="light"
+              size="sm"
+              color="red"
+            >
+              Podcast
+            </Chip>
+            <Chip
+              checked={filters.year === '2024'}
+              onChange={(checked) => setFilter('year', checked ? '2024' : '')}
+              variant="light"
+              size="sm"
+              color="orange"
+            >
+              Year 2024
             </Chip>
           </Group>
           
           <Text size="xs" c="dimmed" ml="auto">
-            Advanced filters available below
+            All filters use API-supported parameters
           </Text>
         </Group>
       </Card>
@@ -646,7 +821,7 @@ export default function Flows() {
         onPresetDelete={(presetId) => setSavedPresets(savedPresets.filter(p => p.id !== presetId))}
       />
 
-      {/* BBC TAMS Compliant Filters */}
+      {/* TAMS Compliant Filters */}
       <Box mb="lg">
         <Text size="sm" c="dimmed" mb="xs">
           TAMS Advanced Filters - For technical content filtering (format, codec, tags)
@@ -679,9 +854,8 @@ export default function Flows() {
               <Table.Th>Format & Codec</Table.Th>
               <Table.Th>Content Information</Table.Th>
               <Table.Th>Category & Type</Table.Th>
-              <Table.Th>Collection</Table.Th>
               <Table.Th>Content Stats</Table.Th>
-              <Table.Th>Status</Table.Th>
+              <Table.Th>Status*</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -702,14 +876,16 @@ export default function Flows() {
                 <Table.Td colSpan={7} ta="center">
                   <Text c="dimmed">
                     {flows.length === 0 
-                      ? "No flows available from VAST TAMS backend" 
+                      ? (isDemoMode 
+                          ? "No demo flows available" 
+                          : "No flows available from TAMS backend")
                       : "No flows found matching your filters"
                     }
                   </Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
-              filteredFlows.map((flow) => (
+              paginatedFlows.map((flow) => (
                 <Table.Tr key={flow.id}>
                   <Table.Td>
                     <Group gap="sm">
@@ -806,56 +982,45 @@ export default function Flows() {
                     </Stack>
                   </Table.Td>
                   <Table.Td>
+                    {/* views and duration are not in the API - only show if present (demo data) */}
                     <Stack gap="xs">
-                      {/* Collection Badge */}
-                      {flow.collection_id ? (
-                        <Badge variant="light" color="purple" size="sm">
-                          {flow.collection_label || 'Collection'}
-                        </Badge>
-                      ) : (
+                      {flow.views !== undefined && (
+                        <Group gap="xs" align="center">
+                          <IconActivity size={14} />
+                          <Text size="sm">
+                            {flow.views} views
+                          </Text>
+                        </Group>
+                      )}
+                      {flow.duration && (
                         <Text size="xs" c="dimmed">
-                          No collection
+                          {flow.duration}
                         </Text>
                       )}
-                      {/* Collection Actions */}
-                      {flow.collection_id && (
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => navigate(`/flow-collections/${flow.collection_id}`)}
-                        >
-                          View Collection
-                        </Button>
-                      )}
-                    </Stack>
-                  </Table.Td>
-                  <Table.Td>
-                    <Stack gap="xs">
-                      <Group gap="xs" align="center">
-                        <IconActivity size={14} />
-                        <Text size="sm">
-                          {flow.views || 0} views
-                        </Text>
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {flow.duration || 'Unknown'}
-                      </Text>
-                      {/* Quality Badge */}
+                      {/* Quality Badge from tags */}
                       {flow.tags?.quality && (
                         <Badge size="xs" variant="light" color="orange">
                           {flow.tags.quality}
                         </Badge>
                       )}
+                      {!flow.views && !flow.duration && !flow.tags?.quality && (
+                        <Text size="xs" c="dimmed">—</Text>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>
-                    <Badge 
-                      color={getStatusColor(flow.status || 'unknown')} 
-                      variant="light"
-                      size="sm"
-                    >
-                      {flow.status || 'Unknown'}
-                    </Badge>
+                    {/* Status is not in the API schema - only show if present (demo data) */}
+                    {flow.status ? (
+                      <Badge 
+                        color={getStatusColor(flow.status)} 
+                        variant="light"
+                        size="sm"
+                      >
+                        {flow.status}
+                      </Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">—</Text>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               ))
@@ -863,27 +1028,25 @@ export default function Flows() {
           </Table.Tbody>
         </Table>
         
-        {/* VAST TAMS Pagination */}
-        {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
+        {/* Pagination */}
+        {filteredFlows.length > itemsPerPage && (
           <Group justify="center" mt="lg">
-            <BBCPagination
-              paginationMeta={bbcPagination}
-              onPageChange={handleVastTamsPageChange}
-              onLimitChange={(limit) => {
-                // Handle limit change for VAST TAMS API
-                fetchFlowsVastTams();
-              }}
-              showBBCMetadata={true}
-              showLimitSelector={true}
+            <Pagination
+              value={activePage}
+              onChange={setActivePage}
+              total={totalPages}
+              size="sm"
             />
           </Group>
-        ) : (
-          /* No pagination when no data */
-          flows.length === 0 && !loading && (
-            <Group justify="center" mt="lg">
-              <Text c="dimmed">No flows available</Text>
-            </Group>
-          )
+        )}
+        
+        {/* Results count */}
+        {!loading && filteredFlows.length > 0 && (
+          <Group justify="center" mt="md">
+            <Text size="sm" c="dimmed">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredFlows.length)} of {filteredFlows.length} flows
+            </Text>
+          </Group>
         )}
       </Card>
 

@@ -133,12 +133,22 @@ export function BackendProvider({ children }: BackendProviderProps) {
         
         // Get stored backend preference or use default
         const storedBackend = localStorage.getItem('selectedBackend');
+        const backendToUse = storedBackend && getBackendConfig(storedBackend) 
+          ? storedBackend 
+          : state.currentBackend.id;
+        
         if (storedBackend && getBackendConfig(storedBackend)) {
           dispatch({ type: 'SET_CURRENT_BACKEND', payload: storedBackend });
         }
         
-        // Test connection to current backend
-        await testBackendConnection(state.currentBackend.id);
+        // Test connection to current backend (only if health endpoint is configured)
+        // Skip health check on initial mount to avoid unnecessary requests
+        // Health checks should be done explicitly by components that need them
+        const config = getBackendConfig(backendToUse);
+        if (config?.endpoints?.health) {
+          // Only check health if explicitly needed - comment out to disable auto health check
+          // await testBackendConnection(backendToUse);
+        }
         
       } catch (error) {
         console.error('Failed to initialize backend:', error);
@@ -149,7 +159,8 @@ export function BackendProvider({ children }: BackendProviderProps) {
     };
 
     initializeBackend();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally empty - only run on mount
 
   // Test backend connection
   const testBackendConnection = useCallback(async (backendId: string): Promise<boolean> => {

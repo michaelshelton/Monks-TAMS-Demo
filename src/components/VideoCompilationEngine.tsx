@@ -207,7 +207,7 @@ export default function VideoCompilationEngine({ segments }: VideoCompilationEng
         <Card mt="md" withBorder>
           <Group justify="space-between" mb="sm">
             <Title order={6}>CMCD Data (Common Media Client Data)</Title>
-            <Badge color="blue">BBC TAMS Compliant</Badge>
+            <Badge color="blue">TAMS Compliant</Badge>
           </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Box>
@@ -336,11 +336,11 @@ export default function VideoCompilationEngine({ segments }: VideoCompilationEng
           {/* CMCD Analytics Status */}
           <Alert
             icon={<IconInfoCircle size={16} />}
-            title="CMCD Analytics & BBC TAMS Compliance"
+            title="CMCD Analytics & TAMS Compliance"
             color="blue"
           >
             <Text size="sm">
-              Common Media Client Data (CMCD) is being collected for this video compilation to ensure BBC TAMS compliance.
+              Common Media Client Data (CMCD) is being collected for this video compilation to ensure TAMS compliance.
               This data enables enhanced analytics, performance optimization, and standardized media delivery workflows.
             </Text>
           </Alert>

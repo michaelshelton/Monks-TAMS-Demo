@@ -221,7 +221,7 @@ export default function TimerangePicker({
       {/* BBC TAMS Format Info */}
       <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light" mb="md">
         <Text size="xs">
-          BBC TAMS v6.0 format: <Code>[start]:[start_subsecond]_[end]:[end_subsecond]</Code>
+          TAMS v6.0 format: <Code>[start]:[start_subsecond]_[end]:[end_subsecond]</Code>
         </Text>
       </Alert>
 

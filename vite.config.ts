@@ -2,19 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Get backend configuration from environment
+// Simplified to use local TAMS API
 const getBackendTarget = () => {
-  const defaultBackend = process.env.VITE_DEFAULT_BACKEND || 'vast-tams';
-  
-  switch (defaultBackend) {
-    case 'ibc-thiago':
-      return process.env.VITE_BACKEND_IBC_THIAGO_URL || 'http://localhost:3000';
-    case 'ibc-thiago-imported':
-      return process.env.VITE_BACKEND_IBC_THIAGO_IMPORTED_URL || 'http://localhost:3002';
-    case 'vast-tams':
-      return process.env.VITE_BACKEND_VAST_TAMS_URL || 'http://34.216.9.25:8000';
-    default:
-      return 'http://34.216.9.25:8000'; // Default to VAST TAMS
-  }
+  return process.env.VITE_BACKEND_VAST_TAMS_URL || 'http://localhost:3000';
 };
 
 // https://vitejs.dev/config/
@@ -32,37 +22,59 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
-            console.log('proxy error', err);
+            console.error('Proxy error:', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
+          // Only log errors and non-2xx/3xx responses (except 503 from /health which is expected for degraded status)
           proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+            // Filter out expected status codes to reduce noise
+            const isHealthEndpoint = req.url?.includes('/health');
+            const isExpectedStatus = proxyRes.statusCode === 503 && isHealthEndpoint;
+            
+            // Only log if it's an error status and not an expected degraded health response
+            if (proxyRes.statusCode >= 400 && !isExpectedStatus) {
+              console.warn(`Proxy response: ${proxyRes.statusCode} ${req.method} ${req.url}`);
+            }
           });
         },
       },
-      // Dedicated dev proxy for VAST TAMS regardless of selected backend
-      '/api-vast': {
-        target: process.env.VITE_BACKEND_VAST_TAMS_URL || 'http://34.216.9.25:8000',
-        changeOrigin: true,
+      // Proxy MinIO uploads to handle Docker internal IPs
+      // This allows presigned URLs with Docker IPs to work through localhost
+      // We connect to localhost:9000 but preserve the original Host header for signature validation
+      '/minio-proxy': {
+        target: 'http://localhost:9000',
+        changeOrigin: false, // Don't change origin - we'll set Host header manually
         rewrite: (path) => {
-          const newPath = path.replace(/^\/api-vast/, '');
-          console.log('VAST TAMS proxy rewrite:', path, '->', newPath);
-          return newPath;
+          // Extract path and query from /minio-proxy/http://HOST/PATH?QUERY
+          const match = path.match(/^\/minio-proxy\/http:\/\/[^\/]+(\/[^?]*)(\?.*)?$/);
+          if (match) {
+            return match[1] + (match[2] || '');
+          }
+          return path.replace(/^\/minio-proxy/, '');
         },
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
-            console.log('VAST TAMS proxy error', err);
+            console.error('MinIO proxy error:', err);
           });
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('VAST TAMS Request to Target:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('VAST TAMS Response from Target:', proxyRes.statusCode, req.url);
+            // Extract the original host from the URL path to set correct Host header
+            // This is critical for presigned URL signature validation
+            const originalHostMatch = req.url?.match(/\/minio-proxy\/http:\/\/([^\/]+)/);
+            if (originalHostMatch) {
+              const originalHost = originalHostMatch[1];
+              // Remove the old Host header and set the correct one
+              proxyReq.removeHeader('host');
+              proxyReq.setHeader('Host', originalHost);
+              console.log(`MinIO proxy: Setting Host header to ${originalHost} for signature validation`);
+            }
           });
         },
       },
+      // Commented out - no longer needed with single backend
+      // '/api-vast': {
+      //   target: process.env.VITE_BACKEND_VAST_TAMS_URL || 'http://localhost:3000',
+      //   changeOrigin: true,
+      //   rewrite: (path) => path.replace(/^\/api-vast/, ''),
+      // },
     },
   },
   build: {

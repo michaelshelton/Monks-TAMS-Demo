@@ -17,10 +17,10 @@ import DeletionRequests from './pages/DeletionRequests';
 import HLSTestPage from './pages/HLSTestPage';
 import VastTamsWorkflow from './pages/VastTamsWorkflow';
 import { Webhooks } from './pages/Webhooks';
-import FlowCollections from './pages/FlowCollections';
+import Objects from './pages/Objects';
+import QCStatistics from './pages/QCStatistics';
 import { BackendProvider } from './contexts/BackendContext';
-import { ThemeProvider, useTheme } from './contexts/ThemeContext';
-import { ThemeToggle } from './components/ThemeToggle';
+import { ThemeProvider } from './contexts/ThemeContext';
 import './styles/dark-mode-fixed.css';
 
 const theme = createTheme({
@@ -51,48 +51,36 @@ const theme = createTheme({
 
 // Main navigation items (always visible)
 const mainNavLinks = [
-  { label: 'Search', to: '/search' },
+  { label: 'Home', to: '/' },
   { label: 'Sources', to: '/sources' },
   { label: 'Flows', to: '/flows' },
-  { label: 'Flow Collections', to: '/flow-collections' },
+];
+
+// Secondary navigation items (after separator)
+const secondaryNavLinks = [
+  { label: 'Objects', to: '/objects' },
+  { label: 'QC Statistics', to: '/qc-statistics' },
+  { label: 'Observability', to: '/observability' },
 ];
 
 // Additional navigation items (in dropdown)
 const additionalNavLinks = [
-  { label: 'Home', to: '/' },
-  { label: 'TAMS Workflow', to: '/vast-tams-workflow' },
   { label: 'Service', to: '/service' },
+  { label: 'Overview', to: '/' },
+  { label: 'TAMS Workflow', to: '/vast-tams-workflow' },
+  { label: 'Search', to: '/search' },
   { label: 'Webhooks', to: '/webhooks' },
   { label: 'Analytics', to: '/analytics' },
-  { label: 'Observability', to: '/observability' },
   { label: 'Deletion Requests', to: '/deletion-requests' },
 ];
-
-function AppFooter() {
-  return (
-    <footer style={{
-      textAlign: 'center',
-      padding: '8px 0',
-      fontSize: rem(12),
-      opacity: 0.7,
-      transition: 'opacity 0.2s ease',
-    }}
-    >
-      © 2025 Monks + VAST TAMS Demo
-    </footer>
-  );
-}
 
 function AppLayout() {
   const location = useLocation();
 
   return (
-    <AppShell padding="md">
-      <AppShell.Header h={60} p="md" withBorder={false} style={{ position: 'static' }}>
+    <AppShell padding={0}>
+      <AppShell.Header h={60} p="sm" withBorder={false} style={{ position: 'static' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          {/* Left: Theme Toggle */}
-          <ThemeToggle />
-          
           {/* Center: Main Navigation + Dropdown */}
           <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             {/* Main Navigation Links */}
@@ -124,7 +112,39 @@ function AppLayout() {
               ))}
             </Group>
             
-            {/* Separator */}
+            {/* Pipe Separator */}
+            <Text size="sm" c="gray" style={{ margin: '0 4px' }}>|</Text>
+            
+            {/* Secondary Navigation Links */}
+            <Group gap="sm">
+              {secondaryNavLinks.map((link) => (
+                <Anchor
+                  key={link.to}
+                  component={Link}
+                  to={link.to}
+                  fw={500}
+                  size="sm"
+                  c={location.pathname === link.to ? 'blue' : 'gray'}
+                  className={`nav-link ${location.pathname === link.to ? 'active' : ''}`}
+                  style={{ 
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    color: location.pathname === link.to 
+                      ? 'var(--mantine-color-blue-6)' 
+                      : 'var(--mantine-color-gray-6)',
+                    ...(location.pathname === link.to && {
+                      backgroundColor: 'var(--mantine-color-blue-0)',
+                      color: 'var(--mantine-color-blue-7)'
+                    })
+                  }}
+                >
+                  {link.label}
+                </Anchor>
+              ))}
+            </Group>
+            
+            {/* Separator before dropdown */}
             <div className="nav-separator" style={{ 
               width: 1, 
               height: 24, 
@@ -176,14 +196,13 @@ function AppLayout() {
         
       </AppShell.Header>
       
-      <AppShell.Main m="xl">
+      <AppShell.Main style={{ padding: 0, margin: 0 }}>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/sources" element={<Sources />} />
+          <Route path="/sources" element={<Sources key="sources" />} />
           <Route path="/source-details/:sourceId" element={<SourceDetails />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/flow-details/:flowId" element={<FlowDetails />} />
-          <Route path="/flow-collections" element={<FlowCollections />} />
           <Route path="/search" element={<Search />} />
           <Route path="/search-results" element={<SearchResults />} />
           <Route path="/upload" element={<Upload />} />
@@ -194,22 +213,17 @@ function AppLayout() {
           <Route path="/webhooks" element={<Webhooks />} />
           <Route path="/deletion-requests" element={<DeletionRequests />} />
           <Route path="/hls-test" element={<HLSTestPage />} />
+          <Route path="/objects" element={<Objects />} />
+          <Route path="/qc-statistics" element={<QCStatistics />} />
           
           <Route path="/vast-tams-workflow" element={<VastTamsWorkflow />} />
         </Routes>
-        
-        {/* Footer at bottom of content */}
-        <Box mt="xl" pt="md" style={{ borderTop: '1px solid var(--mantine-color-gray-3)' }}>
-          <AppFooter />
-        </Box>
       </AppShell.Main>
     </AppShell>
   );
 }
 
 function AppContent() {
-  const { colorScheme } = useTheme();
-  
   return (
     <MantineProvider theme={theme} withCssVariables>
       <BackendProvider>

@@ -40,8 +40,11 @@ DEPLOYMENT.md
 
 # Docker files (to avoid copying into container)
 Dockerfile
+Dockerfile.dev
 .dockerignore
 docker-compose.yml
+# But include docker-entrypoint.sh (needed in container)
+!docker-entrypoint.sh
 
 # Logs
 logs

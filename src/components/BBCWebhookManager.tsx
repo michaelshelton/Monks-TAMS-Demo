@@ -373,7 +373,7 @@ export default function BBCWebhookManager() {
           
           {/* BBC TAMS Compliance Info */}
           <Box>
-            <Text size="sm" fw={500} mb="xs">BBC TAMS v6.0 Webhook Operations:</Text>
+            <Text size="sm" fw={500} mb="xs">TAMS v6.0 Webhook Operations:</Text>
             <Group gap="xs" wrap="wrap">
               <Badge variant="light" color="green">Webhook CRUD</Badge>
               <Badge variant="light" color="green">Event Subscription</Badge>
@@ -758,9 +758,9 @@ export default function BBCWebhookManager() {
       {/* BBC TAMS API Information */}
       <Card withBorder p="md">
         <Stack gap="md">
-          <Text fw={500} size="sm">BBC TAMS API Compliance</Text>
+          <Text fw={500} size="sm">TAMS API Compliance</Text>
           <Text size="sm" c="dimmed">
-            This component demonstrates BBC TAMS v6.0 webhook operations, enabling real-time 
+            This component demonstrates TAMS v6.0 webhook operations, enabling real-time 
             event notifications for media store operations.
           </Text>
           

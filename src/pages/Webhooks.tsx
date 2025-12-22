@@ -118,17 +118,19 @@ export const Webhooks: React.FC = () => {
       setCurrentCursor(cursor || null);
       setError(null);
     } catch (err: any) {
-      console.error('VAST TAMS API error:', err);
+      console.error('TAMS API error:', err);
       
       // Set appropriate error message based on error type
       if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-        setError('VAST TAMS backend temporarily unavailable - please try again later');
+        setError('TAMS backend temporarily unavailable - please try again later');
       } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
         setError('Network connection issue - please check your connection and try again');
       } else if (err?.message?.includes('404')) {
-        setError('VAST TAMS API endpoint not found - please check backend configuration');
+        setError('TAMS API endpoint not found - please check backend configuration');
       } else {
-        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+        // Use error message directly if it already contains "TAMS API error", otherwise prefix it
+        const errorMsg = err?.message || 'Unknown error';
+        setError(errorMsg.includes('TAMS API error') ? errorMsg : `TAMS API error: ${errorMsg}`);
       }
       
       // Clear webhooks on error
@@ -303,7 +305,7 @@ export const Webhooks: React.FC = () => {
           <Alert 
             icon={<IconAlertCircle size={16} />} 
             color="red" 
-            title="VAST TAMS Connection Error"
+            title="TAMS Connection Error"
             withCloseButton
             onClose={() => setError(null)}
             mb="md"
@@ -366,7 +368,7 @@ export const Webhooks: React.FC = () => {
                   <Table.Td colSpan={5} ta="center">
                     <Text c="dimmed">
                       {webhooks.length === 0 
-                        ? "No webhooks available from VAST TAMS backend" 
+                        ? "No webhooks available from TAMS backend" 
                         : "No webhooks found"
                       }
                     </Text>

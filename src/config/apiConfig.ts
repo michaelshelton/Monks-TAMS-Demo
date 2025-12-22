@@ -78,7 +78,7 @@ export const BACKEND_APIS: Record<string, BackendApiConfig> = {
     id: 'vast-tams',
     name: 'VAST TAMS',
     description: 'Full-featured VAST TAMS backend with all advanced features',
-    baseUrl: getBackendUrl('vast-tams', import.meta.env.VITE_BACKEND_VAST_TAMS_URL || 'http://34.216.9.25:8000'),
+    baseUrl: getBackendUrl('vast-tams', import.meta.env.VITE_BACKEND_VAST_TAMS_URL || 'http://localhost:3000'),
     type: 'vast-tams',
     version: '6.0',
     features: {
@@ -201,6 +201,7 @@ export const BACKEND_APIS: Record<string, BackendApiConfig> = {
 
 /**
  * Default backend configuration
+ * Always defaults to 'vast-tams' (monks_tams_api) unless explicitly overridden
  */
 export const DEFAULT_BACKEND = import.meta.env.VITE_DEFAULT_BACKEND || 'vast-tams';
 

@@ -501,7 +501,7 @@ export default function BBCFieldEditor({
           {/* BBC TAMS Compliance Note */}
           <Alert icon={<IconRefresh size={16} />} color="blue" variant="light">
             <Text size="sm">
-              This field editor follows BBC TAMS v6.0 specification with support for GET, PUT, DELETE, 
+              This field editor follows TAMS v6.0 specification with support for GET, PUT, DELETE, 
               and HEAD operations on entity fields.
             </Text>
           </Alert>

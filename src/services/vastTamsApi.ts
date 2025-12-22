@@ -190,7 +190,42 @@ export class VastTamsApiClient {
     try {
       const response = await fetch(url, defaultOptions);
       
+      // 503 is valid for health endpoint (degraded service) - handle it specially
+      // Check if this is a health endpoint request
+      const isHealthEndpoint = endpoint === '/health' || endpoint.endsWith('/health');
+      
       if (!response.ok) {
+        // For health endpoint, 503 means degraded but available
+        if (isHealthEndpoint && response.status === 503) {
+          // Try to parse the response body for health data, or return degraded status
+          try {
+            const responseData = await response.json();
+            // Handle both direct object and wrapped in data property
+            const healthData = responseData.data || responseData;
+            return {
+              data: Array.isArray(healthData) ? healthData : [healthData],
+              pagination: {},
+              links: []
+            } as BBCApiResponse<T>;
+          } catch {
+            // If response body can't be parsed, return degraded status
+            return {
+              data: [{
+                status: 'degraded',
+                version: 'unknown',
+                timestamp: new Date().toISOString(),
+                system: {
+                  memory_usage_bytes: 0,
+                  memory_total_bytes: 0,
+                  cpu_percent: 0,
+                  uptime_seconds: 0
+                }
+              } as T],
+              pagination: {},
+              links: []
+            } as BBCApiResponse<T>;
+          }
+        }
         throw new Error(`VAST TAMS API error: ${response.status} ${response.statusText}`);
       }
 
@@ -208,7 +243,28 @@ export class VastTamsApiClient {
       const links = parseLinkHeader(response.headers.get('Link') || '');
 
       // Extract data from the response structure
-      const data = responseData.data || responseData;
+      // Handle different API response formats:
+      // 1. BBC TAMS format: { data: [...] }
+      // 2. monks_tams_api format: { sources: [...], count: N }
+      // 3. Direct array: [...]
+      let data: any;
+      if (responseData.data) {
+        // BBC TAMS format
+        data = responseData.data;
+      } else if (responseData.sources && Array.isArray(responseData.sources)) {
+        // monks_tams_api format: { sources: [...], count: N }
+        data = responseData.sources;
+        // Also extract count if available
+        if (responseData.count !== undefined && !pagination.count) {
+          pagination.count = responseData.count;
+        }
+      } else if (Array.isArray(responseData)) {
+        // Direct array response
+        data = responseData;
+      } else {
+        // Single object or unknown format
+        data = responseData;
+      }
 
       return {
         data: Array.isArray(data) ? data : [data],
@@ -223,6 +279,8 @@ export class VastTamsApiClient {
 
   // Health and System Information
   async getHealth(): Promise<VastTamsHealth> {
+    // Health endpoint can return 503 for degraded service, which is valid
+    // The makeRequest method now handles 503 for /health endpoint specially
     const response = await this.makeRequest<VastTamsHealth>('/health');
     return this.getFirstItem(response, 'Health data not available');
   }

@@ -316,7 +316,7 @@ export default function MultiEntitySearch({
   // Get BBC TAMS search order description
   const getSearchOrderDescription = () => {
     if (searchStrategy.searchOrder === 'bbc-tams') {
-      return 'BBC TAMS v6.0 recommended order: Sources → Flows → Segments';
+      return 'TAMS v6.0 recommended order: Sources → Flows → Segments';
     } else {
       return `Custom order: ${customOrder.join(' → ')}`;
     }
@@ -330,7 +330,7 @@ export default function MultiEntitySearch({
           <Box>
             <Title order={3}>Multi-Entity Search</Title>
             <Text size="lg" c="dimmed">
-              BBC TAMS v6.0 compliant search across Sources, Flows, and Segments
+              TAMS v6.0 compliant search across Sources, Flows, and Segments
             </Text>
           </Box>
           
@@ -352,8 +352,8 @@ export default function MultiEntitySearch({
           </Group>
         </Group>
 
-        {/* BBC TAMS Search Strategy Info */}
-        <Alert icon={<IconInfoCircle size={16} />} title="BBC TAMS Multi-Entity Search Strategy" color="blue">
+        {/* TAMS Search Strategy Info */}
+        <Alert icon={<IconInfoCircle size={16} />} title="TAMS Multi-Entity Search Strategy" color="blue">
           <Text size="sm" mb="xs">
             <strong>Recommended Search Order:</strong>
           </Text>
@@ -363,7 +363,7 @@ export default function MultiEntitySearch({
             3. <strong>Segments</strong> 🎯 - Search specific moments last (precise metadata)
           </Text>
           <Text size="sm" c="dimmed">
-            This approach ensures comprehensive content discovery while following BBC TAMS v6.0 best practices.
+            This approach ensures comprehensive content discovery while following TAMS v6.0 best practices.
           </Text>
         </Alert>
 
@@ -427,7 +427,7 @@ export default function MultiEntitySearch({
           <Text fw={500} mb="xs">Search Interface</Text>
           <Text size="sm" c="dimmed">
             The advanced search interface will be integrated here. Users can build complex queries 
-            that will be executed across all selected entity types following the BBC TAMS strategy.
+            that will be executed across all selected entity types following the TAMS strategy.
           </Text>
           <Button mt="md" onClick={() => handleSearch({ format: 'video', tags: { 'player.jersey_number': '19' } })}>
             Execute Multi-Entity Search
@@ -440,7 +440,7 @@ export default function MultiEntitySearch({
             <Text size="sm" mb="xs">Executing Multi-Entity Search...</Text>
             <Progress value={75} size="sm" color="blue" />
             <Text size="xs" c="dimmed" mt="xs">
-              Following BBC TAMS v6.0 search strategy: Sources → Flows → Segments
+              Following TAMS v6.0 search strategy: Sources → Flows → Segments
             </Text>
           </Alert>
         )}
@@ -457,7 +457,7 @@ export default function MultiEntitySearch({
                   </Text>
                 </Box>
                 <Badge color="blue" variant="light">
-                  {searchStrategy.searchOrder === 'bbc-tams' ? 'BBC TAMS Strategy' : 'Custom Strategy'}
+                  {searchStrategy.searchOrder === 'bbc-tams' ? 'TAMS Strategy' : 'Custom Strategy'}
                 </Badge>
               </Group>
             </Card>
@@ -543,7 +543,7 @@ export default function MultiEntitySearch({
         >
           <Stack gap="md">
             <Text size="sm" c="dimmed">
-              Configure how the multi-entity search should be executed according to BBC TAMS v6.0 guidelines.
+              Configure how the multi-entity search should be executed according to TAMS v6.0 guidelines.
             </Text>
             
             <Box>

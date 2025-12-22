@@ -263,7 +263,7 @@ export default function AdvancedSearchBuilder({
         </Group>
 
         <Text size="sm" c="dimmed">
-          Build complex BBC TAMS v6.0 compliant search queries with advanced filtering, tag-based search, and AI content discovery.
+          Build complex TAMS v6.0 compliant search queries with advanced filtering, tag-based search, and AI content discovery.
         </Text>
         
         <Alert icon={<IconInfoCircle size={16} />} title="Search Target" color="blue" variant="light">

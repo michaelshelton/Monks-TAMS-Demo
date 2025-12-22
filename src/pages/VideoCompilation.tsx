@@ -168,7 +168,7 @@ export default function VideoCompilation() {
                 </Text>
               </Box>
               <Badge size="lg" color="blue" variant="light">
-                BBC TAMS Compliant
+                TAMS Compliant
               </Badge>
             </Group>
             
@@ -180,7 +180,7 @@ export default function VideoCompilation() {
             >
               <Text size="sm">
                 The Video Compilation Engine allows you to combine multiple video segments into cohesive compilations 
-                while maintaining full BBC TAMS compliance. This page provides:
+                while maintaining full TAMS compliance. This page provides:
               </Text>
               <Text size="sm" mt="xs">
                 • <strong>Multi-segment compilation</strong> - Combine video segments with precise timing control<br/>
@@ -190,7 +190,7 @@ export default function VideoCompilation() {
                 • <strong>Real-time monitoring</strong> - Track compilation progress and performance metrics
               </Text>
               <Text size="sm" mt="xs">
-                All video operations include comprehensive CMCD data collection for BBC TAMS compliance and enhanced analytics.
+                All video operations include comprehensive CMCD data collection for TAMS compliance and enhanced analytics.
               </Text>
             </Alert>
           </Stack>

@@ -24,8 +24,11 @@ services:
     # Environment variables
     environment:
       - NODE_ENV=production
-      # Add any other environment variables your app needs
-      # - VITE_API_URL=http://localhost:8000
+      # Backend API URL (monks_tams_api)
+      # For Docker Desktop (Mac/Windows): use host.docker.internal
+      # For Linux: use 172.17.0.1 or the service name if in same docker-compose
+      # For Docker Compose with backend service: use service name (e.g., http://monks-tams-api:3000)
+      - BACKEND_URL=http://host.docker.internal:3000
     
     # Restart policy
     # This ensures the container restarts if it crashes
@@ -33,8 +36,9 @@ services:
     
     # Health check
     # This tells Docker how to check if the container is healthy
+    # Using a simple check that works in nginx:alpine
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "sh", "-c", "nc -z localhost 80 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

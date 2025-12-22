@@ -73,10 +73,17 @@ export class ApiServiceFactory implements IApiClientFactory {
       // Initialize the client
       await client.initialize();
 
-      // Test connection
+      // Test connection (503 for health is acceptable - means degraded but available)
       const isConnected = await client.testConnection();
       if (!isConnected) {
-        throw new Error(`Failed to connect to ${backendType} backend`);
+        // Check if it's a degraded service (which is still acceptable)
+        const connectionStatus = (client as any).connectionStatus;
+        if (connectionStatus?.error?.includes('degraded')) {
+          console.warn(`${backendType} backend is degraded but available`);
+          // Continue with degraded service - it's still usable
+        } else {
+          throw new Error(`Failed to connect to ${backendType} backend`);
+        }
       }
 
       // Cache the client

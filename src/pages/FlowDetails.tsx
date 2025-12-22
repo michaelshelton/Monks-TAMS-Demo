@@ -40,7 +40,6 @@ import {
 import {
   IconPlayerPlay,
   IconDownload,
-  IconEdit,
   IconEye,
   IconClock,
   IconTag,
@@ -76,78 +75,79 @@ import {
   IconChartBar,
   IconUpload,
   IconRadio,
-  IconTags
+  IconTags,
+  IconShieldCheck,
+  IconClipboardCheck,
+  IconTrash
 } from '@tabler/icons-react';
 import { apiClient } from '../services/api';
 import AdvancedFilter, { FilterOption, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
 import { cmcdTracker, type CMCDMetrics } from '../services/cmcdService';
-import { StorageAllocationManager } from '../components/StorageAllocationManager';
 import { FlowTagsManager } from '../components/FlowTagsManager';
 import { FlowDescriptionManager } from '../components/FlowDescriptionManager';
-import { FlowCollectionManager } from '../components/FlowCollectionManager';
+// FlowCollectionManager removed - backend doesn't support /flows/:id/flow_collection endpoint
 import { FlowReadOnlyManager } from '../components/FlowReadOnlyManager';
 
 import HLSVideoPlayer from '../components/HLSVideoPlayer';
 import VastTamsVideoPlayer from '../components/VastTamsVideoPlayer';
 import { transformSegmentUrls } from '../utils/s3Proxy';
 
-// VAST TAMS Flow interface based on real API response
+// BBC TAMS Flow interface based on real API response
 interface FlowDetails {
   id: string;
   source_id: string;
   format: string;
-  codec: string;
-  label: string;
-  description: string;
-  created_by: string;
-  updated_by: string;
-  created: string;
-  updated: string;
-  tags: Record<string, string>;
-  read_only: boolean;
+  codec?: string;
+  label?: string;
+  description?: string;
+  created_by?: string;
+  updated_by?: string;
+  created?: string;
+  metadata_updated?: string; // API uses metadata_updated, not "updated"
+  segments_updated?: string;
+  tags?: Record<string, string | string[]>; // Tags can be arrays or strings
+  read_only?: boolean;
   
-  // Video-specific fields from VAST TAMS API
-  frame_width?: number;
-  frame_height?: number;
-  frame_rate?: string;
-  interlace_mode?: string;
-  color_sampling?: string;
-  color_space?: string;
-  transfer_characteristics?: string;
-  color_primaries?: string;
+  // Essence parameters (nested structure for video/audio)
+  essence_parameters?: {
+    // Video essence parameters
+    frame_width?: number;
+    frame_height?: number;
+    frame_rate?: {
+      numerator: number;
+      denominator?: number;
+    };
+    interlace_mode?: 'progressive' | 'interlaced_tff' | 'interlaced_bff' | 'interlaced_psf';
+    colorspace?: 'BT601' | 'BT709' | 'BT2020' | 'BT2100';
+    transfer_characteristic?: 'SDR' | 'HLG' | 'PQ';
+    bit_depth?: number; // Used for both video and audio
+    // Audio essence parameters
+    sample_rate?: number;
+    channels?: number;
+  };
   
-  // Audio-specific fields
-  sample_rate?: number;
-  bits_per_sample?: number;
-  channels?: number;
-  
-  // Common fields
+  // Common fields from flow-core.json
   container?: string;
+  avg_bit_rate?: number; // in 1000 bits/second
+  max_bit_rate?: number; // in 1000 bits/second
+  segment_duration?: {
+    numerator: number;
+    denominator?: number;
+  };
   
-  // Bitrate fields from VAST TAMS API
-  avg_bit_rate?: number;
-  max_bit_rate?: number;
+  // Additional fields added by controller
+  total_segments?: number; // Added by controller from segment stats
+  total_duration?: number; // Added by controller from segment stats
+  total_bytes?: number; // Total storage bytes (from stats or flow data)
+  last_segment?: any; // Last segment information
   
-  // Multi-flow fields
-  flow_collection?: string[];
-  
-  // Collection fields
-  collection_id?: string;
-  collection_label?: string;
-  
-  // VAST TAMS soft delete fields
-  deleted?: boolean;
-  deleted_at?: string | null;
-  deleted_by?: string | null;
-  
-  // Status field
-  status?: string;
-  
-  // Storage information
-  storage?: {
-    total_segments: number;
-    total_size: number;
+  // Optional metadata
+  metadata_version?: string;
+  generation?: number;
+  timerange?: {
+    start: string;
+    end: string;
   };
 }
 
@@ -215,37 +215,157 @@ const formatDuration = (start: string, end: string) => {
   }
 };
 
+// Mock data for demo mode - matches actual API structure
+const createMockFlowData = (): FlowDetails => {
+  const now = new Date();
+  const created = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+  const metadataUpdated = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000); // 1 day ago
+
+  return {
+    id: 'demo-flow-12345-67890-abcdef-ghijkl',
+    source_id: 'demo-source-12345-67890-abcdef-ghijkl',
+    format: 'urn:x-nmos:format:video',
+    codec: 'video/h264',
+    label: 'Demo Video Flow - Conference Recording',
+    description: 'This is a demo flow showing the FlowDetails page with mock data. All tabs and features can be tested here.',
+    created_by: 'demo-user',
+    updated_by: 'demo-user',
+    created: created.toISOString(),
+    metadata_updated: metadataUpdated.toISOString(),
+    segments_updated: metadataUpdated.toISOString(),
+    tags: {
+      category: 'conference',
+      content_type: 'presentation',
+      year: '2024',
+      quality: 'high',
+      location: 'London',
+      speaker: 'John Doe'
+    },
+    read_only: false,
+    essence_parameters: {
+      frame_width: 1920,
+      frame_height: 1080,
+      frame_rate: {
+        numerator: 25,
+        denominator: 1
+      },
+      interlace_mode: 'progressive',
+      colorspace: 'BT709',
+      transfer_characteristic: 'SDR',
+      bit_depth: 8
+    },
+    container: 'video/mp4',
+    avg_bit_rate: 5000000, // 5 Mbps in 1000 bits/second
+    max_bit_rate: 8000000, // 8 Mbps in 1000 bits/second
+    total_segments: 15, // Added by controller
+    total_duration: 150 // Added by controller (15 segments * 10 min)
+  };
+};
+
+// SegmentItem interface - used for segments display
+interface SegmentItem {
+  id: string;
+  _id?: string; // MongoDB _id - needed for backend updates (ObjectId format)
+  object_id: string;
+  timerange: { start: string; end: string };
+  description?: string;
+  size?: number;
+  status: string;
+  last_duration?: string;
+  key_frame_count?: number;
+  get_urls?: Array<{ url: string; label?: string }>;
+  tags?: Record<string, string>;
+  flow_format?: string;
+  format?: string; // Segment format (e.g., 'mp2t', 'mp4')
+  created_at?: string;
+  updated_at?: string;
+  is_live?: boolean;
+}
+
+const createMockSegments = (): SegmentItem[] => {
+  const segments: SegmentItem[] = [];
+  const baseTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+  
+  for (let i = 0; i < 10; i++) {
+    const startTime = new Date(baseTime.getTime() + i * 10 * 60 * 1000); // 10 min intervals
+    const endTime = new Date(startTime.getTime() + 10 * 60 * 1000); // 10 min duration
+    
+    segments.push({
+      id: `demo-segment-${i + 1}`,
+      object_id: `obj-${i + 1}`,
+      timerange: {
+        start: startTime.toISOString(),
+        end: endTime.toISOString()
+      },
+      description: `Demo Segment ${i + 1} - Conference Recording Part ${i + 1}`,
+      size: 104857600 + (i * 10485760), // ~100MB + variation
+      status: i < 8 ? 'active' : 'processing',
+      last_duration: 'PT10M',
+      key_frame_count: 1500,
+      get_urls: [
+        {
+          url: `https://example.com/segments/segment-${i + 1}.mp4`,
+          label: 'GET'
+        }
+      ],
+      tags: {
+        category: 'conference',
+        content_type: 'presentation',
+        quality: i % 2 === 0 ? 'high' : 'medium'
+      },
+      flow_format: 'urn:x-nmos:format:video',
+      created_at: startTime.toISOString(),
+      updated_at: endTime.toISOString(),
+      is_live: i === 9 // Last segment is live
+    });
+  }
+  
+  return segments;
+};
+
+const createMockQCMarkers = (): any[] => {
+  const markers: any[] = [];
+  const baseTime = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1 hour ago
+  
+  for (let i = 0; i < 8; i++) {
+    const timestamp = new Date(baseTime.getTime() + i * 5 * 60 * 1000); // 5 min intervals
+    const qualityScore = 70 + (i * 3) + Math.random() * 10; // 70-100 range
+    
+    markers.push({
+      id: `demo-qc-marker-${i + 1}`,
+      _id: `demo-qc-marker-${i + 1}`,
+      label: `QC Analysis ${i + 1}`,
+      tags: {
+        marker_type: i % 2 === 0 ? 'quality_control' : 'qc_summary',
+        quality_verdict: qualityScore >= 80 ? 'PASS' : qualityScore >= 70 ? 'PASS' : 'FAIL',
+        quality_score: qualityScore.toFixed(1),
+        blur_type: i % 3 === 0 ? 'motion' : i % 3 === 1 ? 'focus' : 'none'
+      },
+      created: timestamp.toISOString(),
+      created_at: timestamp.toISOString()
+    });
+  }
+  
+  return markers;
+};
+
 export default function FlowDetails() {
   const { flowId } = useParams<{ flowId: string }>();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(window.location.search);
+  const isDemoMode = flowId === 'demo' || searchParams.get('demo') === 'true';
+  
   // Removed unused searchParams
   const [flow, setFlow] = useState<FlowDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'tags' | 'storage' | 'technical' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'segments' | 'tags' | 'technical' | 'analytics' | 'qc'>('overview');
 
   // Disabled state for operations
   const [disabled, setDisabled] = useState(false);
 
   // Segments state (flow-scoped)
-  interface SegmentItem {
-    id: string;
-    object_id: string;
-    timerange: { start: string; end: string };
-    description?: string;
-    size?: number;
-    status: string;
-    last_duration?: string;
-    key_frame_count?: number;
-    get_urls?: Array<{ url: string; label?: string }>;
-    tags?: Record<string, string>;
-    flow_format?: string;
-    created_at?: string;
-    updated_at?: string;
-    is_live?: boolean;
-  }
   const [segments, setSegments] = useState<SegmentItem[]>([]);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [segmentsError, setSegmentsError] = useState<string | null>(null);
@@ -264,6 +384,7 @@ export default function FlowDetails() {
   const [showNewSegmentsNotification, setShowNewSegmentsNotification] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadingSegment, setUploadingSegment] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // CMCD tracking state
   const [cmcdMetrics, setCmcdMetrics] = useState<CMCDMetrics[]>([]);
@@ -283,22 +404,120 @@ export default function FlowDetails() {
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  
+  // QC Markers state
+  const [qcMarkers, setQcMarkers] = useState<any[]>([]);
+  const [qcMarkersLoading, setQcMarkersLoading] = useState(false);
+  const [qcMarkersError, setQcMarkersError] = useState<string | null>(null);
+
+  // Cleanup state
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleanupHours, setCleanupHours] = useState<number>(24);
+  const [cleaningUp, setCleaningUp] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<{ deleted_segments: number; freed_bytes: number; freed_gb: string } | null>(null);
+
 
   useEffect(() => {
     const fetchFlowDetails = async () => {
       if (!flowId) return;
       
+      // Demo mode: use mock data
+      if (isDemoMode) {
+        setLoading(true);
+        try {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const mockFlow = createMockFlowData();
+          setFlow(mockFlow);
+          setError(null);
+        } catch (err) {
+          setError('Failed to load demo data');
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+      
       try {
         setLoading(true);
         setError(null);
         console.log('Fetching flow details from VAST TAMS API for ID:', flowId);
-        const response = await apiClient.getFlow(flowId);
-        console.log('VAST TAMS flow details response:', response);
+        
+        let response: any;
+        try {
+          // First, try direct flow lookup
+          response = await apiClient.getFlow(flowId);
+          console.log('VAST TAMS flow details response (direct):', response);
+        } catch (directErr: any) {
+          // If direct lookup fails with ObjectId error (Issue #6), fall back to list and filter
+          // Check for various error patterns that indicate the ObjectId issue
+          const errorMsg = directErr?.message || '';
+          const isObjectIdError = 
+            errorMsg.includes('24 character hex string') || 
+            errorMsg.includes('ObjectId') ||
+            errorMsg.includes('InternalError') ||
+            errorMsg.includes('500') ||
+            errorMsg.includes('Internal Server Error') ||
+            (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+          
+          if (isObjectIdError) {
+            console.warn('Direct flow lookup failed (Issue #6 - non-ObjectId ID), falling back to flows list');
+            
+            try {
+              // Fetch all flows and find the one matching our ID
+              const flowsResponse = await apiClient.getFlows();
+              console.log('Flows list response:', flowsResponse);
+              
+              let flowsData: any[] = [];
+              
+              if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+                flowsData = flowsResponse.data;
+              } else if (Array.isArray(flowsResponse)) {
+                flowsData = flowsResponse;
+              } else if (flowsResponse && 'flows' in flowsResponse && Array.isArray((flowsResponse as any).flows)) {
+                flowsData = (flowsResponse as any).flows;
+              }
+              
+              console.log(`Found ${flowsData.length} flows in list, searching for flow ID: ${flowId}`);
+              
+              // Find flow by matching _id or id (case-insensitive string comparison)
+              const foundFlow = flowsData.find((f: any) => {
+                const fId = f.id || f._id;
+                return fId && (
+                  fId === flowId ||
+                  String(fId) === String(flowId) ||
+                  String(fId).toLowerCase() === String(flowId).toLowerCase()
+                );
+              });
+              
+              if (foundFlow) {
+                response = foundFlow;
+                console.log('VAST TAMS flow details response (from list):', response);
+              } else {
+                console.error(`Flow ${flowId} not found in ${flowsData.length} flows. Available IDs:`, 
+                  flowsData.slice(0, 5).map((f: any) => f.id || f._id));
+                throw new Error(`Flow ${flowId} not found in flows list (searched ${flowsData.length} flows)`);
+              }
+            } catch (listErr: any) {
+              console.error('Failed to fetch flows list for fallback:', listErr);
+              throw new Error(`Failed to load flow: ${directErr.message}. Fallback also failed: ${listErr.message}`);
+            }
+          } else {
+            // Re-throw other errors
+            throw directErr;
+          }
+        }
+        
+        // Normalize _id to id (API returns _id from MongoDB)
+        const normalizedFlow = {
+          ...response,
+          id: response.id || response._id || flowId // Normalize _id to id, fallback to flowId from URL
+        };
         
         // Convert tags from array format to string format if needed
-        if (response.tags) {
+        if (normalizedFlow.tags) {
           const convertedTags: Record<string, string> = {};
-          Object.entries(response.tags).forEach(([key, value]) => {
+          Object.entries(normalizedFlow.tags).forEach(([key, value]) => {
             if (Array.isArray(value)) {
               // Convert array to comma-separated string
               convertedTags[key] = value.join(', ');
@@ -308,22 +527,26 @@ export default function FlowDetails() {
               convertedTags[key] = String(value);
             }
           });
-          response.tags = convertedTags;
+          normalizedFlow.tags = convertedTags;
         }
         
-        setFlow(response);
+        // Clear any previous errors and set the flow
+        setError(null);
+        setFlow(normalizedFlow);
       } catch (err: any) {
-        console.error('VAST TAMS flow details API error:', err);
+        console.error('TAMS flow details API error:', err);
         
         // Set appropriate error message based on error type
-        if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-          setError('VAST TAMS backend temporarily unavailable - please try again later');
+        if (err?.message?.includes('500') || err.message?.includes('Internal Server Error')) {
+          setError('TAMS backend temporarily unavailable - please try again later');
         } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
           setError('Network connection issue - please check your connection and try again');
-        } else if (err?.message?.includes('404')) {
-          setError('Flow not found - please check the flow ID and try again');
+        } else if (err?.message?.includes('404') || err?.message?.includes('not found')) {
+          setError(`Flow not found: ${flowId}. Please check the flow ID and try again.`);
         } else {
-          setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+          // Use error message directly if it already contains "TAMS API error", otherwise prefix it
+          const errorMsg = err?.message || 'Unknown error';
+          setError(errorMsg.includes('TAMS API error') ? errorMsg : `TAMS API error: ${errorMsg}`);
         }
         
         // Clear flow on error
@@ -334,7 +557,7 @@ export default function FlowDetails() {
     };
 
     fetchFlowDetails();
-  }, [flowId]);
+  }, [flowId, isDemoMode]);
 
   // Load analytics when analytics tab is selected
   useEffect(() => {
@@ -342,6 +565,13 @@ export default function FlowDetails() {
       loadAnalytics();
     }
   }, [activeTab, analyticsData]);
+
+  // Load QC markers when QC tab is selected
+  useEffect(() => {
+    if (activeTab === 'qc' && flowId && qcMarkers.length === 0 && !qcMarkersLoading) {
+      loadQCMarkers();
+    }
+  }, [activeTab, flowId, qcMarkers.length, qcMarkersLoading]);
 
   // CMCD metrics tracking effect
   useEffect(() => {
@@ -359,19 +589,48 @@ export default function FlowDetails() {
   }, [cmcdSessionActive]);
 
   const loadAnalytics = async () => {
+    if (!flowId) return;
+    
     setAnalyticsLoading(true);
     try {
-      // Fetch analytics data from VAST TAMS
-      const [flowUsage, storageUsage, timeRangeAnalysis] = await Promise.all([
-        fetch('/api/analytics/flow-usage').then(res => res.json()),
-        fetch('/api/analytics/storage-usage').then(res => res.json()),
-        fetch('/api/analytics/time-range-analysis').then(res => res.json())
-      ]);
+      // Use GET /flows/:id/stats endpoint (backend supports this)
+      // Note: This endpoint has Issue #6 (fails for non-ObjectId IDs), so we need workaround
+      let statsData: any = null;
+      try {
+        // Try direct stats endpoint
+        const response = await fetch(`http://localhost:3000/flows/${flowId}/stats`);
+        if (response.ok) {
+          statsData = await response.json();
+        }
+      } catch (directErr: any) {
+        // If direct lookup fails with ObjectId error (Issue #6), calculate from flow data
+        console.warn('Direct stats lookup failed (Issue #6), using flow data');
+        // Use flow data that already has total_segments and total_bytes from GET /flows
+        statsData = {
+          flow_id: flowId,
+          total_segments: flow?.total_segments || 0,
+          total_size_bytes: flow?.total_bytes || 0,
+          average_segment_size: flow?.total_bytes && flow?.total_segments 
+            ? Math.round(flow.total_bytes / flow.total_segments) 
+            : 0,
+          oldest_segment: null,
+          newest_segment: flow?.last_segment || null,
+          segments_per_hour: 0,
+          bandwidth_mbps: '0.00',
+          storage_used_gb: flow?.total_bytes 
+            ? (flow.total_bytes / (1024 * 1024 * 1024)).toFixed(2)
+            : '0.00'
+        };
+      }
       
       setAnalyticsData({
-        flowUsage,
-        storageUsage,
-        timeRangeAnalysis
+        stats: statsData,
+        flowUsage: {
+          total_flows: 1, // This is a single flow page
+          average_flow_size: statsData?.total_size_bytes || 0,
+          estimated_storage_bytes: statsData?.total_size_bytes || 0,
+          format_distribution: flow?.format ? { [flow.format]: 1 } : {}
+        }
       });
     } catch (err) {
       console.error('Failed to load analytics:', err);
@@ -379,6 +638,89 @@ export default function FlowDetails() {
       setAnalyticsLoading(false);
     }
   };
+
+  const loadQCMarkers = async () => {
+    if (!flowId) return;
+    
+    // Demo mode: use mock QC markers
+    if (isDemoMode) {
+      setQcMarkersLoading(true);
+      setQcMarkersError(null);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const mockMarkers = createMockQCMarkers();
+        setQcMarkers(mockMarkers);
+      } catch (err) {
+        setQcMarkersError('Failed to load demo QC markers');
+        setQcMarkers([]);
+      } finally {
+        setQcMarkersLoading(false);
+      }
+      return;
+    }
+    
+    setQcMarkersLoading(true);
+    setQcMarkersError(null);
+    
+    try {
+      console.log('Fetching QC markers for flow:', flowId);
+      const response = await apiClient.getQCMarkersForFlow(flowId);
+      console.log('QC markers response:', response);
+      
+      // Handle different response formats
+      let markers: any[] = [];
+      if (response && response.markers && Array.isArray(response.markers)) {
+        markers = response.markers;
+      } else if (Array.isArray(response)) {
+        markers = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        markers = response.data;
+      }
+      
+      setQcMarkers(markers);
+    } catch (err: any) {
+      console.error('Failed to load QC markers:', err);
+      const errorMsg = err?.message || 'Unknown error';
+      setQcMarkersError(errorMsg.includes('TAMS API error') ? errorMsg : `TAMS API error: ${errorMsg}`);
+      setQcMarkers([]);
+    } finally {
+      setQcMarkersLoading(false);
+    }
+  };
+
+  const handleCleanupFlow = async () => {
+    if (!flowId) return;
+    
+    try {
+      setCleaningUp(true);
+      setError(null);
+      
+      console.log(`Cleaning up flow ${flowId}, removing segments older than ${cleanupHours} hours`);
+      const result = await apiClient.cleanupFlow(flowId, cleanupHours);
+      console.log('Cleanup result:', result);
+      
+      setCleanupResult(result);
+      
+      // Refresh segments and flow details after cleanup
+      await fetchSegments();
+      await refreshFlowDetails();
+      
+      // Close modal after a short delay to show results
+      setTimeout(() => {
+        setShowCleanupModal(false);
+        setCleanupResult(null);
+        setCleanupHours(24);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Failed to cleanup flow:', err);
+      const errorMsg = err?.message || 'Unknown error';
+      setError(`Failed to cleanup segments: ${errorMsg}`);
+      setCleanupResult(null);
+    } finally {
+      setCleaningUp(false);
+    }
+  };
+
 
   // CMCD data display function
   const renderCMCDData = () => {
@@ -452,36 +794,156 @@ export default function FlowDetails() {
   // Fetch flow-scoped segments
   const fetchSegments = async () => {
     if (!flowId) return;
+    
+    // Demo mode: use mock segments
+    if (isDemoMode) {
+      setSegmentsLoading(true);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const mockSegments = createMockSegments();
+        setSegments(mockSegments);
+        setSegmentsError(null);
+        setLastUpdateTime(new Date());
+      } catch (err) {
+        setSegmentsError('Failed to load demo segments');
+      } finally {
+        setSegmentsLoading(false);
+      }
+      return;
+    }
+    
     try {
       setSegmentsLoading(true);
       setSegmentsError(null);
       const flowSegments = await apiClient.getFlowSegments(flowId);
       console.log('VAST TAMS segments response:', flowSegments);
       
-      const transformed = (flowSegments.data || []).map((seg: any): SegmentItem => {
-        // Parse VAST TAMS timerange format (e.g., "2025-01-25T10:00:00Z/2025-01-25T10:00:15Z")
+      // Handle different response formats - could be array directly or wrapped in data
+      let segmentsData: any[] = [];
+      if (Array.isArray(flowSegments)) {
+        segmentsData = flowSegments;
+      } else if (flowSegments?.data && Array.isArray(flowSegments.data)) {
+        segmentsData = flowSegments.data;
+      } else if ((flowSegments as any)?.segments && Array.isArray((flowSegments as any).segments)) {
+        segmentsData = (flowSegments as any).segments;
+      }
+      
+      // Helper function to parse TAI timerange format: [seconds:nanoseconds_seconds:nanoseconds)
+      const parseTAITimerange = (timerangeStr: string): { start: string; end: string } => {
+        try {
+          // Remove brackets/parentheses: [1766290849:0_1766290859:0) -> 1766290849:0_1766290859:0
+          const clean = timerangeStr.replace(/^[\[\(]|[\]\)]$/g, '');
+          
+          if (clean.includes('_')) {
+            const [startStr, endStr] = clean.split('_', 2);
+            
+            // Parse start: "1766290849:0" -> seconds: 1766290849, nanoseconds: 0
+            let startSeconds = 0;
+            if (startStr && startStr.includes(':')) {
+              const [sec, nano] = startStr.split(':');
+              startSeconds = parseInt(sec || '0', 10) + (parseInt(nano || '0', 10) / 1e9);
+            } else if (startStr) {
+              startSeconds = parseInt(startStr, 10) || 0;
+            }
+            
+            // Parse end: "1766290859:0" -> seconds: 1766290859, nanoseconds: 0
+            let endSeconds = startSeconds + 10; // Default 10 seconds if not parseable
+            if (endStr && endStr.includes(':')) {
+              const [sec, nano] = endStr.split(':');
+              endSeconds = parseInt(sec || '0', 10) + (parseInt(nano || '0', 10) / 1e9);
+            } else if (endStr) {
+              const parsed = parseInt(endStr, 10);
+              endSeconds = isNaN(parsed) ? startSeconds + 10 : parsed;
+            }
+            
+            // Convert to ISO date strings (using Unix epoch)
+            const startDate = new Date(startSeconds * 1000).toISOString();
+            const endDate = new Date(endSeconds * 1000).toISOString();
+            
+            return { start: startDate, end: endDate };
+          } else {
+            // Single timestamp
+            let seconds = 0;
+            if (clean.includes(':')) {
+              const [sec, nano] = clean.split(':');
+              seconds = parseInt(sec || '0', 10) + (parseInt(nano || '0', 10) / 1e9);
+            } else {
+              const parsed = parseInt(clean, 10);
+              seconds = isNaN(parsed) ? 0 : parsed;
+            }
+            const date = new Date(seconds * 1000).toISOString();
+            return { start: date, end: date };
+          }
+        } catch (err) {
+          console.warn('Failed to parse TAI timerange:', timerangeStr, err);
+          const now = new Date().toISOString();
+          return { start: now, end: now };
+        }
+      };
+      
+      const transformed = segmentsData.map((seg: any): SegmentItem => {
+        // Parse timerange - handle TAI format: [1766290849:0_1766290859:0)
         let timerange = { start: new Date().toISOString(), end: new Date().toISOString() };
         if (seg.timerange) {
           if (typeof seg.timerange === 'string') {
-            // VAST TAMS format: "start/end"
+            // Check if it's TAI format (contains brackets and underscores)
+            if (seg.timerange.includes('[') || seg.timerange.includes('_')) {
+              timerange = parseTAITimerange(seg.timerange);
+            } else if (seg.timerange.includes('/')) {
+              // VAST TAMS format: "start/end" (ISO dates)
             const [start, end] = seg.timerange.split('/');
             timerange = { start: start || new Date().toISOString(), end: end || new Date().toISOString() };
+            } else {
+              // Single timestamp
+              timerange = { start: seg.timerange, end: seg.timerange };
+            }
           } else if (seg.timerange.start && seg.timerange.end) {
             // Already in object format
             timerange = seg.timerange;
           }
         }
         
+        // Normalize get_urls - backend may return object or array
+        let getUrls: Array<{ url: string; label?: string }> = [];
+        if (seg.get_urls) {
+          if (Array.isArray(seg.get_urls)) {
+            getUrls = seg.get_urls;
+          } else if (typeof seg.get_urls === 'object' && seg.get_urls.url) {
+            // Backend returns { url: "..." } - convert to array format
+            getUrls = [{ url: seg.get_urls.url, label: seg.get_urls.label || 'GET' }];
+          }
+        }
+        
+        // Calculate duration from timerange if not provided
+        let duration = seg.duration; // Duration in milliseconds from backend
+        let lastDuration: string | undefined = seg.last_duration;
+        
+        if (!duration && timerange.start && timerange.end) {
+          const startMs = new Date(timerange.start).getTime();
+          const endMs = new Date(timerange.end).getTime();
+          duration = endMs - startMs; // Duration in milliseconds
+        }
+        
+        // Convert duration to ISO 8601 duration format (PT10S) if we have it
+        if (duration && !lastDuration) {
+          const seconds = Math.round(duration / 1000);
+          lastDuration = `PT${seconds}S`;
+        }
+        
+        // Use _id for backend operations (MongoDB ObjectId), but keep id for display
+        // Backend expects ObjectId format for updates, not UUIDs
+        const segmentId = seg._id || seg.id || seg.segment_id || `${flowId}_${seg.object_id}_${Date.now()}`;
         const segmentItem = {
-          id: seg.id || `${flowId}_${timerange.start}_${Date.now()}`,
-          object_id: seg.object_id || seg.id || 'unknown',
+          id: segmentId, // For display and React keys
+          _id: seg._id || (seg.id && seg.id.length === 24 && /^[0-9a-fA-F]{24}$/.test(seg.id) ? seg.id : undefined), // MongoDB _id (ObjectId format) for backend operations
+          object_id: seg.object_id || seg.id || seg._id || 'unknown',
           timerange,
-          description: seg.description || 'No description',
-          size: seg.size,
+          description: seg.description || `Segment ${seg.object_id || seg._id || 'unknown'}`,
+          size: seg.size || 0,
           status: seg.status || 'active',
-          last_duration: seg.last_duration,
+          last_duration: lastDuration,
           key_frame_count: seg.key_frame_count,
-          get_urls: seg.get_urls || [],
+          get_urls: getUrls,
           tags: seg.tags || {},
           flow_format: seg.flow_format || seg.format || flow?.format,
           created_at: seg.created_at || seg.created,
@@ -555,20 +1017,106 @@ export default function FlowDetails() {
     
     setUploadingSegment(true);
     try {
+      // Convert HH:MM:SS format to TAI timerange format
+        const parseTimeToSeconds = (timeStr: string | undefined): number => {
+          if (!timeStr) return 0;
+          const parts = timeStr.split(':').map(Number);
+          if (parts.length === 3) {
+            return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+          } else if (parts.length === 2) {
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+          }
+          return 0;
+        };
+
+      // Parse timerange from form input (HH:MM:SS_HH:MM:SS) or use current time
+      let timerange: string;
+      if (segmentData.timerange && segmentData.timerange.includes('_')) {
+        // Already in format like "00:00:00_00:00:10"
+        const [startStr, endStr] = segmentData.timerange.split('_');
+        const startSeconds = parseTimeToSeconds(startStr);
+        const endSeconds = parseTimeToSeconds(endStr);
+        // Use current time as base, or 0 if start is 0
+        const baseTime = startSeconds === 0 ? Math.floor(Date.now() / 1000) : startSeconds;
+        timerange = `[${baseTime}:0_${baseTime + (endSeconds - startSeconds)}:0)`;
+      } else {
+        // Default: 10 second segment starting now
+        const now = Math.floor(Date.now() / 1000);
+        timerange = `[${now}:0_${now + 10}:0)`;
+      }
+
       // Create segment metadata in VAST TAMS format
+      // Note: object_id will be set from storage response, not from form
       const segment = {
-        object_id: segmentData.object_id || `seg_${Date.now()}`,
-        timerange: segmentData.timerange || `${segmentData.startTime || '00:00:00'}_${segmentData.endTime || '00:01:00'}`,
+        timerange: timerange,
+        duration: file.size > 0 ? Math.round(file.size / 1000) : 10000, // Estimate or default 10s
+        format: 'mp4', // MP4 for uploaded files
+        codec: 'h264',
+        size: file.size,
         description: segmentData.description || 'Uploaded segment',
-        tags: segmentData.tags || {},
-        format: flow?.format || 'urn:x-nmos:format:video',
-        codec: flow?.codec || 'h264'
+        tags: segmentData.tags || {}
       };
 
       console.log('Uploading segment to VAST TAMS:', segment);
       
-      // Upload segment to VAST TAMS backend
-      const response = await apiClient.createFlowSegment(flowId, segment, file);
+      // Step 1: Get presigned URL for file upload
+      console.log('Step 1: Getting presigned URL for file upload...');
+      const storageResponse = await apiClient.getStorage(flowId);
+      console.log('Storage response:', storageResponse);
+      
+      if (!storageResponse || !storageResponse.media_objects || storageResponse.media_objects.length === 0) {
+        throw new Error('Failed to get storage URL from backend');
+      }
+      
+      const mediaObject = storageResponse.media_objects[0];
+      const objectId = mediaObject.object_id;
+      let putUrl = mediaObject.put_url?.url;
+      
+      if (!putUrl) {
+        throw new Error('Storage response missing put_url');
+      }
+      
+      // Replace Docker internal IP with Vite proxy path (for browser access)
+      // The presigned signature will work because we preserve the original Host header
+      const dockerInternalIpMatch = putUrl.match(/http:\/\/(172\.\d+\.\d+\.\d+):(\d+)(\/[^?]*)(\?.*)?/);
+      if (dockerInternalIpMatch) {
+        const dockerHost = dockerInternalIpMatch[1] + ':' + dockerInternalIpMatch[2];
+        const path = dockerInternalIpMatch[3];
+        const query = dockerInternalIpMatch[4] || '';
+        console.log(`Proxying Docker internal IP (${dockerHost}) through Vite proxy for browser access`);
+        // Use Vite proxy to forward to MinIO, including original host in path so proxy can preserve it
+        // Format: /minio-proxy/http://HOST/PATH?QUERY
+        putUrl = `http://localhost:5173/minio-proxy/http://${dockerHost}${path}${query}`;
+      }
+      
+      console.log(`Step 2: Uploading file to storage (object_id: ${objectId})...`);
+      console.log(`Upload URL: ${putUrl.substring(0, 100)}...`); // Log first 100 chars
+      
+      // Step 2: Upload file to presigned URL
+      const uploadResponse = await fetch(putUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'video/mp4',
+          'Content-Length': file.size.toString()
+        },
+        body: file
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(`Failed to upload file to storage: ${uploadResponse.status} ${errorText}`);
+      }
+      
+      console.log('File uploaded successfully to storage');
+      
+      // Step 3: Register segment metadata with the object_id
+      console.log('Step 3: Registering segment metadata...');
+      const segmentWithObjectId = {
+        ...segment,
+        object_id: objectId // Use the object_id from storage response
+      };
+      
+      const response = await apiClient.createFlowSegment(flowId, segmentWithObjectId);
       console.log('VAST TAMS upload response:', response);
       
       if (response) {
@@ -579,12 +1127,24 @@ export default function FlowDetails() {
         setShowNewSegmentsNotification(true);
         setNewSegmentsCount(prev => prev + 1);
         
-        // Close upload modal
+        // Close upload modal and reset form
         setShowUploadModal(false);
+        setSelectedFile(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to upload segment to VAST TAMS:', error);
-      setSegmentsError(`Failed to upload segment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Unknown error';
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('CORS')) {
+        setSegmentsError('Network error: Could not connect to the API. Make sure the TAMS API is running at http://localhost:3000');
+      } else if (errorMessage.includes('400') || errorMessage.includes('ValidationError')) {
+        setSegmentsError(`Upload validation failed: ${errorMessage}. Check that all required fields are filled correctly.`);
+      } else if (errorMessage.includes('413') || errorMessage.includes('too large')) {
+        setSegmentsError('File too large: The video file exceeds the maximum upload size.');
+      } else {
+        setSegmentsError(`Failed to upload segment: ${errorMessage}`);
+      }
     } finally {
       setUploadingSegment(false);
     }
@@ -699,87 +1259,123 @@ export default function FlowDetails() {
     setSelectedSegment(null);
   };
 
-  // Segment filters (no flow selector, since scoped to this flow)
+  // Segment filters - client-side filtering on current page (no navigation)
+  // Filter options are dynamically generated from available segment data
   const segmentFilterOptions: FilterOption[] = [
-    { key: 'search', label: 'Search', type: 'text', placeholder: 'Search segments by description...' },
-    { key: 'format', label: 'Format', type: 'select', options: [
+    { 
+      key: 'search', 
+      label: 'Search', 
+      type: 'text', 
+      placeholder: 'Search segments by description, ID, tags, or format...' 
+    },
+    { 
+      key: 'format', 
+      label: 'Format', 
+      type: 'select', 
+      options: [
       { value: 'urn:x-nmos:format:video', label: 'Video' },
       { value: 'urn:x-nmos:format:audio', label: 'Audio' },
       { value: 'urn:x-nmos:format:data', label: 'Data' },
-      { value: 'urn:x-tam:format:image', label: 'Image' }
-    ]},
-    { key: 'status', label: 'Status', type: 'select', options: [
+        { value: 'urn:x-tam:format:image', label: 'Image' },
+        { value: 'mp2t', label: 'MP2T' }
+      ]
+    },
+    { 
+      key: 'status', 
+      label: 'Status', 
+      type: 'select', 
+      options: [
       { value: 'active', label: 'Active' },
       { value: 'processing', label: 'Processing' },
       { value: 'error', label: 'Error' },
       { value: 'deleted', label: 'Deleted' }
-    ]},
-    { key: 'category', label: 'Category', type: 'select', options: [
-      { value: 'technology', label: 'Technology' },
-      { value: 'education', label: 'Education' },
-      { value: 'entertainment', label: 'Entertainment' },
-      { value: 'business', label: 'Business' },
-      { value: 'news', label: 'News' }
-    ]},
-    { key: 'content_type', label: 'Content Type', type: 'select', options: [
-      { value: 'conference', label: 'Conference' },
-      { value: 'podcast', label: 'Podcast' },
-      { value: 'training', label: 'Training' },
-      { value: 'presentation', label: 'Presentation' },
-      { value: 'webinar', label: 'Webinar' }
-    ]},
-    { key: 'timerange', label: 'Time Range', type: 'text', placeholder: 'Filter by time range (HH:MM:SS)' },
-    { key: 'tags', label: 'Tags', type: 'text', placeholder: 'Filter by tag key:value' }
+      ]
+    },
+    { 
+      key: 'timerange', 
+      label: 'Time Range', 
+      type: 'text', 
+      placeholder: 'Search in timestamps (e.g., "2025-12-21" or "04:20")' 
+    },
+    { 
+      key: 'tags', 
+      label: 'Tags', 
+      type: 'text', 
+      placeholder: 'Search tags by key, value, or key:value (e.g., "quality" or "quality:high")' 
+    }
   ];
 
+  // Client-side filtering - filters segments on the current page without navigation
   const filteredSegments = segments.filter(segment => {
-    const searchTerm = segFilters.search?.toLowerCase();
-    const matchesSearch = !searchTerm ||
-      segment.description?.toLowerCase().includes(searchTerm);
+    // Search filter - search across multiple fields
+    const searchTerm = segFilters.search?.toLowerCase().trim();
+    const matchesSearch = !searchTerm || (() => {
+      const searchFields = [
+        segment.description,
+        segment.object_id,
+        segment.id,
+        ...(segment.tags ? Object.values(segment.tags).map(v => String(v)) : []),
+        segment.flow_format,
+        segment.status
+      ].filter(Boolean).map(f => String(f).toLowerCase());
+      
+      return searchFields.some(field => field.includes(searchTerm));
+    })();
 
+    // Format filter
     const formatFilter = segFilters.format;
-    const matchesFormat = !formatFilter || (segment.flow_format === formatFilter);
+    const matchesFormat = !formatFilter || 
+      (segment.flow_format === formatFilter) ||
+      (segment.format === formatFilter);
 
+    // Status filter (optional - segments may not have status)
     const statusFilter = segFilters.status;
-    const matchesStatus = !statusFilter || segment.status === statusFilter;
+    const matchesStatus = !statusFilter || 
+      !segment.status || // If no status field, allow through
+      (segment.status?.toLowerCase() === statusFilter.toLowerCase());
 
-    // Category filter
-    const categoryFilter = segFilters.category;
-    const matchesCategory = !categoryFilter || 
-      segment.tags?.['category'] === categoryFilter;
-
-    // Content type filter
-    const contentTypeFilter = segFilters.content_type;
-    const matchesContentType = !contentTypeFilter || 
-      segment.tags?.['content_type'] === contentTypeFilter ||
-      segment.tags?.['event_type'] === contentTypeFilter;
-
-    const timerangeFilter = segFilters.timerange;
-    const matchesTimerange = !timerangeFilter ||
-      segment.timerange.start.includes(timerangeFilter) ||
+    // Timerange filter - search in formatted date strings
+    const timerangeFilter = segFilters.timerange?.trim();
+    const matchesTimerange = !timerangeFilter || (() => {
+      try {
+        const startDate = new Date(segment.timerange.start);
+        const endDate = new Date(segment.timerange.end);
+        const startStr = startDate.toLocaleString().toLowerCase();
+        const endStr = endDate.toLocaleString().toLowerCase();
+        const isoStart = segment.timerange.start.toLowerCase();
+        const isoEnd = segment.timerange.end.toLowerCase();
+        
+        return startStr.includes(timerangeFilter.toLowerCase()) ||
+               endStr.includes(timerangeFilter.toLowerCase()) ||
+               isoStart.includes(timerangeFilter.toLowerCase()) ||
+               isoEnd.includes(timerangeFilter.toLowerCase());
+      } catch {
+        return segment.timerange.start.includes(timerangeFilter) ||
       segment.timerange.end.includes(timerangeFilter);
+      }
+    })();
 
-    const tagsFilter = segFilters.tags;
-    const matchesTags = !tagsFilter || (segment.tags && Object.entries(segment.tags).some(([key, value]) => `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())));
+    // Tags filter - search for key:value pairs
+    const tagsFilter = segFilters.tags?.trim();
+    const matchesTags = !tagsFilter || (() => {
+      if (!segment.tags) return false;
+      const searchLower = tagsFilter.toLowerCase();
+      return Object.entries(segment.tags).some(([key, value]) => {
+        const keyLower = key.toLowerCase();
+        const valueStr = String(value).toLowerCase();
+        return keyLower.includes(searchLower) ||
+               valueStr.includes(searchLower) ||
+               `${keyLower}:${valueStr}`.includes(searchLower);
+      });
+    })();
 
-    return matchesSearch && matchesFormat && matchesStatus && matchesCategory && matchesContentType && matchesTimerange && matchesTags;
+    return matchesSearch && matchesFormat && matchesStatus && 
+           matchesTimerange && matchesTags;
   });
 
   // Removed URL sync - tab state managed locally
 
 
-  // Storage allocation handlers
-  const handleStorageAllocated = async (allocation: any) => {
-    console.log('Storage allocated:', allocation);
-    // TODO: Update flow storage information
-    // This could trigger a refresh of the flow data
-  };
-
-  const handleStorageDeleted = async (allocationId: string) => {
-    console.log('Storage deleted:', allocationId);
-    // TODO: Update flow storage information
-    // This could trigger a refresh of the flow data
-  };
 
   const refreshFlowDetails = async () => {
     if (!flowId) return;
@@ -787,12 +1383,64 @@ export default function FlowDetails() {
     try {
       setRefreshing(true);
       setError(null);
-      const response = await apiClient.getFlow(flowId);
+      
+      let response: any;
+      try {
+        // First, try direct flow lookup
+        response = await apiClient.getFlow(flowId);
+      } catch (directErr: any) {
+        // If direct lookup fails with ObjectId error (Issue #6), fall back to list and filter
+        const errorMsg = directErr?.message || '';
+        const isObjectIdError = 
+          errorMsg.includes('24 character hex string') || 
+          errorMsg.includes('ObjectId') ||
+          errorMsg.includes('InternalError') ||
+          errorMsg.includes('500') ||
+          errorMsg.includes('Internal Server Error') ||
+          (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+        
+        if (isObjectIdError) {
+          console.warn('Direct flow lookup failed (Issue #6), falling back to flows list');
+          
+          // Fetch all flows and find the one matching our ID
+          const flowsResponse = await apiClient.getFlows();
+          let flowsData: any[] = [];
+          
+          if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+            flowsData = flowsResponse.data;
+          } else if (Array.isArray(flowsResponse)) {
+            flowsData = flowsResponse;
+          } else if (flowsResponse && 'flows' in flowsResponse && Array.isArray((flowsResponse as any).flows)) {
+            flowsData = (flowsResponse as any).flows;
+          }
+          
+          // Find flow by matching _id or id
+          const foundFlow = flowsData.find((f: any) => 
+            (f._id === flowId || f.id === flowId) ||
+            (f._id && String(f._id) === String(flowId)) ||
+            (f.id && String(f.id) === String(flowId))
+          );
+          
+          if (foundFlow) {
+            response = foundFlow;
+          } else {
+            throw new Error(`Flow ${flowId} not found in flows list`);
+          }
+        } else {
+          throw directErr;
+        }
+      }
+      
+      // Normalize _id to id (API returns _id from MongoDB)
+      const normalizedFlow = {
+        ...response,
+        id: response.id || response._id || flowId // Normalize _id to id, fallback to flowId from URL
+      };
       
       // Convert tags from array format to string format if needed
-      if (response.tags) {
+      if (normalizedFlow.tags) {
         const convertedTags: Record<string, string> = {};
-        Object.entries(response.tags).forEach(([key, value]) => {
+        Object.entries(normalizedFlow.tags).forEach(([key, value]) => {
           if (Array.isArray(value)) {
             // Convert array to comma-separated string
             convertedTags[key] = value.join(', ');
@@ -802,10 +1450,14 @@ export default function FlowDetails() {
             convertedTags[key] = String(value);
           }
         });
-        response.tags = convertedTags;
+        normalizedFlow.tags = convertedTags;
       }
       
-      setFlow(response);
+      // Note: essence_parameters structure is preserved as-is from API
+      // Video: essence_parameters.frame_width, essence_parameters.frame_height, etc.
+      // Audio: essence_parameters.sample_rate, essence_parameters.channels, etc.
+      
+      setFlow(normalizedFlow);
     } catch (err: any) {
       // Check if it's a 404 error (backend not ready)
       if (err.message && err.message.includes('404')) {
@@ -825,12 +1477,64 @@ export default function FlowDetails() {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.getFlow(flowId);
+      
+      let response: any;
+      try {
+        // First, try direct flow lookup
+        response = await apiClient.getFlow(flowId);
+      } catch (directErr: any) {
+        // If direct lookup fails with ObjectId error (Issue #6), fall back to list and filter
+        const errorMsg = directErr?.message || '';
+        const isObjectIdError = 
+          errorMsg.includes('24 character hex string') || 
+          errorMsg.includes('ObjectId') ||
+          errorMsg.includes('InternalError') ||
+          errorMsg.includes('500') ||
+          errorMsg.includes('Internal Server Error') ||
+          (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+        
+        if (isObjectIdError) {
+          console.warn('Direct flow lookup failed (Issue #6), falling back to flows list');
+          
+          // Fetch all flows and find the one matching our ID
+          const flowsResponse = await apiClient.getFlows();
+          let flowsData: any[] = [];
+          
+          if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+            flowsData = flowsResponse.data;
+          } else if (Array.isArray(flowsResponse)) {
+            flowsData = flowsResponse;
+          } else if (flowsResponse && 'flows' in flowsResponse && Array.isArray((flowsResponse as any).flows)) {
+            flowsData = (flowsResponse as any).flows;
+          }
+          
+          // Find flow by matching _id or id
+          const foundFlow = flowsData.find((f: any) => 
+            (f._id === flowId || f.id === flowId) ||
+            (f._id && String(f._id) === String(flowId)) ||
+            (f.id && String(f.id) === String(flowId))
+          );
+          
+          if (foundFlow) {
+            response = foundFlow;
+          } else {
+            throw new Error(`Flow ${flowId} not found in flows list`);
+          }
+        } else {
+          throw directErr;
+        }
+      }
+      
+      // Normalize _id to id (API returns _id from MongoDB)
+      const normalizedFlow = {
+        ...response,
+        id: response.id || response._id || flowId // Normalize _id to id, fallback to flowId from URL
+      };
       
       // Convert tags from array format to string format if needed
-      if (response.tags) {
+      if (normalizedFlow.tags) {
         const convertedTags: Record<string, string> = {};
-        Object.entries(response.tags).forEach(([key, value]) => {
+        Object.entries(normalizedFlow.tags).forEach(([key, value]) => {
           if (Array.isArray(value)) {
             // Convert array to comma-separated string
             convertedTags[key] = value.join(', ');
@@ -840,10 +1544,14 @@ export default function FlowDetails() {
             convertedTags[key] = String(value);
           }
         });
-        response.tags = convertedTags;
+        normalizedFlow.tags = convertedTags;
       }
       
-      setFlow(response);
+      // Note: essence_parameters structure is preserved as-is from API
+      // Video: essence_parameters.frame_width, essence_parameters.frame_height, etc.
+      // Audio: essence_parameters.sample_rate, essence_parameters.channels, etc.
+      
+      setFlow(normalizedFlow);
     } catch (err: any) {
       // Check if it's a 404 error (backend not ready)
       if (err.message && err.message.includes('404')) {
@@ -858,7 +1566,7 @@ export default function FlowDetails() {
   };
 
   const API_BASE_URL = import.meta.env.DEV 
-    ? (import.meta.env.VITE_API_URL || 'http://localhost:8000')
+    ? (import.meta.env.VITE_API_URL || 'http://localhost:3000')
     : '/api/proxy';
 
   if (loading && !flow) {
@@ -872,7 +1580,9 @@ export default function FlowDetails() {
     );
   }
 
-  if (error) {
+  // Only show error screen if there's an error AND no flow loaded
+  // If we have a flow, show it even if there was a previous error
+  if (error && !flow) {
     return (
       <Container size="xl" px="xl" py="xl">
         <Box mb="xl">
@@ -947,9 +1657,11 @@ export default function FlowDetails() {
               >
                 Back to Flows
               </Button>
-              <Badge color={getStatusColor(flow.status || 'unknown')} variant="light">
-                {flow.status}
-              </Badge>
+              {flow.read_only !== undefined && (
+                <Badge color={flow.read_only ? 'orange' : 'blue'} variant="light">
+                  {flow.read_only ? 'Read Only' : 'Editable'}
+                </Badge>
+              )}
             </Group>
             <Title order={2} mb="md" className="dark-text-primary">{flow.label}</Title>
             <Text size="lg" c="dimmed" mb="md" className="dark-text-secondary">{flow.description}</Text>
@@ -963,9 +1675,6 @@ export default function FlowDetails() {
             </Group>
           </Box>
           <Group gap="sm">
-            <Button variant="light" leftSection={<IconEdit size={16} />} onClick={() => setShowEditModal(true)}>
-              Edit Flow
-            </Button>
             <Button 
               variant="light" 
               leftSection={<IconRefresh size={16} />} 
@@ -992,8 +1701,24 @@ export default function FlowDetails() {
         </Alert>
       )}
 
+      {/* Demo Mode Alert */}
+      {isDemoMode && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="blue" 
+          title="Demo Mode - Mock Data"
+          mb="lg"
+        >
+          <Text size="sm">
+            You are viewing the FlowDetails page in <strong>demo mode</strong> with mock data. 
+            This allows you to test all features and tabs without requiring a real flow ID from the API.
+            Navigate to <code>/flow-details/demo</code> or add <code>?demo=true</code> to any flow details URL to enable demo mode.
+          </Text>
+        </Alert>
+      )}
+
       {/* VAST TAMS Info - Toggleable */}
-      {!error && (
+      {!error && !isDemoMode && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
@@ -1088,7 +1813,14 @@ export default function FlowDetails() {
                 <Button variant="light" leftSection={<IconRefresh size={16} />} size="sm" onClick={fetchSegments} loading={segmentsLoading}>
                   Refresh
                 </Button>
-                <Button leftSection={<IconPlus size={16} />} size="sm" onClick={() => setShowUploadModal(true)}>
+                <Button 
+                  leftSection={<IconPlus size={16} />} 
+                  size="sm" 
+                  onClick={() => {
+                    console.log('Upload Segment button clicked, opening modal');
+                    setShowUploadModal(true);
+                  }}
+                >
                   Upload Segment
                 </Button>
               </Group>
@@ -1099,7 +1831,14 @@ export default function FlowDetails() {
               <Group gap="xs">
                 <IconTimeline size={16} color="#228be6" />
                 <Text size="sm" c="dimmed">Segments:</Text>
-                <Text size="sm" fw={600}>{filteredSegments.length}</Text>
+                <Text size="sm" fw={600}>
+                  {filteredSegments.length}
+                  {segments.length !== filteredSegments.length && (
+                    <Text component="span" c="dimmed" size="xs" ml={4}>
+                      of {segments.length}
+                    </Text>
+                  )}
+                </Text>
               </Group>
               <Group gap="xs">
                 <IconClock size={16} color="#40c057" />
@@ -1162,7 +1901,23 @@ export default function FlowDetails() {
             {segmentsLoading ? (
               <Box ta="center" py="xl"><Loader size="lg" /><Text mt="md" c="dimmed">Loading segments...</Text></Box>
             ) : filteredSegments.length === 0 ? (
-              <Box ta="center" py="xl"><Text c="dimmed">No segments found.</Text></Box>
+              <Box ta="center" py="xl">
+                <Text c="dimmed" mb="xs">
+                  {segments.length === 0 
+                    ? 'No segments found for this flow.' 
+                    : 'No segments match the current filters.'}
+                </Text>
+                {segments.length > 0 && Object.keys(segFilters).length > 0 && (
+                  <Button 
+                    variant="light" 
+                    size="xs" 
+                    mt="md"
+                    onClick={() => updateSegFilters({})}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </Box>
             ) : viewMode === 'timeline' ? (
               <Timeline active={filteredSegments.length - 1} bulletSize={24} lineWidth={2}>
                 {filteredSegments
@@ -1344,14 +2099,14 @@ export default function FlowDetails() {
           <Tabs.Tab value="tags" leftSection={<IconTags size={16} />}>
             Tags
           </Tabs.Tab>
-          <Tabs.Tab value="storage" leftSection={<IconStorage size={16} />}>
-            Storage
-          </Tabs.Tab>
           <Tabs.Tab value="technical" leftSection={<IconSettings size={16} />}>
             Technical Details
           </Tabs.Tab>
           <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
             Analytics
+          </Tabs.Tab>
+          <Tabs.Tab value="qc" leftSection={<IconShieldCheck size={16} />}>
+            Quality Control
           </Tabs.Tab>
         </Tabs.List>
 
@@ -1365,7 +2120,9 @@ export default function FlowDetails() {
                       <Stack gap="md">
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Flow ID</Text>
-                          <Text size="sm" style={{ fontFamily: 'monospace' }}>{flow.id}</Text>
+                          <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                            {flow.id || flowId || 'N/A'}
+                          </Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Source ID</Text>
@@ -1373,11 +2130,11 @@ export default function FlowDetails() {
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Created By</Text>
-                          <Text size="sm">{flow.created_by}</Text>
+                          <Text size="sm">{flow.created_by || 'N/A'}</Text>
                         </Box>
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Created</Text>
-                          <Text size="sm">{formatTimestamp(flow.created)}</Text>
+                          <Text size="sm">{flow.created ? formatTimestamp(flow.created) : 'N/A'}</Text>
                         </Box>
                       </Stack>
                     </Grid.Col>
@@ -1387,100 +2144,37 @@ export default function FlowDetails() {
                           <Text size="sm" fw={500} c="dimmed">Format</Text>
                           <Text size="sm">{flow.format}</Text>
                         </Box>
-                        <Box>
-                          <Text size="sm" fw={500} c="dimmed">Codec</Text>
-                          <Text size="sm">{flow.codec}</Text>
-                        </Box>
+                        {flow.codec && (
+                          <Box>
+                            <Text size="sm" fw={500} c="dimmed">Codec</Text>
+                            <Text size="sm">{flow.codec}</Text>
+                          </Box>
+                        )}
                         <Box>
                           <Text size="sm" fw={500} c="dimmed">Updated By</Text>
-                          <Text size="sm">{flow.updated_by}</Text>
+                          <Text size="sm">{flow.updated_by || 'N/A'}</Text>
                         </Box>
                         <Box>
-                          <Text size="sm" fw={500} c="dimmed">Last Updated</Text>
-                          <Text size="sm">{formatTimestamp(flow.updated)}</Text>
+                          <Text size="sm" fw={500} c="dimmed">Metadata Updated</Text>
+                          <Text size="sm">{flow.metadata_updated ? formatTimestamp(flow.metadata_updated) : 'N/A'}</Text>
                         </Box>
+                        {flow.segments_updated && (
+                          <Box>
+                            <Text size="sm" fw={500} c="dimmed">Segments Updated</Text>
+                            <Text size="sm">{formatTimestamp(flow.segments_updated)}</Text>
+                          </Box>
+                        )}
                       </Stack>
                     </Grid.Col>
                   </Grid>
                 </Card>
 
-                {/* Collection Management */}
-                <Card withBorder p="xl" className="search-interface">
-                  <Group justify="space-between" mb="md">
-                    <Title order={4} className="dark-text-primary">Collection Management</Title>
-                              <Button 
-                      size="sm"
-                                variant="light" 
-                      onClick={() => navigate('/flow-collections')}
-                    >
-                      Manage Collections
-                              </Button>
-                  </Group>
-                  <Stack gap="md">
-                    {flow.collection_id ? (
-                      <Group gap="md">
-                        <Badge variant="light" color="purple" size="lg">
-                          {flow.collection_label || 'Collection'}
-                        </Badge>
-                        <Text size="sm" c="dimmed">
-                          This flow is part of a collection
-                        </Text>
-                              <Button 
-                                size="xs" 
-                                variant="light" 
-                          onClick={() => navigate(`/flow-collections/${flow.collection_id}`)}
-                              >
-                          View Collection
-                              </Button>
-                      </Group>
-                    ) : (
-                      <Group gap="md">
-                        <Text size="sm" c="dimmed">
-                          This flow is not part of any collection
-                        </Text>
-                        <Button
-                          size="sm"
-                          variant="light"
-                          onClick={() => navigate('/flow-collections')}
-                        >
-                          Add to Collection
-                        </Button>
-                      </Group>
-                    )}
-                            </Stack>
-                </Card>
-
                 {/* Description & Label Management */}
-                {flowId ? (
                   <FlowDescriptionManager
-                    flowId={flowId}
-                    initialDescription={flow.description}
-                    initialLabel={flow.label}
-                    disabled={disabled}
-                    onDescriptionChange={(description) => setFlow({ ...flow, description })}
-                    onLabelChange={(label) => setFlow({ ...flow, label })}
-                  />
-                ) : (
-                  <Card withBorder p="xl">
-                    <Title order={4} mb="md">Description & Label</Title>
-                    <Text size="sm" c="dimmed">Flow ID is required to manage description and label.</Text>
-                  </Card>
-                )}
+                    {...(flow.description !== undefined ? { initialDescription: flow.description } : {})}
+                    {...(flow.label !== undefined ? { initialLabel: flow.label } : {})}
+                />
 
-                {/* Flow Collection Management */}
-                {flowId ? (
-                  <FlowCollectionManager
-                    flowId={flowId}
-                    initialCollection={flow.flow_collection || []}
-                    disabled={disabled}
-                    onCollectionChange={(collection) => setFlow({ ...flow, flow_collection: collection })}
-                  />
-                ) : (
-                  <Card withBorder p="xl">
-                    <Title order={4} mb="md">Flow Collection</Title>
-                    <Text size="sm" c="dimmed">Flow ID is required to manage flow collection.</Text>
-                  </Card>
-                )}
 
                 {/* Current Tags Display */}
                 <Card withBorder p="xl">
@@ -1516,9 +2210,16 @@ export default function FlowDetails() {
             {flowId ? (
               <FlowTagsManager 
                 flowId={flowId}
-                initialTags={flow.tags || {}}
+                {...(flow.tags ? {
+                  initialTags: Object.fromEntries(
+                    Object.entries(flow.tags).map(([key, value]) => [
+                      key,
+                      Array.isArray(value) ? value.join(', ') : String(value ?? '')
+                    ])
+                  )
+                } : {})}
                 disabled={disabled}
-                readOnly={flow.read_only}
+                {...(flow.read_only !== undefined ? { readOnly: flow.read_only } : {})}
                 onTagsChange={(tags: Record<string, string>) => {
                   // Update flow tags in parent component
                   setFlow(prev => prev ? { ...prev, tags } : null);
@@ -1535,88 +2236,144 @@ export default function FlowDetails() {
 
 
 
-        <Tabs.Panel value="storage" pt="xl">
-          <Stack gap="xl">
-            <Card withBorder>
-              <Title order={3} mb="md">Storage Allocation Manager</Title>
-              <Text size="sm" c="dimmed" mb="lg">
-                Allocate storage for this flow to enable media uploads. Storage allocation provides pre-signed URLs for direct uploads.
-              </Text>
-              
-              {flowId ? (
-                <StorageAllocationManager 
-                  flowId={flowId}
-                  onAllocate={handleStorageAllocated}
-                  onDelete={handleStorageDeleted}
-                />
-              ) : (
-                <Alert icon={<IconAlertCircle size={16} />} color="red" title="Flow ID Required">
-                  Flow ID is required to manage storage allocation.
-                </Alert>
-              )}
-            </Card>
-              </Stack>
-        </Tabs.Panel>
 
         <Tabs.Panel value="technical" pt="xl">
           <Grid>
-            <Grid.Col span={6}>
+            {/* Video Specifications - only show if format is video and essence_parameters exist */}
+            {flow.format === 'urn:x-nmos:format:video' && flow.essence_parameters && (
+              <Grid.Col span={6}>
                 <Card withBorder p="xl">
-                <Title order={4} mb="md">Video Specifications</Title>
+                  <Title order={4} mb="md">Video Specifications</Title>
                   <Stack gap="md">
-                    <Box>
-                    <Text size="sm" fw={500} mb="xs">Resolution</Text>
-                    <Text size="sm">{flow.frame_width} x {flow.frame_height}</Text>
-                    </Box>
-                    <Box>
-                    <Text size="sm" fw={500} mb="xs">Frame Rate</Text>
-                    <Text size="sm">{flow.frame_rate}</Text>
-                    </Box>
+                    {flow.essence_parameters.frame_width && flow.essence_parameters.frame_height && (
                       <Box>
-                    <Text size="sm" fw={500} mb="xs">Interlace Mode</Text>
-                    <Text size="sm">{flow.interlace_mode || 'N/A'}</Text>
+                        <Text size="sm" fw={500} mb="xs">Resolution</Text>
+                        <Text size="sm">{flow.essence_parameters.frame_width} x {flow.essence_parameters.frame_height}</Text>
                       </Box>
+                    )}
+                    {flow.essence_parameters.frame_rate && (
                       <Box>
-                    <Text size="sm" fw={500} mb="xs">Color Sampling</Text>
-                    <Text size="sm">{flow.color_sampling || 'N/A'}</Text>
+                        <Text size="sm" fw={500} mb="xs">Frame Rate</Text>
+                        <Text size="sm">
+                          {flow.essence_parameters.frame_rate.numerator}
+                          {flow.essence_parameters.frame_rate.denominator && flow.essence_parameters.frame_rate.denominator !== 1
+                            ? `/${flow.essence_parameters.frame_rate.denominator}`
+                            : ''} fps
+                        </Text>
                       </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Color Space</Text>
-                    <Text size="sm">{flow.color_space || 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Transfer Characteristics</Text>
-                    <Text size="sm">{flow.transfer_characteristics || 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Color Primaries</Text>
-                    <Text size="sm">{flow.color_primaries || 'N/A'}</Text>
-                  </Box>
+                    )}
+                    {flow.essence_parameters.interlace_mode && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Interlace Mode</Text>
+                        <Text size="sm">{flow.essence_parameters.interlace_mode}</Text>
+                      </Box>
+                    )}
+                    {flow.essence_parameters.colorspace && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Colorspace</Text>
+                        <Text size="sm">{flow.essence_parameters.colorspace}</Text>
+                      </Box>
+                    )}
+                    {flow.essence_parameters.transfer_characteristic && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Transfer Characteristic</Text>
+                        <Text size="sm">{flow.essence_parameters.transfer_characteristic}</Text>
+                      </Box>
+                    )}
+                    {flow.essence_parameters.bit_depth && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Bit Depth</Text>
+                        <Text size="sm">{flow.essence_parameters.bit_depth} bit</Text>
+                      </Box>
+                    )}
                   </Stack>
                 </Card>
-            </Grid.Col>
+              </Grid.Col>
+            )}
 
-            <Grid.Col span={6}>
-                  <Card withBorder p="xl">
-                <Title order={4} mb="md">Audio Specifications</Title>
+            {/* Audio Specifications - only show if format is audio and essence_parameters exist */}
+            {flow.format === 'urn:x-nmos:format:audio' && flow.essence_parameters && (
+              <Grid.Col span={6}>
+                <Card withBorder p="xl">
+                  <Title order={4} mb="md">Audio Specifications</Title>
+                  <Stack gap="md">
+                    {flow.essence_parameters.sample_rate && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Sample Rate</Text>
+                        <Text size="sm">{flow.essence_parameters.sample_rate} Hz</Text>
+                      </Box>
+                    )}
+                    {flow.essence_parameters.channels && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Channels</Text>
+                        <Text size="sm">{flow.essence_parameters.channels} channels</Text>
+                      </Box>
+                    )}
+                    {flow.essence_parameters.bit_depth && (
+                      <Box>
+                        <Text size="sm" fw={500} mb="xs">Bit Depth</Text>
+                        <Text size="sm">{flow.essence_parameters.bit_depth} bit</Text>
+                      </Box>
+                    )}
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            )}
+
+            {/* Common Flow Properties */}
+            <Grid.Col span={flow.format === 'urn:x-nmos:format:video' || flow.format === 'urn:x-nmos:format:audio' ? 6 : 12}>
+              <Card withBorder p="xl">
+                <Title order={4} mb="md">Flow Properties</Title>
                 <Stack gap="md">
                   <Box>
-                    <Text size="sm" fw={500} mb="xs">Sample Rate</Text>
-                    <Text size="sm">{flow.sample_rate ? `${flow.sample_rate} Hz` : 'N/A'}</Text>
+                    <Text size="sm" fw={500} mb="xs">Format</Text>
+                    <Text size="sm">{flow.format}</Text>
                   </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Bits Per Sample</Text>
-                    <Text size="sm">{flow.bits_per_sample ? `${flow.bits_per_sample} bit` : 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Channels</Text>
-                    <Text size="sm">{flow.channels ? `${flow.channels} channels` : 'N/A'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="sm" fw={500} mb="xs">Container</Text>
-                    <Text size="sm">{flow.container || 'N/A'}</Text>
-                  </Box>
-              </Stack>
+                  {flow.codec && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Codec</Text>
+                      <Text size="sm">{flow.codec}</Text>
+                    </Box>
+                  )}
+                  {flow.container && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Container</Text>
+                      <Text size="sm">{flow.container}</Text>
+                    </Box>
+                  )}
+                  {flow.avg_bit_rate && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Average Bit Rate</Text>
+                      <Text size="sm">{Math.round(flow.avg_bit_rate / 1000)} kbps</Text>
+                    </Box>
+                  )}
+                  {flow.max_bit_rate && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Maximum Bit Rate</Text>
+                      <Text size="sm">{Math.round(flow.max_bit_rate / 1000)} kbps</Text>
+                    </Box>
+                  )}
+                  {flow.total_segments !== undefined && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Total Segments</Text>
+                      <Text size="sm">{flow.total_segments}</Text>
+                    </Box>
+                  )}
+                  {flow.total_duration !== undefined && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Total Duration</Text>
+                      <Text size="sm">{flow.total_duration} seconds</Text>
+                    </Box>
+                  )}
+                  {flow.read_only !== undefined && (
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">Read Only</Text>
+                      <Badge color={flow.read_only ? 'red' : 'green'} variant="light">
+                        {flow.read_only ? 'Yes' : 'No'}
+                      </Badge>
+                    </Box>
+                  )}
+                </Stack>
               </Card>
             </Grid.Col>
           </Grid>
@@ -1631,91 +2388,341 @@ export default function FlowDetails() {
                   <Text size="lg" c="dimmed">Loading analytics data...</Text>
                 </Stack>
               </Card>
-            ) : analyticsData ? (
+            ) : (
               <>
-                {/* Flow Usage Analytics */}
+                {/* Flow Statistics - using GET /flows/:id/stats endpoint */}
                 <Card withBorder>
-                  <Title order={4} mb="md">Flow Usage Statistics</Title>
-                  <Grid>
-                    <Grid.Col span={4}>
-                      <Paper withBorder p="md" ta="center">
-                        <Text size="xl" fw={700} c="blue">
-                          {analyticsData.flowUsage.total_flows}
-                        </Text>
-                        <Text size="sm" c="dimmed">Total Flows</Text>
-                      </Paper>
-                    </Grid.Col>
-                    <Grid.Col span={4}>
-                      <Paper withBorder p="md" ta="center">
-                        <Text size="xl" fw={700} c="green">
-                          {Math.round(analyticsData.flowUsage.average_flow_size / 1024 / 1024)} MB
-                        </Text>
-                        <Text size="sm" c="dimmed">Average Flow Size</Text>
-                      </Paper>
-                    </Grid.Col>
-                    <Grid.Col span={4}>
-                      <Paper withBorder p="md" ta="center">
-                        <Text size="xl" fw={700} c="orange">
-                          {Math.round(analyticsData.flowUsage.estimated_storage_bytes / 1024 / 1024)} MB
-                        </Text>
-                        <Text size="sm" c="dimmed">Total Storage</Text>
-                      </Paper>
-                    </Grid.Col>
-                  </Grid>
+                  <Title order={4} mb="md">Flow Statistics</Title>
+                  <Text size="sm" c="dimmed" mb="lg">
+                    Statistics from GET /flows/:id/stats endpoint. Includes segment counts, storage usage, and bandwidth metrics.
+                  </Text>
+                  <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                    <Paper withBorder p="md" ta="center">
+                      <Text size="xl" fw={700} c="blue">
+                        {analyticsData?.stats?.total_segments ?? flow?.total_segments ?? 0}
+                      </Text>
+                      <Text size="sm" c="dimmed">Total Segments</Text>
+                      <Text size="xs" c="dimmed" mt="xs">
+                        From stats endpoint
+                      </Text>
+                    </Paper>
+                    <Paper withBorder p="md" ta="center">
+                      <Text size="xl" fw={700} c="green">
+                        {analyticsData?.stats?.storage_used_gb 
+                          ? `${analyticsData.stats.storage_used_gb} GB` 
+                          : flow?.total_bytes 
+                            ? `${(flow.total_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+                            : 'N/A'}
+                      </Text>
+                      <Text size="sm" c="dimmed">Storage Used</Text>
+                      <Text size="xs" c="dimmed" mt="xs">
+                        From stats endpoint
+                      </Text>
+                    </Paper>
+                    <Paper withBorder p="md" ta="center">
+                      <Text size="xl" fw={700} c="orange">
+                        {analyticsData?.stats?.bandwidth_mbps 
+                          ? `${analyticsData.stats.bandwidth_mbps} Mbps` 
+                          : flow?.avg_bit_rate 
+                            ? `${Math.round(flow.avg_bit_rate / 1000)} kbps`
+                            : 'N/A'}
+                      </Text>
+                      <Text size="sm" c="dimmed">Bandwidth</Text>
+                      <Text size="xs" c="dimmed" mt="xs">
+                        From stats endpoint
+                      </Text>
+                    </Paper>
+                    <Paper withBorder p="md" ta="center">
+                      <Text size="xl" fw={700} c="purple">
+                        {analyticsData?.stats?.average_segment_size 
+                          ? `${(analyticsData.stats.average_segment_size / (1024 * 1024)).toFixed(2)} MB` 
+                          : 'N/A'}
+                      </Text>
+                      <Text size="sm" c="dimmed">Avg Segment Size</Text>
+                      <Text size="xs" c="dimmed" mt="xs">
+                        From stats endpoint
+                      </Text>
+                    </Paper>
+                  </SimpleGrid>
                   
-                  {analyticsData.flowUsage.format_distribution && (
+                  {analyticsData?.stats && (
+                    <Stack gap="md" mt="md">
+                      <Divider />
+                      <Grid>
+                        <Grid.Col span={6}>
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Oldest Segment</Text>
+                            <Text size="sm" c="dimmed">
+                              {analyticsData.stats.oldest_segment 
+                                ? new Date(analyticsData.stats.oldest_segment).toLocaleString()
+                                : 'N/A'}
+                            </Text>
+                          </Box>
+                        </Grid.Col>
+                        <Grid.Col span={6}>
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Newest Segment</Text>
+                            <Text size="sm" c="dimmed">
+                              {analyticsData.stats.newest_segment 
+                                ? new Date(analyticsData.stats.newest_segment).toLocaleString()
+                                : 'N/A'}
+                            </Text>
+                          </Box>
+                        </Grid.Col>
+                        <Grid.Col span={6}>
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Segments Per Hour</Text>
+                            <Text size="sm" c="dimmed">
+                              {analyticsData.stats.segments_per_hour || 0}
+                            </Text>
+                          </Box>
+                        </Grid.Col>
+                        <Grid.Col span={6}>
+                          <Box>
+                            <Text size="sm" fw={500} mb="xs">Total Size</Text>
+                            <Text size="sm" c="dimmed">
+                              {analyticsData.stats.total_size_bytes 
+                                ? `${(analyticsData.stats.total_size_bytes / (1024 * 1024)).toFixed(2)} MB`
+                                : 'N/A'}
+                            </Text>
+                          </Box>
+                        </Grid.Col>
+                      </Grid>
+                    </Stack>
+                  )}
+                  
+                  {flow?.format && (
                     <Box mt="md">
-                      <Text size="sm" fw={500} mb="sm">Format Distribution</Text>
-                      <Group gap="xs">
-                        {Object.entries(analyticsData.flowUsage.format_distribution).map(([format, count]) => (
-                          <Badge key={format} size="lg" variant="light" color="blue">
-                            {format.split(':').pop()}: {count as number}
-                  </Badge>
-                        ))}
-                      </Group>
+                      <Text size="sm" fw={500} mb="sm">Flow Format</Text>
+                      <Badge size="lg" variant="light" color="blue">
+                        {flow.format.split(':').pop() || flow.format}
+                      </Badge>
                     </Box>
                   )}
                 </Card>
 
-                {/* Storage Usage Analytics */}
-                {analyticsData.storageUsage && (
-                  <Card withBorder>
-                    <Title order={4} mb="md">Storage Usage Analysis</Title>
-                    <Text size="sm" c="dimmed">
-                      Storage usage patterns and access statistics from VAST TAMS backend.
-                    </Text>
-                    {/* Add more storage analytics when available */}
-                  </Card>
-                )}
+                {/* Note: Statistics are from the GET /flows/:id/stats endpoint. 
+                    If the endpoint fails due to Issue #6 (non-ObjectId IDs), statistics are calculated from flow data.
+                    Commented out per user request - not showing publicly */}
+                {/* <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+                  <Text size="sm">
+                    <strong>Note:</strong> Statistics are from the <code>GET /flows/:id/stats</code> endpoint. 
+                    If the endpoint fails due to Issue #6 (non-ObjectId IDs), statistics are calculated from flow data.
+                  </Text>
+                </Alert> */}
+              </>
+            )}
+          </Stack>
+        </Tabs.Panel>
 
-                {/* Time Range Analysis */}
-                {analyticsData.timeRangeAnalysis && (
+        <Tabs.Panel value="qc" pt="xl">
+          <Stack gap="xl">
+            {qcMarkersLoading ? (
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <Loader size="lg" />
+                  <Text size="lg" c="dimmed">Loading QC markers...</Text>
+                </Stack>
+              </Card>
+            ) : qcMarkersError ? (
+              <Card withBorder>
+                <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error Loading QC Markers">
+                  {qcMarkersError}
+                </Alert>
+                <Button 
+                  variant="light" 
+                  onClick={loadQCMarkers}
+                  loading={qcMarkersLoading}
+                  mt="md"
+                >
+                  Retry
+                </Button>
+              </Card>
+            ) : qcMarkers.length === 0 ? (
+              <Card withBorder>
+                <Stack gap="md" align="center" py="xl">
+                  <IconShieldCheck size={64} color="#ccc" />
+                  <Title order={4} c="dimmed">No QC Markers</Title>
+                  <Text size="lg" c="dimmed" ta="center">
+                    No quality control markers found for this flow
+                  </Text>
+                  <Button 
+                    variant="light" 
+                    onClick={loadQCMarkers}
+                    loading={qcMarkersLoading}
+                  >
+                    Refresh
+                  </Button>
+                </Stack>
+              </Card>
+            ) : (
+              <>
+                <Card withBorder>
+                  <Group justify="space-between" mb="md">
+                    <Title order={4}>QC Markers</Title>
+                    <Group gap="xs">
+                      <Badge size="lg" variant="light" color="blue">
+                        {qcMarkers.length} marker{qcMarkers.length !== 1 ? 's' : ''}
+                      </Badge>
+                      <Button
+                        variant="light"
+                        size="sm"
+                        leftSection={<IconRefresh size={14} />}
+                        onClick={loadQCMarkers}
+                        loading={qcMarkersLoading}
+                      >
+                        Refresh
+                      </Button>
+                    </Group>
+                  </Group>
+                  
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Marker ID</Table.Th>
+                        <Table.Th>Label</Table.Th>
+                        <Table.Th>Type</Table.Th>
+                        <Table.Th>Quality Verdict</Table.Th>
+                        <Table.Th>Quality Score</Table.Th>
+                        <Table.Th>Timestamp</Table.Th>
+                        <Table.Th>Details</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {qcMarkers.map((marker: any, index: number) => (
+                        <Table.Tr key={marker.id || marker._id || `marker-${index}`}>
+                          <Table.Td>
+                            <Text size="sm" ff="monospace" c="dimmed">
+                              {marker.id || marker._id || 'N/A'}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text fw={500}>{marker.label || 'Unnamed Marker'}</Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge variant="light" color="blue">
+                              {marker.tags?.marker_type || marker.tags?.['marker_type'] || 'unknown'}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {marker.tags?.quality_verdict || marker.tags?.['quality_verdict'] ? (
+                              <Badge 
+                                color={
+                                  (marker.tags?.quality_verdict || marker.tags?.['quality_verdict']) === 'PASS' 
+                                    ? 'green' 
+                                    : (marker.tags?.quality_verdict || marker.tags?.['quality_verdict']) === 'FAIL'
+                                    ? 'red'
+                                    : 'gray'
+                                }
+                                variant="light"
+                              >
+                                {marker.tags?.quality_verdict || marker.tags?.['quality_verdict']}
+                              </Badge>
+                            ) : (
+                              <Text size="sm" c="dimmed">N/A</Text>
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            {marker.tags?.quality_score || marker.tags?.['quality_score'] ? (
+                              <Group gap="xs">
+                                <Text fw={500}>
+                                  {parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0').toFixed(1)}
+                                </Text>
+                                <Badge 
+                                  size="sm"
+                                  color={
+                                    parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 90
+                                      ? 'green'
+                                      : parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 70
+                                      ? 'blue'
+                                      : parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 50
+                                      ? 'yellow'
+                                      : 'red'
+                                  }
+                                  variant="light"
+                                >
+                                  {parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 90
+                                    ? 'Excellent'
+                                    : parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 70
+                                    ? 'Good'
+                                    : parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0') >= 50
+                                    ? 'Fair'
+                                    : 'Poor'}
+                                </Badge>
+                              </Group>
+                            ) : (
+                              <Text size="sm" c="dimmed">N/A</Text>
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            {marker.created || marker.created_at ? (
+                              <Text size="sm">
+                                {new Date(marker.created || marker.created_at).toLocaleString()}
+                              </Text>
+                            ) : (
+                              <Text size="sm" c="dimmed">N/A</Text>
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            <Button
+                              variant="light"
+                              size="xs"
+                              onClick={() => {
+                                setSelectedSegment(marker as any);
+                                setShowDetailsModal(true);
+                              }}
+                            >
+                              View Details
+                            </Button>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Card>
+
+                {/* QC Summary Statistics */}
+                {qcMarkers.length > 0 && (
                   <Card withBorder>
-                    <Title order={4} mb="md">Time Range Patterns</Title>
-                    <Text size="sm" c="dimmed">
-                      Time range patterns and duration analysis from VAST TAMS backend.
-                    </Text>
-                    {/* Add more time range analytics when available */}
+                    <Title order={4} mb="md">QC Summary</Title>
+                    <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="blue">
+                          {qcMarkers.length}
+                        </Text>
+                        <Text size="sm" c="dimmed">Total Markers</Text>
+                      </Paper>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="green">
+                          {qcMarkers.filter((m: any) => 
+                            (m.tags?.quality_verdict || m.tags?.['quality_verdict']) === 'PASS'
+                          ).length}
+                        </Text>
+                        <Text size="sm" c="dimmed">Passed</Text>
+                      </Paper>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="red">
+                          {qcMarkers.filter((m: any) => 
+                            (m.tags?.quality_verdict || m.tags?.['quality_verdict']) === 'FAIL'
+                          ).length}
+                        </Text>
+                        <Text size="sm" c="dimmed">Failed</Text>
+                      </Paper>
+                      <Paper withBorder p="md" ta="center">
+                        <Text size="xl" fw={700} c="blue">
+                          {qcMarkers.length > 0
+                            ? (qcMarkers.reduce((sum: number, m: any) => {
+                                const score = parseFloat(m.tags?.quality_score || m.tags?.['quality_score'] || '0');
+                                return sum + score;
+                              }, 0) / qcMarkers.length).toFixed(1)
+                            : '0.0'}
+                        </Text>
+                        <Text size="sm" c="dimmed">Avg Score</Text>
+                      </Paper>
+                    </SimpleGrid>
                   </Card>
                 )}
               </>
-            ) : (
-              <Card withBorder>
-                <Stack gap="md" align="center" py="xl">
-                  <IconChartBar size={64} color="#ccc" />
-                  <Title order={4} c="dimmed">Analytics Unavailable</Title>
-                  <Text size="lg" c="dimmed" ta="center">
-                    Unable to load analytics data from VAST TAMS backend
-                  </Text>
-                <Button
-                    variant="light" 
-                    onClick={loadAnalytics}
-                    loading={analyticsLoading}
-                  >
-                    Retry
-                </Button>
-                </Stack>
-              </Card>
             )}
           </Stack>
         </Tabs.Panel>
@@ -1909,9 +2916,11 @@ export default function FlowDetails() {
                           </Group>
                     <Group justify="space-between">
                       <Text size="xs" c="dimmed">Status</Text>
-                      <Badge color={getStatusColor(flow.status || 'unknown')} variant="light" size="sm">
-                        {flow.status || 'Unknown'}
-                      </Badge>
+                      {flow.read_only !== undefined && (
+                        <Badge color={flow.read_only ? 'orange' : 'blue'} variant="light" size="sm">
+                          {flow.read_only ? 'Read Only' : 'Editable'}
+                        </Badge>
+                      )}
                           </Group>
                     <Group justify="space-between">
                       <Text size="xs" c="dimmed">Read Only</Text>
@@ -1940,14 +2949,6 @@ export default function FlowDetails() {
             <Card withBorder p="xl" className="quick-actions-card">
               <Title order={4} mb="md" className="dark-text-primary">Quick Actions</Title>
               <Stack gap="sm">
-                          <Button 
-                            variant="light" 
-                  leftSection={<IconEdit size={16} />} 
-                  onClick={() => setShowEditModal(true)}
-                  fullWidth
-                >
-                  Edit Flow
-                          </Button>
                 <Button 
                   variant="light" 
                   leftSection={<IconRefresh size={16} />} 
@@ -1965,14 +2966,21 @@ export default function FlowDetails() {
                 >
                   Manage Tags
                 </Button>
-                <Button 
-                  variant="light" 
-                  leftSection={<IconStorage size={16} />} 
-                  onClick={() => setActiveTab('storage')}
-                  fullWidth
-                >
-                  Storage Settings
-                </Button>
+                {flowId && (
+                  <Button 
+                    variant="light" 
+                    color="orange"
+                    leftSection={<IconTrash size={16} />} 
+                    onClick={() => {
+                      setCleanupHours(24);
+                      setCleanupResult(null);
+                      setShowCleanupModal(true);
+                    }}
+                    fullWidth
+                  >
+                    Cleanup Segments
+                  </Button>
+                )}
                       </Stack>
                     </Card>
 
@@ -1980,8 +2988,9 @@ export default function FlowDetails() {
             {flowId ? (
               <FlowReadOnlyManager
                 flowId={flowId}
-                initialReadOnly={flow.read_only}
+                {...(flow.read_only !== undefined ? { initialReadOnly: flow.read_only } : {})}
                 disabled={disabled}
+                currentFlow={flow}
                 onReadOnlyChange={(readOnly) => setFlow({ ...flow, read_only: readOnly })}
               />
             ) : (
@@ -2063,7 +3072,7 @@ export default function FlowDetails() {
                           timerange: `${selectedSegment.timerange.start}/${selectedSegment.timerange.end}`,
                           get_urls: selectedSegment.get_urls,
                           format: selectedSegment.flow_format || flow?.format,
-                          codec: flow?.codec,
+                          ...(flow?.codec ? { codec: flow.codec } : {}),
                           size: selectedSegment.size,
                           created: selectedSegment.created_at,
                           updated: selectedSegment.updated_at,
@@ -2072,8 +3081,8 @@ export default function FlowDetails() {
                           deleted_at: null,
                           deleted_by: null
                         }}
-                        title={selectedSegment.description || flow.label}
-                        description={`VAST TAMS segment playback for ${flow.label}`}
+                        {...(selectedSegment.description || flow.label ? { title: selectedSegment.description || flow.label || '' } : {})}
+                        description={`VAST TAMS segment playback for ${flow.label || 'segment'}`}
                         onClose={handleVideoPlayerClose}
                         showControls={true}
                         autoPlay={true}
@@ -2305,67 +3314,16 @@ export default function FlowDetails() {
             </Modal>
           )}
 
-      {/* Edit Flow Modal */}
-      <Modal
-        opened={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Edit Flow"
-        size="lg"
-      >
-        <Stack gap="md">
-          <TextInput
-            label="Label"
-            value={flow.label}
-            onChange={(event) => setFlow({ ...flow, label: event.currentTarget.value })}
-          />
-          <Textarea
-            label="Description"
-            value={flow.description}
-            onChange={(event) => setFlow({ ...flow, description: event.currentTarget.value })}
-            rows={3}
-          />
-          <Select
-            label="Status"
-            value={flow.status || null}
-            onChange={(value) => setFlow({ ...flow, status: value as 'active' | 'inactive' | 'processing' | 'error' })}
-            data={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-              { value: 'processing', label: 'Processing' },
-              { value: 'error', label: 'Error' }
-            ]}
-          />
-          <Switch
-            label="Read Only"
-            checked={flow.read_only}
-            onChange={(event) => setFlow({ ...flow, read_only: event.currentTarget.checked })}
-          />
-          <Group gap="xs" justify="flex-end">
-            <Button variant="light" onClick={() => setShowEditModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={async () => {
-              if (!flowId) return;
-              
-              try {
-                await apiClient.updateFlow(flowId, flow);
-                setShowEditModal(false);
-              } catch (err: any) {
-                setError('Failed to update flow');
-                console.error(err);
-              }
-            }}>
-              Save Changes
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
 
 
       {/* Upload Segment Modal */}
       <Modal
         opened={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
+        onClose={() => {
+          console.log('Closing upload modal');
+          setShowUploadModal(false);
+          setSelectedFile(null);
+        }}
         title="Upload Media Segment"
         size="lg"
       >
@@ -2379,7 +3337,8 @@ export default function FlowDetails() {
             placeholder="Select media file"
             accept="video/*,audio/*"
             required
-            id="segment-file"
+            value={selectedFile}
+            onChange={setSelectedFile}
           />
           
           <TextInput
@@ -2419,20 +3378,33 @@ export default function FlowDetails() {
           />
           
           <Group gap="xs" justify="flex-end">
-            <Button variant="light" onClick={() => setShowUploadModal(false)}>
+            <Button variant="light" onClick={() => {
+              setShowUploadModal(false);
+              setSelectedFile(null);
+            }}>
               Cancel
             </Button>
             <Button 
               onClick={() => {
-                const fileInput = document.getElementById('segment-file') as HTMLInputElement;
+                console.log('Upload Segment button clicked in modal');
+                try {
                 const objectIdInput = document.getElementById('object-id') as HTMLInputElement;
                 const startTimeInput = document.getElementById('start-time') as HTMLInputElement;
                 const endTimeInput = document.getElementById('end-time') as HTMLInputElement;
                 const descriptionInput = document.getElementById('description') as HTMLTextAreaElement;
                 const tagsInput = document.getElementById('tags') as HTMLInputElement;
                 
-                if (fileInput?.files?.[0]) {
-                  const file = fileInput.files[0];
+                  console.log('Form inputs found:', {
+                    selectedFile: !!selectedFile,
+                    objectIdInput: !!objectIdInput,
+                    startTimeInput: !!startTimeInput,
+                    endTimeInput: !!endTimeInput,
+                    descriptionInput: !!descriptionInput,
+                    tagsInput: !!tagsInput
+                  });
+                  
+                  if (selectedFile) {
+                    console.log('File selected:', selectedFile.name, selectedFile.size, 'bytes');
                   
                   // Parse tags from comma-separated string
                   const tags: Record<string, string> = {};
@@ -2453,9 +3425,14 @@ export default function FlowDetails() {
                   };
                   
                   console.log('Uploading segment with data:', segmentData);
-                  handleUploadSegment(file, segmentData);
+                    handleUploadSegment(selectedFile, segmentData);
                 } else {
+                    console.warn('No file selected');
                   setError('Please select a file to upload');
+                  }
+                } catch (err) {
+                  console.error('Error in upload button handler:', err);
+                  setError(`Error preparing upload: ${err instanceof Error ? err.message : 'Unknown error'}`);
                 }
               }}
               loading={uploadingSegment}
@@ -2466,6 +3443,90 @@ export default function FlowDetails() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Cleanup Segments Modal */}
+      <Modal
+        opened={showCleanupModal}
+        onClose={() => {
+          setShowCleanupModal(false);
+          setCleanupResult(null);
+          setCleanupHours(24);
+        }}
+        title="Cleanup Flow Segments"
+        size="md"
+      >
+        <Stack gap="md">
+          {cleanupResult ? (
+            <>
+              <Alert icon={<IconCheck size={16} />} color="green" title="Cleanup Complete">
+                <Text size="sm">
+                  Successfully cleaned up segments older than {cleanupHours} hours.
+                </Text>
+              </Alert>
+              <Card withBorder p="md">
+                <Stack gap="xs">
+                  <Group justify="space-between">
+                    <Text size="sm" fw={500}>Deleted Segments:</Text>
+                    <Text size="sm" fw={600}>{cleanupResult.deleted_segments}</Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" fw={500}>Freed Storage:</Text>
+                    <Text size="sm" fw={600}>{cleanupResult.freed_gb} GB</Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" fw={500}>Freed Bytes:</Text>
+                    <Text size="sm" c="dimmed" style={{ fontFamily: 'monospace' }}>
+                      {cleanupResult.freed_bytes.toLocaleString()}
+                    </Text>
+                  </Group>
+                </Stack>
+              </Card>
+              <Text size="xs" c="dimmed" ta="center">
+                This modal will close automatically in a few seconds...
+              </Text>
+            </>
+          ) : (
+            <>
+              <Alert icon={<IconInfoCircle size={16} />} color="blue" title="Cleanup Segments">
+                <Text size="sm">
+                  This will remove all segments older than the specified number of hours. 
+                  The flow metadata will be preserved, but the old segments will be permanently deleted.
+                </Text>
+              </Alert>
+              <NumberInput
+                label="Keep Segments From Last (Hours)"
+                description="Segments older than this will be deleted"
+                value={cleanupHours}
+                onChange={(value) => setCleanupHours(typeof value === 'number' ? value : 24)}
+                min={1}
+                max={8760}
+                required
+              />
+              <Group justify="flex-end" mt="md">
+                <Button
+                  variant="subtle"
+                  onClick={() => {
+                    setShowCleanupModal(false);
+                    setCleanupResult(null);
+                    setCleanupHours(24);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="orange"
+                  leftSection={<IconTrash size={16} />}
+                  onClick={handleCleanupFlow}
+                  loading={cleaningUp}
+                >
+                  Cleanup Segments
+                </Button>
+              </Group>
+            </>
+          )}
+        </Stack>
+      </Modal>
+
     </Container>
   );
 } 

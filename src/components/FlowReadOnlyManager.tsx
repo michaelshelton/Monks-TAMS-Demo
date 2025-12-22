@@ -24,20 +24,23 @@ import {
   IconInfoCircle,
   IconAlertTriangle
 } from '@tabler/icons-react';
-import { updateFlowReadOnly, getFlowReadOnly } from '../services/bbcTamsApi';
+import { apiClient } from '../services/api';
 
 interface FlowReadOnlyManagerProps {
   flowId: string;
   initialReadOnly?: boolean;
   disabled?: boolean;
   onReadOnlyChange?: (readOnly: boolean) => void;
+  // Current flow data - needed to include required fields (id, source_id) in update
+  currentFlow?: any;
 }
 
 export function FlowReadOnlyManager({ 
   flowId, 
   initialReadOnly = false,
   disabled = false,
-  onReadOnlyChange 
+  onReadOnlyChange,
+  currentFlow
 }: FlowReadOnlyManagerProps) {
   const [readOnly, setReadOnly] = useState(initialReadOnly);
   const [loading, setLoading] = useState(false);
@@ -61,8 +64,25 @@ export function FlowReadOnlyManager({
     if (initialReadOnly === undefined) {
       setLoading(true);
       try {
-        const response = await getFlowReadOnly(flowId);
-        setReadOnly(response.read_only);
+        // Fetch flow data using the workaround (GET /flows and filter)
+        const flowsResponse = await apiClient.getFlows();
+        let flowsData: any[] = [];
+        
+        if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+          flowsData = flowsResponse.data;
+        } else if (Array.isArray(flowsResponse)) {
+          flowsData = flowsResponse;
+        }
+        
+        const foundFlow = flowsData.find((f: any) => 
+          (f._id === flowId || f.id === flowId) ||
+          (f._id && String(f._id) === String(flowId)) ||
+          (f.id && String(f.id) === String(flowId))
+        );
+        
+        if (foundFlow && foundFlow.read_only !== undefined) {
+          setReadOnly(foundFlow.read_only);
+        }
       } catch (err: any) {
         console.error('Error loading initial read-only status:', err);
         // Use props as fallback
@@ -84,7 +104,66 @@ export function FlowReadOnlyManager({
     setError(null);
     try {
       console.log('Updating flow read-only status:', { flowId, readOnly: pendingReadOnly });
-      await updateFlowReadOnly(flowId, pendingReadOnly);
+      
+      // Backend requires id and source_id in request body (schema validation)
+      // Fetch current flow if not provided to get required fields
+      let flowData = currentFlow;
+      if (!flowData) {
+        try {
+          // Try to get flow using workaround (Issue #6)
+          const flowsResponse = await apiClient.getFlows();
+          let flowsData: any[] = [];
+          
+          if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+            flowsData = flowsResponse.data;
+          } else if (Array.isArray(flowsResponse)) {
+            flowsData = flowsResponse;
+          }
+          
+          flowData = flowsData.find((f: any) => 
+            (f._id === flowId || f.id === flowId) ||
+            (f._id && String(f._id) === String(flowId)) ||
+            (f.id && String(f.id) === String(flowId))
+          );
+        } catch (fetchErr) {
+          console.error('Failed to fetch flow data:', fetchErr);
+        }
+      }
+      
+      // Build update payload - backend requires full flow object with required fields
+      // Issue #7: Schema validation requires id and source_id, but existing flows may not have source_id
+      // We need to send the full flow object to pass validation, but may need to generate source_id
+      const updatePayload: any = flowData ? {
+        // Use the full flow object and only update read_only
+        ...flowData,
+        read_only: pendingReadOnly,
+        // Normalize _id to id for schema validation
+        id: flowData.id || flowData._id || flowId,
+        // Generate source_id if missing (required by schema but may not exist in DB)
+        source_id: flowData.source_id || flowData.sourceId || `source-${flowId}`,
+        // Ensure format is valid (may be "video/mp4" instead of "urn:x-nmos:format:video")
+        format: flowData.format || 'urn:x-nmos:format:video',
+        // Ensure codec is valid format
+        codec: flowData.codec || 'video/h264'
+      } : {
+        // Fallback if flow data not available
+        id: flowId,
+        source_id: `source-${flowId}`,
+        read_only: pendingReadOnly,
+        format: 'urn:x-nmos:format:video',
+        codec: 'video/h264'
+      };
+      
+      // Remove _id if we're using id (to avoid conflicts)
+      if (updatePayload._id && updatePayload.id) {
+        delete updatePayload._id;
+      }
+      
+      // Note: The id and source_id must match UUID pattern, but existing flows may have non-UUID IDs
+      // This is a backend validation issue (Issue #7) - the schema is too strict
+      
+      // Use PUT /flows/:id to update read_only (backend doesn't have separate endpoint)
+      await apiClient.updateFlow(flowId, updatePayload);
       console.log('Flow read-only status updated successfully');
       
       setReadOnly(pendingReadOnly);

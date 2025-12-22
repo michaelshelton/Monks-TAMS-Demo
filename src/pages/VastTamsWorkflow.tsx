@@ -81,7 +81,7 @@ export default function VastTamsWorkflow() {
     {
       id: 'sources',
       title: 'Media Sources',
-      description: 'Manage media input sources with BBC TAMS v6.0 compliance',
+      description: 'Manage media input sources with TAMS v6.0 compliance',
       icon: <IconBroadcast size={24} />,
       color: 'blue',
       endpoint: '/sources'
@@ -253,7 +253,7 @@ export default function VastTamsWorkflow() {
                     </Paper>
                     <Paper p="md" withBorder>
                       <Text size="sm" fw={500}>Version</Text>
-                      <Text size="lg">{workflowData.health.version || 'BBC TAMS v6.0'}</Text>
+                      <Text size="lg">{workflowData.health.version || 'TAMS v6.0'}</Text>
                     </Paper>
                   </SimpleGrid>
                 </Stack>

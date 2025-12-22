@@ -48,7 +48,7 @@ import {
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   validateTAMSEntity, 
   VALID_CONTENT_FORMATS, 
@@ -57,7 +57,6 @@ import {
   formatValidationErrors 
 } from '../utils/enhancedValidation';
 import { apiClient, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
-import BBCPagination from '../components/BBCPagination';
 
 // Enhanced Source interface
 interface Source {
@@ -78,7 +77,7 @@ interface Source {
   deleted_by?: string | null;
 }
 
-// VAST TAMS Sources - fetched from real backend API
+// TAMS Sources - fetched from real backend API
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -112,6 +111,7 @@ const getFormatLabel = (format: string) => {
 
 export default function Sources() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +126,10 @@ export default function Sources() {
   // BBC TAMS API state
   const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  
+  // Client-side pagination state
+  const [activePage, setActivePage] = useState(1);
+  const itemsPerPage = 10;
   
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useFilterPersistence('sources');
@@ -204,39 +208,26 @@ export default function Sources() {
     }
   ];
 
-  // Filter sources with generic media logic
+  // Client-side filtering for filters not supported by API
+  // Note: Format, category, content_type, and year filters are applied server-side via API
   const filteredSources = sources.filter(source => {
-    // Search filter
+    // Search filter (client-side since API uses 'label' parameter, not full-text search)
     const searchTerm = filters.search?.toLowerCase();
     const matchesSearch = !searchTerm || 
       source.label?.toLowerCase().includes(searchTerm) ||
       source.description?.toLowerCase().includes(searchTerm);
 
-    // Format filter
-    const formatFilter = filters.format;
-    const matchesFormat = !formatFilter || source.format === formatFilter;
+    // Tags filter (client-side for complex tag matching)
+    const tagsFilter = filters.tags;
+    const matchesTags = !tagsFilter || 
+      (source.tags && Object.entries(source.tags).some(([key, value]) => 
+        `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())
+      ));
 
-    // Category filter
-    const categoryFilter = filters.category;
-    const matchesCategory = !categoryFilter || 
-      source.tags?.['category'] === categoryFilter;
-
-    // Content type filter
-    const contentTypeFilter = filters.content_type;
-    const matchesContentType = !contentTypeFilter || 
-      source.tags?.['content_type'] === contentTypeFilter ||
-      source.tags?.['event_type'] === contentTypeFilter;
-
-    // Year filter
-    const yearFilter = filters.year;
-    const matchesYear = !yearFilter || 
-      source.tags?.['year'] === yearFilter;
-
-    // Created date filter
+    // Created date filter (client-side, API doesn't support date range filtering)
     const createdFilter = filters.created;
     const matchesCreated = !createdFilter || (() => {
-      // Simplified date filtering for demo
-      // In real implementation, this would compare actual dates
+      // Simplified date filtering - in real implementation, this would compare actual dates
       switch (createdFilter) {
         case 'today':
         case 'yesterday':
@@ -253,62 +244,123 @@ export default function Sources() {
       }
     })();
 
-    // Tags filter
-    const tagsFilter = filters.tags;
-    const matchesTags = !tagsFilter || 
-      (source.tags && Object.entries(source.tags).some(([key, value]) => 
-        `${key}:${value}`.toLowerCase().includes(tagsFilter.toLowerCase())
-      ));
-
-    // Deleted filter
+    // Deleted filter (client-side, API may not support this)
     const deletedFilter = filters.deleted;
     const matchesDeleted = !deletedFilter || (source.deleted === deletedFilter);
 
-    return matchesSearch && matchesFormat && matchesCategory && matchesContentType && 
-           matchesYear && matchesCreated && matchesTags && matchesDeleted;
+    // Format, category, content_type, and year are filtered server-side via API
+    return matchesSearch && matchesTags && matchesCreated && matchesDeleted;
   });
 
-  // Fetch sources using VAST TAMS API
-  const fetchSourcesVastTams = async (cursor?: string) => {
+  // Fetch sources using TAMS API
+  const fetchSourcesTams = async (cursor?: string) => {
     try {
       setLoading(true);
       setError(null);
       
       const options: BBCApiOptions = {
-        limit: 10,
-        custom: { show_deleted: showDeleted }
+        // Note: limit parameter causes validation errors - API expects integer but query strings are strings
+        // Backend team needs to fix query parameter type conversion
+        // For now, don't use limit - API will return all sources
+        // limit: 10, // Commented out until backend fixes query parameter validation
+        // Note: show_deleted is not a valid query parameter for the API (schema rejects additionalProperties)
+        // Filtering deleted sources will be handled client-side if needed
       };
       
       if (cursor) {
         options.page = cursor;
       }
 
-      // Apply filters to VAST TAMS API
-      if (filters.format) options.format = filters.format;
-      if (filters.category) options.tags = { ...options.tags, category: filters.category };
-      if (filters.content_type) options.tags = { ...options.tags, content_type: filters.content_type };
-      if (filters.year) options.tags = { ...options.tags, year: filters.year };
+      // Apply filters to TAMS API (server-side filtering)
+      if (filters.format) {
+        options.format = filters.format;
+      }
+      if (filters.label || filters.search) {
+        // API uses 'label' parameter for search
+        options.custom = { ...options.custom, label: filters.label || filters.search };
+      }
+      // Tag filters - API supports tag.<name> query parameters
+      if (filters.category) {
+        options.tags = { ...(options.tags || {}), category: filters.category };
+      }
+      if (filters.content_type) {
+        options.tags = { ...(options.tags || {}), content_type: filters.content_type };
+      }
+      if (filters.year) {
+        options.tags = { ...(options.tags || {}), year: filters.year };
+      }
 
-      console.log('Fetching sources from VAST TAMS API with options:', options);
+      console.log('Fetching sources from TAMS API with options:', options);
       const response = await apiClient.getSources(options);
-      console.log('VAST TAMS API response:', response);
+      console.log('TAMS API response:', response);
       
-      setSources(response.data);
-      setBbcPagination(response.pagination);
+      // Handle different response formats
+      // bbcTamsGet normalizes to { data: [...], pagination: {...} }
+      // But also handle direct { sources: [...], count } format
+      let sourcesData: Source[] = [];
+      let paginationData: BBCPaginationMeta = {};
+      
+      if (response && response.data && Array.isArray(response.data)) {
+        // Normalized BBC TAMS format
+        sourcesData = response.data;
+        paginationData = response.pagination || {};
+      } else {
+        const responseAny = response as any;
+        if (responseAny && responseAny.sources && Array.isArray(responseAny.sources)) {
+          // Direct API format: { sources: [...], count }
+          sourcesData = responseAny.sources;
+          paginationData = {
+            count: responseAny.count || responseAny.sources.length,
+            ...(options.limit !== undefined ? { limit: options.limit } : {})
+          };
+        } else if (Array.isArray(response)) {
+          // Direct array response
+          sourcesData = response;
+          paginationData = {
+            count: response.length,
+            ...(options.limit !== undefined ? { limit: options.limit } : {})
+          };
+        }
+      }
+      
+      setSources(sourcesData);
+      setBbcPagination(paginationData);
       setCurrentCursor(cursor || null);
       setError(null);
+      // Reset to first page when sources change
+      setActivePage(1);
     } catch (err: any) {
-      console.error('VAST TAMS API error:', err);
+      console.error('TAMS API error:', err);
+      console.error('Error details:', {
+        message: err?.message,
+        stack: err?.stack,
+        response: err?.response,
+        name: err?.name
+      });
       
       // Set appropriate error message based on error type
-      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-        setError('VAST TAMS backend temporarily unavailable - please try again later');
-      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
-        setError('Network connection issue - please check your connection and try again');
-      } else if (err?.message?.includes('404')) {
-        setError('VAST TAMS API endpoint not found - please check backend configuration');
+      let errorMessage = 'Unknown error';
+      
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.response) {
+        errorMessage = `HTTP ${err.response.status}: ${err.response.statusText || 'Error'}`;
+      } else if (err?.name === 'TypeError' && err?.message?.includes('fetch')) {
+        errorMessage = 'Network error: Could not connect to API. Is the backend running?';
+      } else if (err?.name === 'AbortError') {
+        errorMessage = 'Request timeout - please try again';
+      }
+      
+      // Set appropriate error message based on error type
+      if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        setError('TAMS backend temporarily unavailable - please try again later');
+      } else if (errorMessage.includes('Network') || errorMessage.includes('fetch') || errorMessage.includes('CORS') || errorMessage.includes('Could not connect')) {
+        setError('Network connection issue - please check your connection and try again. Make sure the TAMS API is running on http://localhost:3000');
+      } else if (errorMessage.includes('404')) {
+        setError('TAMS API endpoint not found - please check backend configuration');
       } else {
-        setError(`VAST TAMS API error: ${err?.message || 'Unknown error'}`);
+        // Use error message directly
+        setError(errorMessage.includes('TAMS API error') ? errorMessage : `TAMS API error: ${errorMessage}`);
       }
       
       // Clear sources on error
@@ -320,34 +372,48 @@ export default function Sources() {
     }
   };
 
+  // Fetch sources when component mounts, filters change, or when navigating to this page
   useEffect(() => {
-    fetchSourcesVastTams();
-  }, [showDeleted, filters]);
-
-  // Handle VAST TAMS pagination
-  const handleVastTamsPageChange = (cursor: string | null) => {
-    if (cursor) {
-      fetchSourcesVastTams(cursor);
+    if (location.pathname === '/sources') {
+      console.log('Sources component: Fetching sources, location:', location.pathname);
+      fetchSourcesTams();
     }
-  };
+  }, [location.pathname, showDeleted, filters]);
+
 
   const handleCreateSource = async (newSource: Omit<Source, 'id' | 'created' | 'updated'>) => {
     try {
       setLoading(true);
-      const response = await apiClient.createSource(newSource);
-      setSources(prev => [...prev, response.data]);
+      // Generate a UUID for the source ID (required by API)
+      const sourceId = crypto.randomUUID();
+      
+      // The API expects POST /sources/:id with the source data
+      const sourceData = {
+        id: sourceId,
+        ...newSource
+      };
+      
+      const response = await apiClient.createSource(sourceId, sourceData);
+      
+      // Refresh the sources list to get the new source
+      await fetchSourcesTams();
       setShowCreateModal(false);
-    } catch (err) {
-      setError('Failed to create source');
-      console.error(err);
+      setError(null);
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to create source';
+      setError(errorMsg);
+      console.error('Create source error:', err);
     } finally {
       setLoading(false);
     }
   };
 
 
-  // For demo data, show all filtered sources (BBC TAMS API handles pagination)
-  const paginatedSources = filteredSources;
+  // Client-side pagination for filtered sources
+  const totalPages = Math.ceil(filteredSources.length / itemsPerPage);
+  const startIndex = (activePage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedSources = filteredSources.slice(startIndex, endIndex);
 
   return (
     <Container size="xl" px="xl" py="xl">
@@ -364,7 +430,7 @@ export default function Sources() {
             variant="light"
             leftSection={<IconRefresh size={16} />}
             onClick={() => {
-              fetchSourcesVastTams();
+              fetchSourcesTams();
               setError(null);
             }}
             loading={loading}
@@ -387,7 +453,7 @@ export default function Sources() {
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color="red" 
-          title="VAST TAMS Connection Error"
+          title="TAMS Connection Error"
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -396,7 +462,7 @@ export default function Sources() {
         </Alert>
       )}
 
-      {/* VAST TAMS Info - Toggleable */}
+      {/* TAMS Info - Toggleable */}
       {!error && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
@@ -488,7 +554,7 @@ export default function Sources() {
                 <Table.Td colSpan={6} ta="center">
                   <Text c="dimmed">
                     {sources.length === 0 
-                      ? "No sources available from VAST TAMS backend" 
+                      ? "No sources available from TAMS backend" 
                       : "No sources found matching your filters"
                     }
                   </Text>
@@ -605,27 +671,25 @@ export default function Sources() {
           </Table.Tbody>
         </Table>
         
-        {/* VAST TAMS Pagination */}
-        {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
+        {/* Pagination */}
+        {filteredSources.length > itemsPerPage && (
           <Group justify="center" mt="lg">
-            <BBCPagination
-              paginationMeta={bbcPagination}
-              onPageChange={handleVastTamsPageChange}
-              onLimitChange={(limit) => {
-                // Handle limit change for VAST TAMS API
-                fetchSourcesVastTams();
-              }}
-              showBBCMetadata={true}
-              showLimitSelector={true}
+            <Pagination
+              value={activePage}
+              onChange={setActivePage}
+              total={totalPages}
+              size="sm"
             />
           </Group>
-        ) : (
-          /* No pagination when no data */
-          sources.length === 0 && !loading && (
-            <Group justify="center" mt="lg">
-              <Text c="dimmed">No sources available</Text>
-            </Group>
-          )
+        )}
+        
+        {/* Results count */}
+        {!loading && filteredSources.length > 0 && (
+          <Group justify="center" mt="md">
+            <Text size="sm" c="dimmed">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredSources.length)} of {filteredSources.length} sources
+            </Text>
+          </Group>
         )}
       </Card>
 

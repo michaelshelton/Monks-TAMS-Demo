@@ -647,12 +647,12 @@ export default function SearchResults() {
           </Card>
         )}
 
-        {/* BBC TAMS Search Info */}
-        <Alert icon={<IconInfoCircle size={16} />} title="BBC TAMS Search Results" color="blue">
+        {/* TAMS Search Info */}
+        <Alert icon={<IconInfoCircle size={16} />} title="TAMS Search Results" color="blue">
           <Text size="sm">
-            These results demonstrate BBC TAMS v6.0 compliant search capabilities with multi-entity support, 
+            These results demonstrate TAMS v6.0 compliant search capabilities with multi-entity support, 
             advanced filtering, and AI-powered content discovery. The search strategy and filters are applied 
-            according to BBC TAMS specification for optimal content retrieval.
+            according to TAMS specification for optimal content retrieval.
           </Text>
         </Alert>
       </Stack>

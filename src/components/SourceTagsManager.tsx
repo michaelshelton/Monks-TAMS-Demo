@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Text,
@@ -13,7 +13,6 @@ import {
   Alert,
   Loader,
   Box,
-  Flex,
   Title
 } from '@mantine/core';
 import {
@@ -21,13 +20,12 @@ import {
   IconEdit,
   IconTrash,
   IconTags,
-  IconX,
-  IconCheck
+  IconX
 } from '@tabler/icons-react';
-import { getFlowTags, updateFlowTag, deleteFlowTag } from '../services/bbcTamsApi';
+import { apiClient } from '../services/api';
 
-interface FlowTagsManagerProps {
-  flowId: string;
+interface SourceTagsManagerProps {
+  sourceId: string;
   initialTags?: Record<string, string>;
   disabled?: boolean;
   readOnly?: boolean;
@@ -41,7 +39,7 @@ interface TagEditState {
   isEditing: boolean;
 }
 
-export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, readOnly = false, onTagsChange }: FlowTagsManagerProps) {
+export function SourceTagsManager({ sourceId, initialTags = {}, disabled = false, readOnly = false, onTagsChange }: SourceTagsManagerProps) {
   const [tags, setTags] = useState<Record<string, string>>(initialTags);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,61 +49,70 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
   const [editingTag, setEditingTag] = useState<TagEditState>({ name: '', value: '', originalName: '', isEditing: false });
   const [deletingTag, setDeletingTag] = useState<string>('');
   const [newTag, setNewTag] = useState({ name: '', value: '' });
-  const previousInitialTagsRef = useRef<string>('');
 
   // Initialize tags from props and load from API if needed
-  // Only update when initialTags actually changes (not on every render)
   useEffect(() => {
-    if (flowId) {
-      const initialTagsStr = JSON.stringify(initialTags);
-      
-      // Only update if initialTags actually changed
-      if (previousInitialTagsRef.current !== initialTagsStr) {
-        previousInitialTagsRef.current = initialTagsStr;
-        
-        // If we have initial tags, use them (but don't notify parent to avoid infinite loops)
-        if (Object.keys(initialTags).length > 0) {
-          setTags(initialTags);
-          console.log('Using initial tags from flow data:', initialTags);
-        } else {
-          // No initial tags, try to load from API
-          loadTags();
+    if (sourceId) {
+      // If we have initial tags, use them and notify parent
+      if (Object.keys(initialTags).length > 0) {
+        // Convert array values to strings if needed
+        const normalizedTags: Record<string, string> = {};
+        Object.entries(initialTags).forEach(([key, value]) => {
+          normalizedTags[key] = Array.isArray(value) ? value[0] : value;
+        });
+        setTags(normalizedTags);
+        if (onTagsChange) {
+          onTagsChange(normalizedTags);
         }
+        console.log('Using initial tags from source data:', normalizedTags);
+      } else {
+        // No initial tags, try to load from API
+        loadTags();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowId, initialTags]);
+  }, [sourceId, initialTags]);
 
   const loadTags = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Loading tags for flow:', flowId);
-      const flowTags = await getFlowTags(flowId);
-      console.log('Received flow tags:', flowTags);
+      console.log('Loading tags for source:', sourceId);
+      const sourceTags = await apiClient.getSourceTags(sourceId);
+      console.log('Received source tags:', sourceTags);
       
-      // Handle different response formats
-      const tags = flowTags && typeof flowTags === 'object' ? flowTags : {};
-      setTags(tags);
-      // Only notify parent when tags are loaded from API (user-initiated change)
+      // Handle different response formats - convert arrays to strings
+      const normalizedTags: Record<string, string> = {};
+      if (sourceTags && typeof sourceTags === 'object') {
+        Object.entries(sourceTags).forEach(([key, value]) => {
+          normalizedTags[key] = Array.isArray(value) ? value[0] : String(value);
+        });
+      }
+      
+      setTags(normalizedTags);
       if (onTagsChange) {
-        onTagsChange(tags);
+        onTagsChange(normalizedTags);
       }
     } catch (err: any) {
-      console.error('Error loading flow tags:', err);
+      console.error('Error loading source tags:', err);
       
       // Check if it's a backend not available error
       if (err.message && err.message.includes('404')) {
-        console.log('Flow tags endpoint not available, using initial tags or empty state');
+        console.log('Source tags endpoint not available, using initial tags or empty state');
         // Don't set error if we have initial tags, just use them
         if (Object.keys(initialTags).length > 0) {
-          setTags(initialTags);
-          // Don't notify parent here to avoid infinite loops
+          const normalizedTags: Record<string, string> = {};
+          Object.entries(initialTags).forEach(([key, value]) => {
+            normalizedTags[key] = Array.isArray(value) ? value[0] : String(value);
+          });
+          setTags(normalizedTags);
+          if (onTagsChange) {
+            onTagsChange(normalizedTags);
+          }
         } else {
-          setError('Flow tags endpoint not available. Tags cannot be loaded from the backend.');
+          setError('Source tags endpoint not available. Tags cannot be loaded from the backend.');
         }
       } else {
-        setError(`Failed to load flow tags: ${err.message}`);
+        setError(`Failed to load source tags: ${err.message}`);
       }
     } finally {
       setLoading(false);
@@ -126,7 +133,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
         return;
       }
       
-      await updateFlowTag(flowId, newTag.name.trim(), newTag.value.trim());
+      await apiClient.setSourceTag(sourceId, newTag.name.trim(), newTag.value.trim());
       console.log('Tag added successfully');
       
       // Refresh tags
@@ -149,7 +156,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
     setLoading(true);
     setError(null);
     try {
-      await updateFlowTag(flowId, editingTag.name.trim(), editingTag.value.trim());
+      await apiClient.setSourceTag(sourceId, editingTag.name.trim(), editingTag.value.trim());
       
       // Refresh tags
       await loadTags();
@@ -171,7 +178,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
     setLoading(true);
     setError(null);
     try {
-      await deleteFlowTag(flowId, deletingTag);
+      await apiClient.deleteSourceTag(sourceId, deletingTag);
       
       // Refresh tags
       await loadTags();
@@ -207,11 +214,11 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
       }
       
       // Create new tag with new name
-      await updateFlowTag(flowId, newName.trim(), value);
+      await apiClient.setSourceTag(sourceId, newName.trim(), value);
       console.log('New tag created successfully');
       
       // Delete old tag
-      await deleteFlowTag(flowId, oldName);
+      await apiClient.deleteSourceTag(sourceId, oldName);
       console.log('Old tag deleted successfully');
       
       // Refresh tags
@@ -240,7 +247,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
       <Card withBorder>
         <Stack gap="md" align="center" py="xl">
           <Loader size="sm" />
-          <Text size="sm" c="dimmed">Loading flow tags...</Text>
+          <Text size="sm" c="dimmed">Loading source tags...</Text>
         </Stack>
       </Card>
     );
@@ -255,16 +262,13 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
             <Box>
               <Group gap="sm" align="center">
                 <IconTags size={20} color="#228be6" />
-                <Title order={4}>Flow Tags</Title>
+                <Title order={4}>Source Tags</Title>
                 <Badge variant="light" color="blue">
                   {tagEntries.length} tag{tagEntries.length !== 1 ? 's' : ''}
                 </Badge>
               </Group>
               <Text size="sm" c="dimmed" mt="xs">
-                Manage metadata tags for this flow. Tags help organize and categorize flows.
-                {error?.includes('Backend not available') && (
-                  <Text component="span" c="blue" fw={500}> Demo mode - using sample data</Text>
-                )}
+                Manage metadata tags for this source. Tags help organize and categorize sources.
                 {readOnly && (
                   <Text component="span" c="red" fw={500}> Read-only mode - tags cannot be modified</Text>
                 )}
@@ -276,7 +280,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
               size="sm"
               leftSection={<IconPlus size={14} />}
               onClick={() => setShowAddModal(true)}
-              disabled={disabled || readOnly || (error?.includes('Backend not available') || false)}
+              disabled={disabled || readOnly}
             >
               Add Tag
             </Button>
@@ -288,7 +292,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
           {error && (
             <Alert 
               icon={<IconX size={16} />} 
-              color={error.includes('Backend not available') ? 'blue' : 'red'} 
+              color="red" 
               withCloseButton 
               onClose={() => setError(null)}
             >
@@ -298,7 +302,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
 
           {tagEntries.length === 0 ? (
             <Alert icon={<IconTags size={16} />} color="blue" variant="light">
-              <Text size="sm">No tags defined for this flow. Click "Add Tag" to get started.</Text>
+              <Text size="sm">No tags defined for this source. Click "Add Tag" to get started.</Text>
             </Alert>
           ) : (
             <Stack gap="md">
@@ -366,12 +370,12 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Add a new metadata tag to this flow. Tag names should be descriptive and values can contain any text.
+            Add a new metadata tag to this source. Tag names should be descriptive and values can contain any text.
           </Text>
           
           <TextInput
             label="Tag Name"
-            placeholder="e.g., category, priority, location"
+            placeholder="e.g., type, location, quality"
             value={newTag.name}
             onChange={(event) => setNewTag({ ...newTag, name: event.currentTarget.value })}
             required
@@ -379,7 +383,7 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
           
           <TextInput
             label="Tag Value"
-            placeholder="e.g., news, high, studio-a"
+            placeholder="e.g., live_camera, studio_a, hd"
             value={newTag.value}
             onChange={(event) => setNewTag({ ...newTag, value: event.currentTarget.value })}
             required
@@ -483,3 +487,4 @@ export function FlowTagsManager({ flowId, initialTags = {}, disabled = false, re
     </>
   );
 }
+

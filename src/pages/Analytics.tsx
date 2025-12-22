@@ -342,7 +342,7 @@ export default function Analytics() {
       
       // Check if any analytics endpoints are available
       if (!flowUsage && !storageUsage && !timeRange) {
-        setError('VAST TAMS analytics endpoints are not available yet. The backend is still being configured.');
+        setError('TAMS analytics endpoints are not available yet. The backend is still being configured.');
       }
       
       // For now, we'll use mock data for top flows and recent compilations
@@ -351,17 +351,19 @@ export default function Analytics() {
       setRecentCompilations(mockRecentCompilations);
       
     } catch (err: any) {
-      console.error('VAST TAMS Analytics API error:', err);
+      console.error('TAMS Analytics API error:', err);
       
       // Set appropriate error message based on error type
       if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-        setError('VAST TAMS backend temporarily unavailable - please try again later');
+        setError('TAMS backend temporarily unavailable - please try again later');
       } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
         setError('Network connection issue - please check your connection and try again');
       } else if (err?.message?.includes('404')) {
-        setError('VAST TAMS analytics endpoints not found - please check backend configuration');
+        setError('TAMS analytics endpoints not found - please check backend configuration');
       } else {
-        setError(`VAST TAMS analytics error: ${err?.message || 'Unknown error'}`);
+        // Use error message directly if it already contains "TAMS", otherwise prefix it
+        const errorMsg = err?.message || 'Unknown error';
+        setError(errorMsg.includes('TAMS') ? errorMsg : `TAMS analytics error: ${errorMsg}`);
       }
     } finally {
       setLoading(false);
@@ -551,7 +553,7 @@ export default function Analytics() {
         <Alert 
           icon={<IconAlertCircle size={16} />} 
           color={error.includes('not available yet') ? 'yellow' : 'red'} 
-          title={error.includes('not available yet') ? 'VAST TAMS Backend Not Ready' : 'VAST TAMS Connection Error'}
+          title={error.includes('not available yet') ? 'TAMS Backend Not Ready' : 'TAMS Connection Error'}
           withCloseButton
           onClose={() => setError(null)}
           mb="md"
@@ -559,7 +561,7 @@ export default function Analytics() {
           {error}
           {error.includes('not available yet') && (
             <Text size="sm" mt="xs">
-              This page will work once the VAST TAMS backend analytics API is fully configured. 
+              This page will work once the TAMS backend analytics API is fully configured. 
               For now, you can use the Sources and Flows pages which are already working.
             </Text>
           )}
@@ -571,7 +573,7 @@ export default function Analytics() {
       {loading && (
         <Box ta="center" py="xl">
           <Loader size="lg" />
-          <Text mt="md" c="dimmed">Loading VAST TAMS analytics data...</Text>
+          <Text mt="md" c="dimmed">Loading TAMS analytics data...</Text>
         </Box>
       )}
 
@@ -579,7 +581,7 @@ export default function Analytics() {
       {loading ? (
         <Box ta="center" py="xl">
           <Loader size="lg" />
-          <Text mt="md" c="dimmed">Loading VAST TAMS analytics data...</Text>
+          <Text mt="md" c="dimmed">Loading TAMS analytics data...</Text>
         </Box>
       ) : error ? (
         <Box ta="center" py="xl" c="red">

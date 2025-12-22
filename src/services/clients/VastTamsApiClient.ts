@@ -49,18 +49,24 @@ export class VastTamsApiClient implements IApiClient {
   async testConnection(): Promise<boolean> {
     const startTime = Date.now();
     try {
-      await this.service.getHealth();
+      const health = await this.service.getHealth();
       const responseTime = Date.now() - startTime;
       
+      // 503 responses are valid for degraded service - still consider it connected
+      // Accept 'degraded', 'healthy', 'ok', or any truthy status as connected
+      const status = health?.status?.toLowerCase() || '';
+      const isConnected = status === 'degraded' || status === 'healthy' || status === 'ok' || status === 'up';
+      
       this.connectionStatus = {
-        connected: true,
+        connected: isConnected,
         lastCheck: new Date(),
         responseTime,
-        error: undefined
+        error: status === 'degraded' ? 'Service is degraded' : undefined
       };
       
-      return true;
+      return isConnected;
     } catch (error) {
+      // If health check fails completely, mark as not connected
       this.connectionStatus = {
         connected: false,
         lastCheck: new Date(),
@@ -251,9 +257,32 @@ export class VastTamsApiClient implements IApiClient {
     return this.service.restoreFlow(id);
   }
 
+  async cleanupFlow(id: string, hours: number = 24): Promise<any> {
+    return this.service.cleanupFlow(id, hours);
+  }
+
   // Core TAMS Operations - Segments
   async getFlowSegments(flowId: string, options?: BBCApiOptions): Promise<BBCApiResponse<any>> {
     return this.service.getFlowSegments(flowId, options);
+  }
+
+  async getFlowStats(flowId: string): Promise<any> {
+    // Use the service's request method via a direct fetch call
+    // The service's makeRequest is private, so we'll make the request directly
+    const url = `${this.config.baseUrl}/flows/${flowId}/stats`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`VAST TAMS API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
 
   async createFlowSegment(flowId: string, segment: any, file?: File): Promise<any> {
@@ -262,6 +291,10 @@ export class VastTamsApiClient implements IApiClient {
 
   async deleteFlowSegments(flowId: string, options?: any): Promise<any> {
     return this.service.deleteFlowSegments(flowId, options);
+  }
+
+  async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
+    return this.service.updateFlowSegment(flowId, segmentId, updates);
   }
 
   // Core TAMS Operations - Objects

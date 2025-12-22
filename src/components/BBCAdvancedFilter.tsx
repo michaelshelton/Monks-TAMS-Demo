@@ -469,7 +469,7 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
           {/* BBC TAMS Compliance Note */}
           <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
             <Text size="sm">
-              This filter follows BBC TAMS v6.0 specification with support for cursor-based pagination, 
+              This filter follows TAMS v6.0 specification with support for cursor-based pagination, 
               temporal filtering, and advanced tag-based queries.
             </Text>
           </Alert>

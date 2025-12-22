@@ -306,7 +306,7 @@ export default function VideoPlayerWithAnalytics({
         <Card mt="md" withBorder>
           <Group justify="space-between" mb="sm">
             <Title order={6}>CMCD Data (Common Media Client Data)</Title>
-            <Badge color="blue">BBC TAMS Compliant</Badge>
+            <Badge color="blue">TAMS Compliant</Badge>
           </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Box>
@@ -443,7 +443,7 @@ export default function VideoPlayerWithAnalytics({
           >
             <Text size="sm">
               {analyticsEnabled 
-                ? 'CMCD data collection is active. Video playback events are being tracked for BBC TAMS compliance and analytics.'
+                ? 'CMCD data collection is active. Video playback events are being tracked for TAMS compliance and analytics.'
                 : 'Analytics and CMCD data collection is disabled.'
               }
             </Text>

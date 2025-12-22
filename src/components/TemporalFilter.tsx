@@ -261,7 +261,7 @@ export default function TemporalFilter({
           <Group gap="xs">
             <IconClock size={20} />
             <Text fw={500}>Temporal Filter</Text>
-            <Badge variant="light" color="blue">BBC TAMS v6.0</Badge>
+            <Badge variant="light" color="blue">TAMS v6.0</Badge>
           </Group>
           
           <Group gap="xs">
@@ -497,9 +497,9 @@ export default function TemporalFilter({
         </Box>
 
         {/* BBC TAMS Info */}
-        <Alert color="blue" title="BBC TAMS Temporal Filtering" icon={<IconInfoCircle size={16} />}>
+        <Alert color="blue" title="TAMS Temporal Filtering" icon={<IconInfoCircle size={16} />}>
           <Text size="xs">
-            This temporal filter provides BBC TAMS v6.0 compliant time-based filtering capabilities. 
+            This temporal filter provides TAMS v6.0 compliant time-based filtering capabilities. 
             It supports timerange queries, duration filtering, sample-level control, and temporal pattern 
             matching as specified in the BBC TAMS API specification.
           </Text>

@@ -1,6 +1,24 @@
-
 import React, { useState, useEffect } from 'react';
-import { Container, Title, Text, Button, Box, Group, Card, SimpleGrid, Stack, Badge, Grid } from '@mantine/core';
+import { 
+  Container, 
+  Title, 
+  Text, 
+  Button, 
+  Box, 
+  Group, 
+  Card, 
+  SimpleGrid, 
+  Stack, 
+  Badge, 
+  Grid,
+  Paper,
+  Progress,
+  RingProgress,
+  Center,
+  Loader,
+  Alert,
+  Divider
+} from '@mantine/core';
 import { 
   IconClock, 
   IconSearch, 
@@ -14,109 +32,256 @@ import {
   IconTrendingUp,
   IconActivity,
   IconShield,
+  IconShieldCheck,
   IconPlayerPlay,
-  IconCheck
+  IconCheck,
+  IconServer,
+  IconChartBar,
+  IconInfoCircle,
+  IconExternalLink,
+  IconContainer,
+  IconWebhook,
+  IconTag,
+  IconRadio
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 
-// Live stats will be loaded dynamically from API
-
-// Quick actions will be generated dynamically with real data
-
-const demoHighlights = [
-  {
-    icon: <IconClock size={24} />,
-    title: 'Time-Addressable Access',
-    description: 'Access any moment in your media streams instantly - no more scrubbing through hours of content.'
-  },
-  {
-    icon: <IconBolt size={24} />,
-    title: 'Real-Time Processing',
-    description: 'Live media streams processed and indexed as they arrive, enabling instant search and retrieval.'
-  },
-  {
-    icon: <IconSearch size={24} />,
-    title: 'Instant Search',
-    description: 'Find specific content across petabytes of media using semantic search and AI-powered indexing.'
-  },
-  {
-    icon: <IconDatabase size={24} />,
-    title: 'Petabyte Scale',
-    description: 'Built on VAST Data Platform for unlimited storage and lightning-fast access to any media moment.'
-  }
-];
+interface SystemStats {
+  sources: number;
+  flows: number;
+  totalSegments: number;
+  totalStorageGB: number;
+  totalDurationHours: number;
+  objects: number;
+  webhooks: number;
+  liveFlows: number;
+  health: any;
+  serviceInfo: any;
+  storageBackends: any[];
+  loading: boolean;
+  error: string | null;
+  recentFlows: any[];
+}
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [systemData, setSystemData] = useState<{
-    sources: number;
-    flows: number;
-    segments: number;
-    health: any;
-    loading: boolean;
-    error: string | null;
-  }>({
+  const [stats, setStats] = useState<SystemStats>({
     sources: 0,
     flows: 0,
-    segments: 0,
+    totalSegments: 0,
+    totalStorageGB: 0,
+    totalDurationHours: 0,
+    objects: 0,
+    webhooks: 0,
+    liveFlows: 0,
     health: null,
+    serviceInfo: null,
+    storageBackends: [],
     loading: true,
-    error: null
+    error: null,
+    recentFlows: []
   });
 
-  // Load system data on component mount
+  // Load system data on component mount and refresh periodically
   useEffect(() => {
     loadSystemData();
+    const interval = setInterval(loadSystemData, 120000); // Refresh every 2 minutes
+    return () => clearInterval(interval);
   }, []);
 
   const loadSystemData = async () => {
-    setSystemData(prev => ({ ...prev, loading: true, error: null }));
+    setStats(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      console.log('🔄 Loading landing page system data...');
-      
-      // Load health status
-      const health = await apiClient.getHealth();
-      console.log('✅ Health loaded:', health);
-      
-      // Load basic counts
-      const [sourcesResponse, flowsResponse] = await Promise.all([
-        apiClient.getSources({ limit: 10 }),
-        apiClient.getFlows({ limit: 10 })
-      ]);
-      
-      console.log('📊 Sources response:', sourcesResponse);
-      console.log('📊 Flows response:', flowsResponse);
-      
-      // Calculate counts
-      const sourcesCount = sourcesResponse.pagination?.count || sourcesResponse.data?.length || 0;
-      const flowsCount = flowsResponse.pagination?.count || flowsResponse.data?.length || 0;
-      
-      // Get segment count from first flow if available
-      let segmentsCount = 0;
-      if (flowsResponse.data && flowsResponse.data.length > 0) {
-        try {
-          const firstFlow = flowsResponse.data[0];
-          const segmentsResponse = await apiClient.getFlowSegments(firstFlow.id, { limit: 10 });
-          segmentsCount = segmentsResponse.pagination?.count || segmentsResponse.data?.length || 0;
-        } catch (segmentError) {
-          console.warn('⚠️ Could not load segment count:', segmentError);
-        }
+      // Ensure API client is initialized before making requests
+      // This ensures consistent behavior on first load vs refresh
+      if (apiClient && typeof (apiClient as any).ensureApiClientInitialized === 'function') {
+        await (apiClient as any).ensureApiClientInitialized();
       }
       
-      setSystemData({
+      // Load multiple data sources in parallel
+      const [
+        health,
+        sourcesResponse,
+        flowsResponse,
+        objectsResponse,
+        webhooksResponse,
+        serviceInfo
+      ] = await Promise.all([
+        apiClient.getHealth().catch(() => null),
+        // Get all sources to get accurate count (API returns { data: [...], pagination: { count } })
+        // Note: We rely on pagination.count from headers (X-Paging-Count) for total count
+        apiClient.getSources().catch(() => ({ data: [], pagination: { count: 0 } })),
+        // Try flows - if it fails, we'll handle gracefully
+        apiClient.getFlows().catch(() => {
+          // If flows endpoint fails, try with limit parameter
+          return apiClient.getFlows({ limit: 100 }).catch(() => ({ data: [], pagination: { count: 0 } }));
+        }),
+        // Objects endpoint not implemented in backend (Issue #6 in BACKEND_FIXES_NEEDED.md)
+        Promise.resolve({ data: [], pagination: { count: 0 } }),
+        // Webhooks endpoint not available in backend (documented in FRONTEND_GAP_ANALYSIS.md)
+        Promise.resolve({ data: [], pagination: { count: 0 } }),
+        apiClient.getService().catch(() => null)
+      ]);
+      
+      // Handle API response formats
+      // The monks_tams_api returns: { sources: [...], count: 20 }
+      // BBC TAMS format would be: { data: [...], pagination: { count } }
+      let sourcesCount = 0;
+      const sourcesResponseAny = sourcesResponse as any;
+      
+      // Check for monks_tams_api format first: { sources: [...], count }
+      if (sourcesResponseAny && sourcesResponseAny.sources && Array.isArray(sourcesResponseAny.sources)) {
+        // monks_tams_api format: { sources: [...], count }
+        // Prefer count if available (total count), otherwise use array length
+        sourcesCount = sourcesResponseAny.count ?? sourcesResponseAny.sources.length;
+        
+        console.log('Landing page - Sources (monks_tams_api format):', {
+          count: sourcesResponseAny.count,
+          sourcesLength: sourcesResponseAny.sources.length,
+          finalCount: sourcesCount,
+          firstSourceId: sourcesResponseAny.sources[0]?.id
+        });
+      } else if (sourcesResponse && typeof sourcesResponse === 'object' && 'data' in sourcesResponse) {
+        // BBC TAMS format: { data: [...], pagination: { count } }
+        if (Array.isArray(sourcesResponse.data)) {
+          const paginationCount = sourcesResponse.pagination?.count;
+          const dataLength = sourcesResponse.data.length;
+          
+          // Prefer pagination.count if available, otherwise use data.length
+          if (paginationCount !== undefined && paginationCount !== null) {
+            sourcesCount = paginationCount;
+          } else {
+            sourcesCount = dataLength;
+          }
+          
+          console.log('Landing page - Sources (BBC TAMS format):', {
+            dataLength,
+            paginationCount: sourcesResponse.pagination?.count,
+            finalCount: sourcesCount,
+            firstSourceId: sourcesResponse.data[0]?.id
+          });
+        }
+      } else if (Array.isArray(sourcesResponse)) {
+        // Direct array response
+        sourcesCount = (sourcesResponse as any[]).length;
+        console.log('Landing page - Sources (array format):', sourcesCount);
+      } else if (sourcesResponseAny && Array.isArray(sourcesResponseAny.data)) {
+        // Another format with data array
+        sourcesCount = sourcesResponseAny.data.length;
+        console.log('Landing page - Sources (data array format):', sourcesCount);
+      } else {
+        console.warn('Landing page - Unknown sources response format:', sourcesResponse);
+      }
+      
+      // Flows: array directly or BBC TAMS format { data: [...], pagination: { count } }
+      // Note: API returns _id (MongoDB format), normalize to id for frontend
+      let flowsData: any[] = [];
+      let flowsCount = 0;
+      const flowsResponseAny = flowsResponse as any;
+      if (Array.isArray(flowsResponse)) {
+        // New API returns array directly - normalize _id to id
+        flowsData = flowsResponse.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        flowsCount = flowsResponse.length;
+      } else if (flowsResponse && flowsResponse.data && Array.isArray(flowsResponse.data)) {
+        // BBC TAMS format - normalize _id to id
+        flowsData = flowsResponse.data.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        flowsCount = flowsResponse.pagination?.count ?? flowsResponse.data.length;
+      } else if (flowsResponseAny && flowsResponseAny.flows && Array.isArray(flowsResponseAny.flows)) {
+        // Alternative format - normalize _id to id
+        flowsData = flowsResponseAny.flows.map((flow: any) => ({
+          ...flow,
+          id: flow.id || flow._id // Normalize _id to id
+        }));
+        flowsCount = flowsResponseAny.count ?? flowsResponseAny.flows.length;
+      } else if (flowsResponseAny && flowsResponseAny.error) {
+        // API returned an error - log it but don't crash
+        console.warn('Flows API error:', flowsResponseAny.error);
+        flowsData = [];
+        flowsCount = 0;
+      }
+      
+      // Objects: endpoint not implemented in backend (always 0)
+      const objectsCount = 0;
+      
+      // Webhooks: endpoint not available in backend (always 0)
+      const webhooksCount = 0;
+      
+      // Analyze flows for additional stats
+      let totalSegments = 0;
+      let totalStorageGB = 0;
+      let totalDurationSeconds = 0;
+      let liveFlows = 0;
+      const recentFlows = flowsData.slice(0, 5);
+      
+      flowsData.forEach((flow: any) => {
+        // Count segments
+        if (flow.total_segments) {
+          totalSegments += flow.total_segments;
+        }
+        
+        // Estimate duration
+        if (flow.total_duration) {
+          totalDurationSeconds += flow.total_duration;
+        } else if (flow.total_segments) {
+          totalDurationSeconds += flow.total_segments * 10;
+        }
+        
+        // Estimate storage
+        if (flow.total_segments) {
+          totalStorageGB += (flow.total_segments * 1) / 1024; // Convert MB to GB
+        }
+        
+        // Count live flows
+        if (flow.tags?.stream_type?.includes('live') || flow.tags?.stream_type === 'live') {
+          liveFlows++;
+        }
+        
+        // Note: Marker flows concept is not clearly defined in the API
+        // QC markers exist via /api/v1/flows/:flowId/qc-markers but that's different
+        // Removing marker flow counting as it's not a clear API concept
+        
+      });
+      
+      const totalDurationHours = totalDurationSeconds / 3600;
+      
+      // Try to get storage backends
+      let storageBackends: any[] = [];
+      try {
+        const storageData = await apiClient.getStorageBackends().catch(() => null);
+        if (storageData) {
+          storageBackends = storageData.storage_backends || [];
+        }
+      } catch (e) {
+        // Ignore storage backend errors
+      }
+      
+      setStats({
         sources: sourcesCount,
         flows: flowsCount,
-        segments: segmentsCount,
+        totalSegments,
+        totalStorageGB,
+        totalDurationHours,
+        objects: objectsCount,
+        webhooks: webhooksCount,
+        liveFlows,
         health,
+        serviceInfo,
+        storageBackends,
         loading: false,
-        error: null
+        error: null,
+        recentFlows
       });
       
     } catch (error) {
-      console.error('❌ Error loading system data:', error);
-      setSystemData(prev => ({
+      setStats(prev => ({
         ...prev,
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to load system data'
@@ -124,403 +289,606 @@ export default function Landing() {
     }
   };
 
+  // Placeholder data for demo when no real data is available
+  const getPlaceholderValue = (key: string): number => {
+    const placeholders: Record<string, number> = {
+      sources: 12,
+      flows: 45,
+      totalSegments: 1250,
+      totalStorageGB: 245.8,
+      totalDurationHours: 18.5,
+      objects: 3200,
+      flowCollections: 8,
+      webhooks: 5,
+      liveFlows: 12
+    };
+    return placeholders[key] || 0;
+  };
 
+  const formatNumber = (num: number): string => {
+    if (num === 0) return '0';
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
 
-  // Generate quick actions with real data
-  const quickActions = [
+  const formatStorage = (gb: number): string => {
+    if (gb === 0) return '0 GB';
+    if (gb >= 1000) return `${(gb / 1000).toFixed(2)} TB`;
+    return `${gb.toFixed(2)} GB`;
+  };
+
+  const formatDuration = (hours: number): string => {
+    if (hours === 0) return '0 min';
+    if (hours >= 24) return `${(hours / 24).toFixed(1)} days`;
+    if (hours >= 1) return `${hours.toFixed(1)} hours`;
+    return `${(hours * 60).toFixed(0)} minutes`;
+  };
+
+  // Use real data if available, otherwise use placeholders
+  // Always show placeholders if loading or if values are 0
+  const displayStats = {
+    sources: (!stats.loading && stats.sources > 0) ? stats.sources : getPlaceholderValue('sources'),
+    flows: (!stats.loading && stats.flows > 0) ? stats.flows : getPlaceholderValue('flows'),
+    totalSegments: (!stats.loading && stats.totalSegments > 0) ? stats.totalSegments : getPlaceholderValue('totalSegments'),
+    totalStorageGB: (!stats.loading && stats.totalStorageGB > 0) ? stats.totalStorageGB : getPlaceholderValue('totalStorageGB'),
+    totalDurationHours: (!stats.loading && stats.totalDurationHours > 0) ? stats.totalDurationHours : getPlaceholderValue('totalDurationHours'),
+    objects: (!stats.loading && stats.objects > 0) ? stats.objects : getPlaceholderValue('objects'),
+    webhooks: (!stats.loading && stats.webhooks > 0) ? stats.webhooks : getPlaceholderValue('webhooks'),
+    liveFlows: (!stats.loading && stats.liveFlows > 0) ? stats.liveFlows : getPlaceholderValue('liveFlows')
+  };
+
+  const statCards = [
     {
-      title: 'Live Sources',
-      description: 'View real-time media inputs',
+      title: 'Active Sources',
+      value: displayStats.sources,
+      formatted: formatNumber(displayStats.sources),
       icon: <IconBroadcast size={32} />,
       color: 'blue',
       link: '/sources',
-      badge: `${systemData.sources} Active`
+      description: 'Media input sources',
+      isPlaceholder: stats.loading || stats.sources === 0
     },
     {
       title: 'Media Flows',
-      description: 'Monitor processing streams',
-      icon: <IconBroadcast size={32} />,
+      value: displayStats.flows,
+      formatted: formatNumber(displayStats.flows),
+      icon: <IconVideo size={32} />,
       color: 'green',
       link: '/flows',
-      badge: `${systemData.flows} Running`
+      description: 'Processing streams',
+      isPlaceholder: stats.loading || stats.flows === 0
     },
     {
-      title: 'TAMS Workflow',
-      description: 'Interactive demo walkthrough',
-      icon: <IconTarget size={32} />,
+      title: 'Total Segments',
+      value: displayStats.totalSegments,
+      formatted: formatNumber(displayStats.totalSegments),
+      icon: <IconVideo size={32} />,
       color: 'orange',
-      link: '/vast-tams-workflow',
-      badge: 'Live Demo'
+      link: '/flows',
+      description: 'Time-addressable segments',
+      isPlaceholder: stats.loading || stats.totalSegments === 0
     },
     {
-      title: 'Analytics',
-      description: 'Real-time performance metrics',
-      icon: <IconTrendingUp size={32} />,
+      title: 'Storage Used',
+      value: displayStats.totalStorageGB,
+      formatted: formatStorage(displayStats.totalStorageGB),
+      icon: <IconDatabase size={32} />,
+      color: 'purple',
+      link: '/flows',
+      description: 'Total media storage',
+      isPlaceholder: stats.loading || stats.totalStorageGB === 0
+    },
+    {
+      title: 'Total Duration',
+      value: displayStats.totalDurationHours,
+      formatted: formatDuration(displayStats.totalDurationHours),
+      icon: <IconClock size={32} />,
       color: 'teal',
-      link: '/analytics',
-      badge: 'Live Data'
+      link: '/flows',
+      description: 'Cumulative media time',
+      isPlaceholder: stats.loading || stats.totalDurationHours === 0
     }
   ];
 
+
   return (
-    <Box>
-      {/* Hero Section - Demo Focus */}
-      <Box py="xl" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' }}>
+    <Box style={{ margin: 0, padding: 0 }}>
+      {/* Hero Section with Key Stats */}
+      <Box 
+        py="lg" 
+        style={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white'
+        }}
+      >
         <Container size="xl" px="xl">
-          <Stack align="center" gap="xl" py="xl">
-            <Badge size="lg" variant="light" color="blue">
-              <IconBroadcast size={16} style={{ marginRight: 8 }} />
-              LIVE DEMO
-            </Badge>
-            <Title order={1} ta="center" maw={800} c="white">
-              Time Addressable Media Storage
+          <Stack align="center" gap="lg" py="lg">
+            <Title order={1} ta="center" maw={900} c="white" size="3rem">
+              TAMS Explorer
             </Title>
-            <Text size="lg" ta="center" maw={700} c="white" opacity={0.9}>
-              Experience the future of media storage. Access any moment in your media streams instantly - 
-              no more scrubbing through hours of content to find what you need.
+            <Text size="lg" ta="center" maw={700} c="white" opacity={0.95}>
+              Explore and navigate TAMS data with real-time insights into sources, flows, segments, and more
             </Text>
-            <Group justify="center" gap="md">
-              <Button 
-                size="lg" 
-                rightSection={<IconArrowRight size={20} />} 
-                color="blue"
-                onClick={() => navigate('/vast-tams-workflow')}
-              >
-                Start Walkthrough
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                color="white"
-                onClick={() => navigate('/sources')}
-              >
-                Explore Sources
-              </Button>
-            </Group>
+            
+            {stats.error ? (
+              <Alert icon={<IconInfoCircle size={16} />} color="yellow" title="Data Loading">
+                {stats.error}
+              </Alert>
+            ) : (
+              <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="md" mt="xl" style={{ width: '100%' }}>
+                {statCards.map((card, i) => {
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => navigate(card.link)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                      }}
+                      style={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        backdropFilter: 'blur(10px)',
+                        border: '2px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        minHeight: '160px',
+                        padding: '24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        zIndex: 1
+                      }}
+                    >
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        gap: '12px',
+                        width: '100%',
+                        height: '100%',
+                        position: 'relative',
+                        zIndex: 2
+                      }}>
+                        <div style={{ 
+                          color: '#ffffff', 
+                          fontSize: '32px', 
+                          lineHeight: 1,
+                          display: 'block',
+                          opacity: 1
+                        }}>
+                          {card.icon}
+                        </div>
+                        <div 
+                          style={{ 
+                            color: '#ffffff', 
+                            fontSize: '28px', 
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            lineHeight: 1.2,
+                            display: 'block',
+                            opacity: 1,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {card.formatted || '0'}
+                        </div>
+                        <div 
+                          style={{ 
+                            color: '#ffffff', 
+                            fontSize: '14px', 
+                            fontWeight: 500,
+                            textAlign: 'center',
+                            opacity: 1,
+                            display: 'block'
+                          }}
+                        >
+                          {card.title}
+                        </div>
+                        {card.isPlaceholder && (
+                          <Badge 
+                            size="xs" 
+                            variant="filled" 
+                            style={{ 
+                              backgroundColor: 'rgba(102, 126, 234, 0.9)',
+                              color: '#ffffff',
+                              marginTop: '4px',
+                              display: 'block'
+                            }}
+                          >
+                            Demo Data
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </SimpleGrid>
+            )}
           </Stack>
         </Container>
       </Box>
 
-
-
-      {/* Quick Actions - Demo Navigation */}
-      <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
+      {/* System Health & Status */}
+      {stats.health && (
+        <Box py="sm" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
         <Container size="xl" px="xl">
-          <Stack gap="xl">
-            <Box ta="center">
-              <Title order={2} mb="md">
-                Interactive Demo Areas
-              </Title>
-              <Text size="lg" c="dimmed">
-                Explore different aspects of TAMS functionality
+            <Group justify="space-between" align="center">
+              <Group gap="md">
+                <IconServer size={20} />
+                <Text size="sm" fw={500}>
+                  System Status: 
               </Text>
-            </Box>
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="xl">
-              {quickActions.map((action, i) => (
-                <Card key={i} withBorder p="xl" style={{ height: '100%' }}>
-                  <Stack gap="md" h="100%">
-                    <Group gap="md">
-                      <Box style={{ color: `var(--mantine-color-${action.color}-6)` }}>
-                        {action.icon}
-                      </Box>
-                      <Badge size="sm" variant="light" color={action.color}>
-                        {action.badge}
+                <Badge 
+                  color={stats.health.status === 'healthy' ? 'green' : 'yellow'} 
+                  variant="light"
+                >
+                  {stats.health.status?.toUpperCase() || 'UNKNOWN'}
+                </Badge>
+              </Group>
+              {stats.health.services && (
+                <Group gap="md">
+                  {Object.entries(stats.health.services).map(([service, status]: [string, any]) => (
+                    <Group key={service} gap="xs">
+                      <Text size="xs" c="dimmed">{service}:</Text>
+                      <Badge 
+                        size="sm"
+                        color={status === 'healthy' ? 'green' : 'red'} 
+                        variant="dot"
+                      >
+                        {status}
                       </Badge>
                     </Group>
-                    <Title order={4} style={{ flex: 1 }}>
-                      {action.title}
-                    </Title>
-                    <Text c="dimmed" size="sm" style={{ flex: 1 }} className="dark-text-secondary">
-                      {action.description}
+                  ))}
+                </Group>
+              )}
+            </Group>
+          </Container>
+        </Box>
+      )}
+
+      {/* Main Content Grid */}
+      <Container size="xl" px="xl" py="md">
+        <Grid>
+          {/* Left Column - Navigation & Quick Actions */}
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Stack gap="xl">
+              {/* Quick Navigation */}
+              <Card withBorder p="xl">
+                <Stack gap="md">
+                  <Title order={3}>Explore TAMS Data</Title>
+                  <Text c="dimmed">
+                    Navigate to different views to explore your TAMS data
+                  </Text>
+                  <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md" mt="md">
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconBroadcast size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/sources')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Sources</Text>
+                        <Text size="xs" c="dimmed">
+                          {stats.sources} active media sources
+                        </Text>
+                      </Stack>
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconVideo size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/flows')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Flows</Text>
+                        <Text size="xs" c="dimmed">
+                          {stats.flows} media processing flows
                     </Text>
+                      </Stack>
+                    </Button>
                     <Button 
                       variant="light" 
-                      size="sm" 
+                      size="lg"
+                      leftSection={<IconSearch size={20} />}
                       rightSection={<IconArrowRight size={16} />}
-                      onClick={() => navigate(action.link)}
-                      color={action.color}
+                      onClick={() => navigate('/search')}
+                      style={{ height: 'auto', padding: '1rem' }}
                     >
-                      Explore
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Search</Text>
+                        <Text size="xs" c="dimmed">
+                          Find content across all media
+                        </Text>
+                      </Stack>
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconChartBar size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/analytics')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Analytics</Text>
+                        <Text size="xs" c="dimmed">
+                          Performance metrics & insights
+                        </Text>
+                      </Stack>
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconContainer size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/objects')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Objects</Text>
+                        <Text size="xs" c="dimmed">
+                          Browse stored media objects
+                        </Text>
+                      </Stack>
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconShieldCheck size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/qc-statistics')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>QC Statistics</Text>
+                        <Text size="xs" c="dimmed">
+                          Quality control metrics
+                        </Text>
+                      </Stack>
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconWebhook size={20} />}
+                      rightSection={<IconArrowRight size={16} />}
+                      onClick={() => navigate('/webhooks')}
+                      style={{ height: 'auto', padding: '1rem' }}
+                    >
+                      <Stack gap={4} align="flex-start">
+                        <Text fw={600}>Webhooks</Text>
+                        <Text size="xs" c="dimmed">
+                          {displayStats.webhooks} event notifications
+                        </Text>
+                      </Stack>
+                    </Button>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
+
+              {/* Recent Activity */}
+              {stats.recentFlows.length > 0 && (
+                <Card withBorder p="xl">
+                  <Stack gap="md">
+                    <Title order={3}>Recent Flows</Title>
+                    <Text c="dimmed" size="sm">
+                      Latest media flows in the system
+            </Text>
+                    <Stack gap="sm" mt="md">
+                      {stats.recentFlows.slice(0, 5).map((flow: any, i: number) => {
+                        // Ensure we have an ID (normalized from _id if needed)
+                        const flowId = flow.id || flow._id;
+                        // Use index as key fallback if no ID available
+                        const key = flowId || `flow-${i}`;
+                        
+                        return (
+                          <Paper 
+                            key={key} 
+                            p="md" 
+                            withBorder 
+                            style={{ cursor: flowId ? 'pointer' : 'default' }}
+                            onClick={() => {
+                              if (flowId) {
+                                navigate(`/flow-details/${flowId}`);
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              if (flowId) {
+                                e.currentTarget.style.backgroundColor = 'var(--mantine-color-gray-0)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <Group justify="space-between">
+                              <Box style={{ flex: 1 }}>
+                                <Text fw={500}>{flow.label || flowId || 'Unnamed Flow'}</Text>
+                                <Text size="xs" c="dimmed">
+                                  {flow.format || 'Unknown format'}
+                                  {flow.source_id && ` • ${flow.source_id}`}
+                                </Text>
+                              </Box>
+                              {flowId && (
+                                <IconArrowRight size={16} style={{ color: 'var(--mantine-color-gray-6)' }} />
+                              )}
+                            </Group>
+                          </Paper>
+                        );
+                      })}
+                    </Stack>
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      rightSection={<IconArrowRight size={14} />}
+                      onClick={() => navigate('/flows')}
+                    >
+                      View All Flows
                     </Button>
                   </Stack>
                 </Card>
-              ))}
-            </SimpleGrid>
-          </Stack>
-        </Container>
-      </Box>
-
-      {/* Key Differentiators */}
-      <Container size="xl" px="xl" py="xl">
-        <Stack gap="xl">
-          <Box ta="center">
-            <Title order={2} mb="md">
-              Why TAMS is Revolutionary
-            </Title>
-            <Text size="lg" c="dimmed">
-              Traditional media storage vs. Time Addressable Media Storage
-            </Text>
-          </Box>
-          <Grid>
-            {demoHighlights.map((highlight, i) => (
-              <Grid.Col key={i} span={{ base: 12, sm: 6, lg: 3 }}>
-                <Card withBorder p="md">
-                  <Group gap="md">
-                    <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
-                      {highlight.icon}
-                    </Box>
-                    <Box style={{ flex: 1 }}>
-                      <Text fw={500} mb="xs">
-                        {highlight.title}
-                      </Text>
-                      <Text size="sm" c="dimmed">
-                        {highlight.description}
-                      </Text>
-                    </Box>
-                  </Group>
-                </Card>
+              )}
+            </Stack>
               </Grid.Col>
-            ))}
-          </Grid>
-        </Stack>
-      </Container>
 
-      {/* Live Demo Section */}
-      <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
-        <Container size="xl" px="xl">
+          {/* Right Column - Figma Diagram Preview & Info */}
+          <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack gap="xl">
-            <Box ta="center">
-              <Title order={2} mb="md">
-                Try It Now
-              </Title>
-              <Text size="lg" c="dimmed">
-                Experience the power of time-addressable media storage
-              </Text>
-            </Box>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
-              <Card withBorder p="xl">
+              {/* Figma Diagram Preview */}
+              <Card withBorder p="xl" style={{ backgroundColor: 'var(--mantine-color-blue-0)' }}>
                 <Stack gap="md">
-                  <Group gap="md">
-                    <IconTimeline size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
-                    <Box>
-                      <Title order={4}>Segment Timeline</Title>
-                      <Text size="sm" c="dimmed">Visual timeline navigation</Text>
-                    </Box>
+                  <Group>
+                    <IconTarget size={24} style={{ color: 'var(--mantine-color-blue-6)' }} />
+                    <Title order={3}>Architecture Diagram</Title>
                   </Group>
-                  <Text>
-                    Navigate through media segments with our interactive timeline. 
-                    Jump to any moment instantly without scrubbing through content.
+                  <Text size="sm" c="dimmed">
+                    Preview of the TAMS system architecture from Figma design
                   </Text>
+                  <Box
+                    style={{
+                      width: '100%',
+                      height: '300px',
+                      backgroundColor: 'white',
+                      border: '1px solid var(--mantine-color-gray-3)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <Stack align="center" gap="md">
+                      <IconExternalLink size={48} style={{ color: 'var(--mantine-color-gray-4)' }} />
+                      <Box>
+                        <Text size="sm" c="dimmed" ta="center">
+                          Figma diagram preview
+                        </Text>
+                        <Text size="xs" c="dimmed" ta="center" mt="xs">
+                          (Design diagram will be embedded here)
+                        </Text>
+                      </Box>
+                    </Stack>
+                  </Box>
                   <Button 
                     variant="light" 
-                    rightSection={<IconArrowRight size={16} />}
-                    onClick={() => navigate('/vast-tams-workflow')}
+                    size="sm"
+                    fullWidth
+                    rightSection={<IconExternalLink size={14} />}
+                    onClick={() => {
+                      // Open Figma link in new tab if available
+                      window.open('https://www.figma.com', '_blank');
+                    }}
                   >
-                    Try Timeline Demo
+                    View Full Diagram
                   </Button>
                 </Stack>
               </Card>
+
+              {/* Key Features */}
               <Card withBorder p="xl">
                 <Stack gap="md">
-                  <Group gap="md">
-                    <IconSearch size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
-                    <Box>
-                      <Title order={4}>Advanced Search</Title>
-                      <Text size="sm" c="dimmed">Find content instantly</Text>
+                  <Title order={3}>Key Capabilities</Title>
+                  <Stack gap="sm">
+                    {[
+                      { icon: <IconClock size={18} />, text: 'Time-addressable access to any moment' },
+                      { icon: <IconBolt size={18} />, text: 'Real-time processing & indexing' },
+                      { icon: <IconSearch size={18} />, text: 'Semantic search across media' },
+                      { icon: <IconDatabase size={18} />, text: 'Petabyte-scale storage' },
+                      { icon: <IconShield size={18} />, text: 'TAMS v6.0 compliant' }
+                    ].map((feature, i) => (
+                      <Group key={i} gap="sm">
+                        <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
+                          {feature.icon}
                     </Box>
+                        <Text size="sm" style={{ flex: 1 }}>
+                          {feature.text}
+                        </Text>
                   </Group>
-                  <Text>
-                    Search across all your media using advanced filters, metadata, 
-                    and semantic search capabilities.
-                  </Text>
-                  <Button 
-                    variant="light" 
-                    rightSection={<IconArrowRight size={16} />}
-                    onClick={() => navigate('/search')}
-                  >
-                    Try Search Demo
-                  </Button>
+                    ))}
+                  </Stack>
                 </Stack>
               </Card>
-            </SimpleGrid>
-          </Stack>
-        </Container>
-      </Box>
 
-      {/* VAST TAMS Features */}
-      <Container size="xl" px="xl" py="xl">
-        <Stack gap="xl">
-          <Box ta="center">
-            <Title order={2} mb="md">
-              TAMS Features
-            </Title>
-            <Text size="lg" c="dimmed">
-              Time-Addressable Media Store with advanced capabilities
-            </Text>
-          </Box>
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-green-6)' }}>
-                  <IconCheck size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    BBC TAMS v6.0 Compliance
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Full specification compliance with BBC TAMS API
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-blue-6)' }}>
-                  <IconTimeline size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    Time-Addressable Media
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Jump to any moment in your media with precise time ranges
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-purple-6)' }}>
-                  <IconTarget size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    Dual URL Support
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    GET and HEAD presigned URLs for flexible media access
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-red-6)' }}>
-                  <IconActivity size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    Real-time Webhooks
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Event-driven notifications for media operations
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-orange-6)' }}>
-                  <IconDatabase size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    Soft Delete & Restore
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Advanced deletion with recovery capabilities
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card p="md" withBorder>
-              <Group>
-                <Box style={{ color: 'var(--mantine-color-teal-6)' }}>
-                  <IconActivity size={20} />
-                </Box>
-                <div>
-                  <Text fw={600} mb="xs">
-                    Analytics & Monitoring
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Real-time usage analytics and performance metrics
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-          </SimpleGrid>
-        </Stack>
+              {/* System Info */}
+              <Card withBorder p="xl" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+                <Stack gap="sm">
+                  <Title order={4}>System Information</Title>
+                  <Divider />
+                  {stats.serviceInfo && (
+                    <>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Service:</Text>
+                        <Text size="sm" fw={500}>{stats.serviceInfo.name || 'TAMS API'}</Text>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Version:</Text>
+                        <Text size="sm" fw={500}>{stats.serviceInfo.version || 'v3.0'}</Text>
+                      </Group>
+                      {stats.serviceInfo.capabilities && (
+                        <Box>
+                          <Text size="sm" c="dimmed" mb="xs">Capabilities:</Text>
+                          <Group gap="xs">
+                            {Object.entries(stats.serviceInfo.capabilities).map(([key, value]: [string, any]) => {
+                              if (typeof value === 'boolean' && value) {
+                                return (
+                                  <Badge key={key} size="xs" variant="light" color="blue">
+                                    {key}
+                                  </Badge>
+                                );
+                              }
+                              return null;
+                            })}
+                          </Group>
+                        </Box>
+                      )}
+                    </>
+                  )}
+                  {!stats.serviceInfo && (
+                    <>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">API Version:</Text>
+                        <Text size="sm" fw={500}>TAMS v3.0</Text>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Compliance:</Text>
+                        <Badge size="sm" color="green">TAMS v6.0</Badge>
+                      </Group>
+                    </>
+                  )}
+                  {stats.storageBackends.length > 0 && (
+                    <Box>
+                      <Text size="sm" c="dimmed" mb="xs">Storage Backends:</Text>
+                      <Stack gap="xs">
+                        {stats.storageBackends.map((backend: any, i: number) => (
+                          <Group key={i} justify="space-between">
+                            <Text size="xs" c="dimmed">{backend.id}:</Text>
+                            <Badge size="xs" variant="light" color="purple">
+                              {backend.type}
+                            </Badge>
+                          </Group>
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Stack>
+              </Card>
+          </Stack>
+          </Grid.Col>
+        </Grid>
       </Container>
-
-      {/* Technology Demo */}
-      <Box py="xl" style={{ background: 'var(--mantine-color-gray-0)' }}>
-        <Container size="xl" px="xl">
-          <Stack gap="xl">
-            <Box ta="center">
-              <Title order={2} mb="md">
-                Powered by VAST Data Platform
-              </Title>
-              <Text size="lg" c="dimmed">
-                Built on the world's fastest data platform for unlimited scale and performance
-              </Text>
-            </Box>
-            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
-              <Card withBorder p="md" ta="center">
-                <IconBolt size={32} style={{ color: 'var(--mantine-color-green-6)' }} />
-                <Text fw={500} mt="sm">Sub-Second Access</Text>
-                <Text size="sm" c="dimmed">Any moment, instantly</Text>
-              </Card>
-              <Card withBorder p="md" ta="center">
-                <IconDatabase size={32} style={{ color: 'var(--mantine-color-blue-6)' }} />
-                <Text fw={500} mt="sm">Petabyte Scale</Text>
-                <Text size="sm" c="dimmed">Unlimited storage</Text>
-              </Card>
-              <Card withBorder p="md" ta="center">
-                <IconActivity size={32} style={{ color: 'var(--mantine-color-orange-6)' }} />
-                <Text fw={500} mt="sm">Real-Time Processing</Text>
-                <Text size="sm" c="dimmed">Live stream indexing</Text>
-              </Card>
-              <Card withBorder p="md" ta="center">
-                <IconShield size={32} style={{ color: 'var(--mantine-color-purple-6)' }} />
-                <Text fw={500} mt="sm">Enterprise Ready</Text>
-                <Text size="sm" c="dimmed">Production hardened</Text>
-              </Card>
-            </SimpleGrid>
-          </Stack>
-        </Container>
-      </Box>
-
-      {/* Call to Action */}
-      <Container size="xl" px="xl" py="xl">
-        <Card p="xl" withBorder style={{ backgroundColor: 'var(--mantine-color-blue-0)' }}>
-          <Stack align="center" ta="center">
-            <Title order={3} c="blue">
-              Ready to Explore TAMS?
-            </Title>
-            <Text size="lg" c="dimmed" maw={600}>
-              Start with our interactive workflow demo to see all TAMS features in action
-            </Text>
-            <Group>
-              <Button
-                size="lg"
-                rightSection={<IconArrowRight size={16} />}
-                onClick={() => navigate('/vast-tams-workflow')}
-              >
-                Start Workflow Demo
-              </Button>
-              <Button
-                size="lg"
-                variant="light"
-                onClick={() => navigate('/sources')}
-              >
-                Explore Sources
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      </Container>
-
     </Box>
   );
 } 

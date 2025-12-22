@@ -27,10 +27,12 @@ export interface ICoreTamsOperations {
   updateFlow(id: string, flow: any): Promise<any>;
   deleteFlow(id: string, options?: any): Promise<any>;
   restoreFlow(id: string): Promise<any>;
+  cleanupFlow(id: string, hours?: number): Promise<any>;
 
   // Segments API
   getFlowSegments(flowId: string, options?: BBCApiOptions): Promise<BBCApiResponse<any>>;
   createFlowSegment(flowId: string, segment: any, file?: File): Promise<any>;
+  updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any>;
   deleteFlowSegments(flowId: string, options?: any): Promise<any>;
 
   // Objects API

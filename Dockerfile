@@ -27,9 +27,17 @@ RUN npm run build
 # This stage serves the built static files using nginx
 FROM nginx:alpine AS production
 
-# Copy custom nginx configuration
-# This replaces the default nginx config with our optimized one
-COPY nginx.conf /etc/nginx/nginx.conf
+# Install gettext for envsubst (used for environment variable substitution)
+# Install netcat-openbsd for health checks
+RUN apk add --no-cache gettext netcat-openbsd
+
+# Copy nginx configuration template
+# This will be processed by the entrypoint script to substitute environment variables
+COPY nginx.conf /etc/nginx/nginx.conf.template
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Copy built files from builder stage to nginx's serve directory
 # The dist/ folder contains our compiled React app
@@ -39,6 +47,5 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # This tells Docker which port the container will listen on
 EXPOSE 80
 
-# Start nginx
-# This runs nginx in the foreground so Docker can manage the process
-CMD ["nginx", "-g", "daemon off;"] 
+# Use entrypoint script to handle environment variable substitution
+ENTRYPOINT ["/docker-entrypoint.sh"] 

@@ -358,7 +358,7 @@ export default function ContentDiscovery({
           <Box>
             <Title order={2}>AI-Powered Content Discovery</Title>
             <Text size="lg" c="dimmed">
-              Find exactly what you're looking for with BBC TAMS v6.0 advanced search and AI content recognition
+              Find exactly what you're looking for with TAMS v6.0 advanced search and AI content recognition
             </Text>
           </Box>
           
@@ -380,10 +380,10 @@ export default function ContentDiscovery({
           </Group>
         </Group>
 
-        {/* BBC TAMS Search Hierarchy Info */}
-        <Alert icon={<IconInfoCircle size={16} />} title="BBC TAMS Search Strategy" color="blue">
+        {/* TAMS Search Hierarchy Info */}
+        <Alert icon={<IconInfoCircle size={16} />} title="TAMS Search Strategy" color="blue">
           <Text size="sm" mb="xs">
-            <strong>Understanding BBC TAMS Content Hierarchy:</strong>
+            <strong>Understanding TAMS Content Hierarchy:</strong>
           </Text>
           <Text size="sm" mb="xs">
             • <strong>Sources</strong> 📁 - Original media files (raw camera footage, uploaded videos)<br/>
@@ -399,7 +399,7 @@ export default function ContentDiscovery({
             • <strong>Finally search Segments</strong> - For precise moments within specific flows
           </Text>
           <Text size="sm" c="dimmed">
-            This approach follows BBC TAMS v6.0 best practices and ensures comprehensive content discovery.
+            This approach follows TAMS v6.0 best practices and ensures comprehensive content discovery.
           </Text>
           
           <Text size="sm" mt="xs">
