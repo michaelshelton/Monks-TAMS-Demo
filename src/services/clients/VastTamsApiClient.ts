@@ -279,7 +279,7 @@ export class VastTamsApiClient implements IApiClient {
     });
     
     if (!response.ok) {
-      throw new Error(`VAST TAMS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText}`);
     }
     
     return await response.json();

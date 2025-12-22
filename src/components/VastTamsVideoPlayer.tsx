@@ -92,7 +92,7 @@ export default function VastTamsVideoPlayer({
   // Validate segment data
   useEffect(() => {
     if (!validateVastTamsSegment(segment)) {
-      const errorMsg = 'Invalid VAST TAMS segment data';
+      const errorMsg = 'Invalid TAMS segment data';
       setError(errorMsg);
       onError?.(errorMsg);
       return;
@@ -125,7 +125,7 @@ export default function VastTamsVideoPlayer({
     };
 
     const handleError = () => {
-      const errorMsg = 'Failed to load video from VAST TAMS';
+      const errorMsg = 'Failed to load video from TAMS';
       setError(errorMsg);
       setIsLoading(false);
       onError?.(errorMsg);
@@ -263,7 +263,7 @@ export default function VastTamsVideoPlayer({
       <Card withBorder p="md">
         <Stack gap="md">
           <Group justify="space-between">
-            <Title order={4}>VAST TAMS Video Player</Title>
+            <Title order={4}>TAMS Video Player</Title>
             {onClose && (
               <Button variant="subtle" onClick={onClose}>
                 Close
@@ -299,7 +299,7 @@ export default function VastTamsVideoPlayer({
         <Group justify="space-between">
           <Box>
             <Title order={4}>
-              {title || `VAST TAMS Segment ${segment.id}`}
+              {title || `TAMS Segment ${segment.id}`}
             </Title>
             {description && (
               <Text size="sm" c="dimmed">{description}</Text>
@@ -408,7 +408,7 @@ export default function VastTamsVideoPlayer({
             >
               <Stack align="center" gap="sm">
                 <Progress size="sm" style={{ width: '200px' }} value={0} />
-                <Text color="white" size="sm">Loading VAST TAMS video...</Text>
+                <Text color="white" size="sm">Loading TAMS video...</Text>
               </Stack>
             </Box>
           )}
@@ -516,7 +516,7 @@ export default function VastTamsVideoPlayer({
           </Group>
           
           <Text size="xs" c="dimmed">
-            VAST TAMS v6.0 • {segment.id}
+            TAMS v6.0 • {segment.id}
           </Text>
         </Group>
       </Stack>

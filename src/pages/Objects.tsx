@@ -197,7 +197,7 @@ export default function Objects() {
         </Group>
 
         {/* Info Box */}
-        <Collapse in={showInfoBox}>
+        {showInfoBox && (
           <Alert
             icon={<IconInfoCircle size={16} />}
             title="About Objects"
@@ -210,11 +210,8 @@ export default function Objects() {
               <strong>Objects</strong> represent stored media files in the TAMS system (stored in MinIO/S3). Each object can be referenced by multiple flows through segments.
               Objects show which flows are using them, helping you understand storage relationships and dependencies.
             </Text>
-            <Text size="sm" mt="xs" c="dimmed">
-              <strong>Note:</strong> The <code>/objects</code> endpoint is not yet implemented in the backend API. Objects are created when segments are uploaded to flows, but there is currently no dedicated endpoint to list all objects. This page will display objects once the backend implements the endpoint.
-            </Text>
           </Alert>
-        </Collapse>
+        )}
 
         {/* Stats Cards */}
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
@@ -246,8 +243,17 @@ export default function Objects() {
 
         {/* Error State */}
         {error && (
-          <Alert icon={<IconInfoCircle size={16} />} color="red" title="Error">
+          <Alert icon={<IconInfoCircle size={16} />} color="red" title="Error" withCloseButton onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+        
+        {/* Endpoint Not Available Info */}
+        {!loading && !error && (
+          <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+            <Text size="sm">
+              The <code>/objects</code> endpoint is not yet implemented in the backend API. Objects are created when segments are uploaded to flows, but there is currently no dedicated endpoint to list all objects.
+            </Text>
           </Alert>
         )}
 

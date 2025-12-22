@@ -26,7 +26,8 @@ import {
   Image,
   Table,
   SimpleGrid,
-  ScrollArea
+  ScrollArea,
+  Pagination
 } from '@mantine/core';
 import { 
   IconSearch, 
@@ -61,7 +62,6 @@ import {
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { BBCApiOptions } from '../services/api';
 import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
-import BBCPagination from '../components/BBCPagination';
 import VideoPlayer from '../components/VideoPlayer';
 import VastTamsVideoPlayer from '../components/VastTamsVideoPlayer';
 import HLSVideoPlayer from '../components/HLSVideoPlayer';
@@ -104,13 +104,12 @@ export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
-  const [searchType, setSearchType] = useState<'sources' | 'flows' | 'segments'>(
-    (searchParams.get('searchType') as 'sources' | 'flows' | 'segments') || 'segments'
-  );
+  // Search only works for segments (via marker descriptions)
+  const [searchType] = useState<'sources' | 'flows' | 'segments'>('segments');
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [activePage, setActivePage] = useState(1);
+  const itemsPerPage = 10;
   const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set());
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [totalResults, setTotalResults] = useState(0);
@@ -158,7 +157,7 @@ export default function Search() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('query', searchQuery);
-    if (searchType) params.set('searchType', searchType);
+    // searchType is always 'segments' now, so we don't need to store it in URL
     if (filters.label) params.set('label', filters.label);
     if (filters.format) params.set('format', filters.format);
     if (filters.source_id) params.set('source_id', filters.source_id);
@@ -186,7 +185,7 @@ export default function Search() {
     if (filters.limit !== 50) params.set('limit', filters.limit.toString());
     
     setSearchParams(params, { replace: true });
-  }, [searchQuery, searchType, filters, setSearchParams]);
+  }, [searchQuery, filters, setSearchParams]);
 
   // Handle search submission
   const handleSearch = async () => {
@@ -195,25 +194,19 @@ export default function Search() {
     setShowResults(true);
     setLoading(true);
     setError(null);
+    setActivePage(1); // Reset to first page on new search
     
     try {
-      // Build search query based on VAST TAMS API
+      // Build search query - only segments are searchable via the /search endpoint
       const searchQueryData: SearchQuery = {
         query: searchQuery,
-        searchMode: searchType === 'sources' ? 'basic' : 'flow',
+        searchMode: 'basic',
         aiSearchEnabled: false,
         aiConfidence: 0.7,
-        // playerNumber: '', // Not used in simplified version
-        // playerName: '', // Not used in simplified version
-        // team: '', // Not used in simplified version
-        // eventType: filters.format, // Not supported in SearchQuery interface
-        timerange: filters.timerange,
-        format: filters.format,
-        codec: filters.codec,
         searchStrategy: {
-          sources: searchType === 'sources',
-          flows: searchType === 'flows',
-          segments: searchType === 'segments',
+          sources: false, // Not supported by search endpoint
+          flows: false,    // Not supported by search endpoint
+          segments: true,  // Only segments are searchable
           searchOrder: 'bbc-tams',
           deduplication: true,
           relationshipMapping: true
@@ -229,7 +222,7 @@ export default function Search() {
       }
 
       console.log('🔍 Search Component: About to call performSearch with:', searchQueryData);
-      const searchResponse = await performSearch(searchQueryData, currentPage, itemsPerPage);
+      const searchResponse = await performSearch(searchQueryData, activePage, itemsPerPage);
       
       console.log('🔍 Search Component: Received search response:', searchResponse);
       
@@ -258,27 +251,6 @@ export default function Search() {
     setSelectedResults(newSelected);
   };
 
-  // Handle page change
-  const handlePageChange = (cursor: string) => {
-    const pageNum = parseInt(cursor) || 1;
-    setCurrentPage(pageNum);
-    
-    // Re-run search with new page
-    if (showResults && isSearchReady) {
-      handleSearch();
-    }
-  };
-
-  // Handle limit change
-  const handleLimitChange = (limit: number) => {
-    setItemsPerPage(limit);
-    setCurrentPage(1);
-    
-    // Re-run search with new limit
-    if (showResults && isSearchReady) {
-      handleSearch();
-    }
-  };
 
   // Preview video with video player
   const handlePreview = (result: SearchResult) => {
@@ -294,15 +266,19 @@ export default function Search() {
   const handlePlaySegment = (result: SearchResult) => {
     console.log('Playing segment:', result);
     
-    // Check if segment has presigned URLs from VAST TAMS
-    if (!result.get_urls || result.get_urls.length === 0) {
-      setError('No playback URLs available for this segment');
-      return;
-    }
-    
     // Load segment into inline video player
     setSelectedSegment(result);
     setShowInlineVideoPlayer(true);
+    
+    // Clear any previous video player errors
+    setInlineVideoError(null);
+    
+    // Check if segment has presigned URLs from TAMS
+    if (!result.get_urls || result.get_urls.length === 0) {
+      setInlineVideoError('No playback URLs available for this segment');
+      setInlineVideoUrl(null);
+      return;
+    }
     
     // Get the first available URL for playback
     const playbackUrl = result.get_urls.find(url => url.label?.includes('GET'))?.url || result.get_urls[0]?.url;
@@ -311,6 +287,7 @@ export default function Search() {
       setInlineVideoError(null);
     } else {
       setInlineVideoError('No valid playback URL found for this segment');
+      setInlineVideoUrl(null);
     }
     
     // Reset CMCD tracking for new segment
@@ -369,7 +346,7 @@ export default function Search() {
         <Card mt="md" withBorder>
           <Group justify="space-between" mb="sm">
             <Title order={6}>CMCD Data (Common Media Client Data)</Title>
-            <Badge color="blue">VAST TAMS Compliant</Badge>
+            <Badge color="blue">TAMS Compliant</Badge>
           </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Box>
@@ -446,29 +423,14 @@ export default function Search() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get filtered results for current page
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  // Client-side pagination for search results
+  const totalPages = Math.ceil(searchResults.length / itemsPerPage);
+  const startIndex = (activePage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedResults = searchResults.slice(startIndex, endIndex);
 
-  // Mock pagination metadata for BBC TAMS (will be replaced with real data)
-  const mockPaginationMeta = {
-    limit: itemsPerPage,
-    count: totalResults,
-    timerange: '0:0_90:0', // 90 minutes
-    reverseOrder: false
-  };
-
-  // Check if search is ready
-  const isSearchReady = searchQuery.trim().length > 0 || 
-                       filters.label.trim().length > 0 || 
-                       filters.format.trim().length > 0 ||
-                       filters.source_id.trim().length > 0 ||
-                       filters.timerange.trim().length > 0 ||
-                       filters.codec.trim().length > 0 ||
-                       filters.tagName.trim().length > 0 ||
-                       filters.tagValue.trim().length > 0 ||
-                       Object.keys(filters.tags).length > 0;
+  // Check if search is ready - for segment search, we need a query string
+  const isSearchReady = searchQuery.trim().length > 0;
 
   return (
     <Container size="xl" px="xl" py="xl">
@@ -476,9 +438,9 @@ export default function Search() {
         {/* Title and Header */}
         <Group justify="space-between" mb="lg">
           <Box>
-            <Title order={2} className="dark-text-primary">TAMS Explorer</Title>
+            <Title order={2} className="dark-text-primary">Search</Title>
             <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
-              Search and discover media segments across your TAMS library - the core content units
+              Find and explore media segments across your TAMS library
             </Text>
           </Box>
           <Group>
@@ -512,86 +474,22 @@ export default function Search() {
           </Alert>
         )}
 
-        {/* VAST TAMS Info - Toggleable */}
-        {!error && (
-          <Alert 
-            icon={<IconInfoCircle size={16} />} 
-            color="blue" 
-            title={
-              <Group justify="space-between" w="100%">
-                <Text>What is Segment Search in TAMS?</Text>
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  onClick={() => setShowInfoBox(!showInfoBox)}
-                  rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
-                >
-                  {showInfoBox ? 'Hide' : 'Show'} Info
-                </Button>
-              </Group>
-            }
-            mb="md"
-          >
-            <Collapse in={showInfoBox}>
-              <Stack gap="xs">
-                <Text size="sm">
-                  <strong>Segment Search</strong> is the core discovery engine in TAMS - it allows you to find and explore 
-                  individual media segments, which are the fundamental content units containing actual playable media.
-                </Text>
-                <Text size="sm">
-                  Segments represent specific time ranges of media content with detailed metadata, technical specifications, 
-                  and tags. You can search by category, content type, format, time ranges, and technical specs to find 
-                  exactly the content you need for playback, analysis, or further processing.
-                </Text>
-                <Text size="sm">
-                  <strong>Demo Focus:</strong> Segments are the star of TAMS - they contain the actual media content 
-                  that users interact with and play back.
-                </Text>
-              </Stack>
-            </Collapse>
-          </Alert>
-        )}
 
-        {/* Search Type Selection */}
-        <Card withBorder p="lg" radius="lg" shadow="sm" className="search-interface">
-          <Stack gap="md">
-            <Box>
-              <Title order={4} mb="xs" className="dark-text-primary">Search Type</Title>
-              <Text size="sm" className="dark-text-secondary">Choose what type of content to search</Text>
-            </Box>
-            
-            <Tabs value={searchType} onChange={(value) => setSearchType(value as 'sources' | 'flows' | 'segments')}>
-              <Tabs.List>
-                <Tabs.Tab value="sources" leftSection={<IconDatabase size={16} />}>
-                  Sources
-                </Tabs.Tab>
-                <Tabs.Tab value="flows" leftSection={<IconVideo size={16} />}>
-                  Flows
-                </Tabs.Tab>
-                <Tabs.Tab value="segments" leftSection={<IconTarget size={16} />}>
-                  Segments
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
-          </Stack>
-        </Card>
 
         {/* Main Search Interface */}
         <Card withBorder p="xl" radius="lg" shadow="sm" className="search-interface">
           <Stack gap="lg">
             <Box ta="center">
-              <Title order={3} mb="xs" className="dark-text-primary">Search {searchType.charAt(0).toUpperCase() + searchType.slice(1)}</Title>
+              <Title order={3} mb="xs" className="dark-text-primary">Search Segments</Title>
               <Text className="dark-text-secondary">
-                {searchType === 'sources' && 'Search for media sources by label and format'}
-                {searchType === 'flows' && 'Search for media flows with time range and format filtering'}
-                {searchType === 'segments' && 'Search for media segments within specific time ranges'}
+                Find segments by searching marker descriptions and metadata
               </Text>
             </Box>
 
             {/* Search Input */}
             <TextInput
               size="lg"
-              placeholder={`Search ${searchType}...`}
+              placeholder="Search for segments (e.g., 'camera', 'sports', 'conference')..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftSection={<IconSearch size={20} />}
@@ -601,7 +499,7 @@ export default function Search() {
                   variant="filled"
                   size="sm"
                   onClick={handleSearch}
-                  disabled={!isSearchReady || loading}
+                  disabled={!searchQuery.trim() || loading}
                   loading={loading}
                   rightSection={<IconArrowRight size={16} />}
                   className="dark-button primary"
@@ -611,232 +509,19 @@ export default function Search() {
               }
             />
 
-            {/* Search Filters */}
-            <Grid gutter="md">
-              {/* Common filters */}
-              <Grid.Col span={4}>
-                <TextInput
-                  label="Label"
-                  placeholder="Filter by label"
-                  value={filters.label}
-                  onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
-                  leftSection={<IconTag size={16} />}
-                />
-              </Grid.Col>
-              
-              <Grid.Col span={4}>
-                <Select
-                  label="Format"
-                  placeholder="Select format"
-                  data={[
-                    { value: 'urn:x-nmos:format:video', label: 'Video' },
-                    { value: 'urn:x-nmos:format:audio', label: 'Audio' },
-                    { value: 'urn:x-nmos:format:data', label: 'Data' },
-                    { value: 'urn:x-nmos:format:mux', label: 'Mux' }
-                  ]}
-                  value={filters.format || null}
-                  onChange={(value) => setFilters(prev => ({ ...prev, format: value || '' }))}
-                  leftSection={<IconFilter size={16} />}
-                  clearable
-                />
-              </Grid.Col>
 
-              {/* Flow-specific filters */}
-              {searchType === 'flows' && (
-                <>
-                  <Grid.Col span={4}>
-                    <TextInput
-                      label="Source ID"
-                      placeholder="Enter source ID"
-                      value={filters.source_id}
-                      onChange={(e) => setFilters(prev => ({ ...prev, source_id: e.target.value }))}
-                      leftSection={<IconDatabase size={16} />}
-                    />
-                  </Grid.Col>
-                  
-                  <Grid.Col span={4}>
-                    <TextInput
-                      label="Time Range"
-                      placeholder="e.g., [0:0_10:0)"
-                      value={filters.timerange}
-                      onChange={(e) => setFilters(prev => ({ ...prev, timerange: e.target.value }))}
-                      leftSection={<IconClock size={16} />}
-                    />
-                  </Grid.Col>
-                  
-                  <Grid.Col span={4}>
-                    <Select
-                      label="Codec"
-                      placeholder="Select codec"
-                      data={[
-                        { value: 'urn:x-nmos:codec:h264', label: 'H.264' },
-                        { value: 'urn:x-nmos:codec:prores', label: 'ProRes' },
-                        { value: 'urn:x-nmos:codec:dnxhd', label: 'DNxHD' },
-                        { value: 'urn:x-nmos:codec:mjpeg', label: 'MJPEG' }
-                      ]}
-                      value={filters.codec || null}
-                      onChange={(value) => setFilters(prev => ({ ...prev, codec: value || '' }))}
-                      leftSection={<IconVideo size={16} />}
-                      clearable
-                    />
-                  </Grid.Col>
-                  
-                  <Grid.Col span={3}>
-                    <TextInput
-                      label="Frame Width"
-                      placeholder="e.g., 1920"
-                      type="number"
-                      value={filters.frame_width || ''}
-                      onChange={(e) => setFilters(prev => ({ ...prev, frame_width: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      leftSection={<IconVideo size={16} />}
-                    />
-                  </Grid.Col>
-                  
-                  <Grid.Col span={3}>
-                    <TextInput
-                      label="Frame Height"
-                      placeholder="e.g., 1080"
-                      type="number"
-                      value={filters.frame_height || ''}
-                      onChange={(e) => setFilters(prev => ({ ...prev, frame_height: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      leftSection={<IconVideo size={16} />}
-                    />
-                  </Grid.Col>
-                </>
-              )}
-
-              {/* Segment-specific filters */}
-              {searchType === 'segments' && (
-                <Grid.Col span={4}>
-                  <TextInput
-                    label="Time Range"
-                    placeholder="e.g., [0:0_10:0)"
-                    value={filters.timerange}
-                    onChange={(e) => setFilters(prev => ({ ...prev, timerange: e.target.value }))}
-                    leftSection={<IconClock size={16} />}
-                  />
-                </Grid.Col>
-              )}
-            </Grid>
-
-            {/* Tag Filters */}
-            <Box>
-              <Text fw={500} mb="xs" className="dark-text-primary">Tag Filters</Text>
-              <Text size="sm" mb="sm" className="dark-text-secondary">
-                Add custom tags to filter results (e.g., category, organization, etc.)
-              </Text>
-              <Grid gutter="md">
-                <Grid.Col span={6}>
-                  <TextInput
-                    label="Tag Name"
-                    placeholder="e.g., category"
-                    value={filters.tagName || ''}
-                    onChange={(e) => setFilters(prev => ({ ...prev, tagName: e.target.value }))}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <TextInput
-                    label="Tag Value"
-                    placeholder="e.g., sports"
-                    value={filters.tagValue || ''}
-                    onChange={(e) => setFilters(prev => ({ ...prev, tagValue: e.target.value }))}
-                  />
-                </Grid.Col>
-              </Grid>
-              {(filters.tagName || filters.tagValue) && (
-                <Group gap="xs" mt="sm">
-                  <Badge variant="light" color="blue" size="sm">
-                    {filters.tagName}: {filters.tagValue}
-                  </Badge>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="red"
-                    onClick={() => setFilters(prev => ({ ...prev, tagName: '', tagValue: '' }))}
-                  >
-                    Clear
-                  </Button>
-                </Group>
-              )}
-            </Box>
 
             {/* Quick Search Examples */}
             <Box>
               <Text fw={500} mb="xs" className="dark-text-primary">Quick Search Examples</Text>
               <Group gap="xs">
-                {searchType === 'sources' && (
-                  <>
+                <>
                     <Button
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:video' }));
-                        setSearchQuery('camera');
-                      }}
-                      className="dark-button"
-                    >
-                      Video Sources
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, label: 'camera' }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      Camera Sources
-                    </Button>
-                  </>
-                )}
-                {searchType === 'flows' && (
-                  <>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          format: 'urn:x-nmos:format:video',
-                          codec: 'urn:x-nmos:codec:h264'
-                        }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      H.264 Video Flows
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          timerange: '[0:0_60:0)',
-                          format: 'urn:x-nmos:format:video'
-                        }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      First Hour Video
-                    </Button>
-                  </>
-                )}
-                {searchType === 'segments' && (
-                  <>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, category: 'sports' },
-                          tagName: 'category',
-                          tagValue: 'sports'
-                        }));
-                        setSearchQuery('');
+                        setSearchQuery('sports');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
@@ -846,13 +531,8 @@ export default function Search() {
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, category: 'news' },
-                          tagName: 'category',
-                          tagValue: 'news'
-                        }));
-                        setSearchQuery('');
+                        setSearchQuery('news');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
@@ -862,13 +542,8 @@ export default function Search() {
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, category: 'technology' },
-                          tagName: 'category',
-                          tagValue: 'technology'
-                        }));
-                        setSearchQuery('');
+                        setSearchQuery('technology');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
@@ -878,13 +553,8 @@ export default function Search() {
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, content_type: 'conference' },
-                          tagName: 'content_type',
-                          tagValue: 'conference'
-                        }));
-                        setSearchQuery('');
+                        setSearchQuery('conference');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
@@ -894,86 +564,25 @@ export default function Search() {
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, content_type: 'podcast' },
-                          tagName: 'content_type',
-                          tagValue: 'podcast'
-                        }));
-                        setSearchQuery('');
+                        setSearchQuery('camera');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
-                      🎧 Podcast
+                      📹 Camera
                     </Button>
                     <Button
                       variant="light"
                       size="sm"
                       onClick={() => {
-                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:video' }));
-                        setSearchQuery('');
+                        setSearchQuery('presentation');
+                        setFilters(prev => ({ ...prev }));
                       }}
                       className="dark-button"
                     >
-                      📹 Video Only
+                      📊 Presentation
                     </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, format: 'urn:x-nmos:format:audio' }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      🎵 Audio Only
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          tags: { ...prev.tags, year: '2024' },
-                          tagName: 'year',
-                          tagValue: '2024'
-                        }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      📅 2024 Content
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          timerange: '[0:0_10:0)'
-                        }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      First 10 Minutes
-                    </Button>
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => {
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          timerange: '[30:0_60:0)'
-                        }));
-                        setSearchQuery('');
-                      }}
-                      className="dark-button"
-                    >
-                      30-60 Minutes
-                    </Button>
-                  </>
-                )}
+                </>
               </Group>
             </Box>
           </Stack>
@@ -990,12 +599,12 @@ export default function Search() {
               <Box>
                 <Title order={3} mb="xs" className="dark-text-primary">Search Results</Title>
                 <Text className="dark-text-secondary" size="sm">
-                  Found {totalResults} {searchType}
+                  Found {searchResults.length} segment{searchResults.length !== 1 ? 's' : ''}
                   {searchQuery && ` for "${searchQuery}"`}
                   {searchTime > 0 && ` in ${searchTime}ms`}
                 </Text>
                 <Badge variant="light" color="blue" size="sm" mt="xs">
-                  {searchType.toUpperCase()}
+                  SEGMENTS
                 </Badge>
               </Box>
 
@@ -1017,7 +626,7 @@ export default function Search() {
               {/* Loading State */}
               {loading && (
                 <Box ta="center" py="xl">
-                  <Text>Searching VAST TAMS API...</Text>
+                  <Text>Searching TAMS API...</Text>
                 </Box>
               )}
 
@@ -1025,7 +634,7 @@ export default function Search() {
               {!loading && !error && (
                 <Group justify="space-between" align="center">
                   <Text size="sm" c="dimmed">
-                    Showing {startIndex + 1}-{Math.min(endIndex, totalResults)} of {totalResults} results
+                    Showing {startIndex + 1}-{Math.min(endIndex, searchResults.length)} of {searchResults.length} results
                   </Text>
                   
                   {selectedResults.size > 0 && (
@@ -1185,17 +794,24 @@ export default function Search() {
               )}
 
               {/* Pagination */}
-              {!loading && !error && totalResults > 0 && (
-                <Card withBorder p="md">
-                  <BBCPagination
-                    paginationMeta={mockPaginationMeta}
-                    onPageChange={handlePageChange}
-                    onLimitChange={handleLimitChange}
-                    showBBCMetadata={true}
-                    showLimitSelector={true}
-                    showNavigationButtons={true}
+              {!loading && !error && searchResults.length > itemsPerPage && (
+                <Group justify="center" mt="lg">
+                  <Pagination
+                    value={activePage}
+                    onChange={setActivePage}
+                    total={totalPages}
+                    size="sm"
                   />
-                </Card>
+                </Group>
+              )}
+              
+              {/* Results count */}
+              {!loading && !error && searchResults.length > 0 && (
+                <Group justify="center" mt="md">
+                  <Text size="sm" c="dimmed">
+                    Showing {startIndex + 1}-{Math.min(endIndex, searchResults.length)} of {searchResults.length} results
+                  </Text>
+                </Group>
               )}
             </Stack>
           </Card>
@@ -1242,13 +858,27 @@ export default function Search() {
                           position: 'relative'
                         }}
                       >
-                        {showInlineVideoPlayer && inlineVideoUrl ? (
+                        {inlineVideoError ? (
+                          <Stack gap="md" p="md">
+                            <Alert 
+                              color="red" 
+                              icon={<IconAlertCircle size={16} />}
+                              title="Playback Error"
+                              withCloseButton
+                              onClose={() => {
+                                setInlineVideoError(null);
+                                setSelectedSegment(null);
+                                setShowInlineVideoPlayer(false);
+                              }}
+                            >
+                              {inlineVideoError}
+                            </Alert>
+                            <Text size="sm" c="dimmed" ta="center">
+                              Select another segment to try again
+                            </Text>
+                          </Stack>
+                        ) : showInlineVideoPlayer && inlineVideoUrl ? (
                           <Stack gap="md">
-                            {inlineVideoError && (
-                              <Alert color="red" icon={<IconAlertCircle size={16} />}>
-                                {inlineVideoError}
-                              </Alert>
-                            )}
                             <Box 
                               style={{ 
                                 position: 'relative',

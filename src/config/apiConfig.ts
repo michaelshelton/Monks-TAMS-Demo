@@ -76,8 +76,8 @@ export interface BackendApiConfig {
 export const BACKEND_APIS: Record<string, BackendApiConfig> = {
   'vast-tams': {
     id: 'vast-tams',
-    name: 'VAST TAMS',
-    description: 'Full-featured VAST TAMS backend with all advanced features',
+    name: 'TAMS',
+    description: 'Full-featured TAMS backend with all advanced features',
     baseUrl: getBackendUrl('vast-tams', import.meta.env.VITE_BACKEND_VAST_TAMS_URL || 'http://localhost:3000'),
     type: 'vast-tams',
     version: '6.0',
@@ -217,8 +217,28 @@ export function getBackendConfig(id: string): BackendApiConfig | null {
  */
 export function getCurrentBackendConfig(): BackendApiConfig {
   const storedBackend = localStorage.getItem('selectedBackend');
-  const backendId = storedBackend || DEFAULT_BACKEND;
-  const config = getBackendConfig(backendId);
+  let backendId = storedBackend || DEFAULT_BACKEND;
+  
+  // Migration: Map old "tams" value to "vast-tams"
+  if (backendId === 'tams') {
+    console.warn('Migrating old backend ID "tams" to "vast-tams"');
+    backendId = 'vast-tams';
+    localStorage.setItem('selectedBackend', 'vast-tams');
+  }
+  
+  // Validate that the stored backend exists, fall back to default if not
+  let config = getBackendConfig(backendId);
+  if (!config) {
+    // If stored backend is invalid, clear it and use default
+    if (storedBackend) {
+      console.warn(`Invalid backend ID in localStorage: "${storedBackend}". Falling back to default: "${DEFAULT_BACKEND}"`);
+      localStorage.removeItem('selectedBackend');
+    }
+    backendId = DEFAULT_BACKEND;
+    config = getBackendConfig(backendId);
+  }
+  
+  // Final fallback - ensure we always return a valid config
   if (!config) {
     const defaultConfig = BACKEND_APIS[DEFAULT_BACKEND];
     if (!defaultConfig) {

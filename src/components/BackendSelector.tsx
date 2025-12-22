@@ -251,7 +251,7 @@ export function BackendSelector({
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Feature</Table.Th>
-                    <Table.Th>VAST TAMS</Table.Th>
+                    <Table.Th>TAMS</Table.Th>
                     <Table.Th>IBC Thiago</Table.Th>
                     <Table.Th>IBC Thiago Imported</Table.Th>
                   </Table.Tr>

@@ -458,7 +458,7 @@ export default function FlowDetails() {
             errorMsg.includes('InternalError') ||
             errorMsg.includes('500') ||
             errorMsg.includes('Internal Server Error') ||
-            (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+            (errorMsg.includes('TAMS API error') && errorMsg.includes('500'));
           
           if (isObjectIdError) {
             console.warn('Direct flow lookup failed (Issue #6 - non-ObjectId ID), falling back to flows list');
@@ -734,7 +734,7 @@ export default function FlowDetails() {
         <Card mt="md" withBorder>
           <Group justify="space-between" mb="sm">
             <Title order={6}>CMCD Data (Common Media Client Data)</Title>
-            <Badge color="blue">VAST TAMS Compliant</Badge>
+            <Badge color="blue">TAMS Compliant</Badge>
           </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Box>
@@ -1397,7 +1397,7 @@ export default function FlowDetails() {
           errorMsg.includes('InternalError') ||
           errorMsg.includes('500') ||
           errorMsg.includes('Internal Server Error') ||
-          (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+          (errorMsg.includes('TAMS API error') && errorMsg.includes('500'));
         
         if (isObjectIdError) {
           console.warn('Direct flow lookup failed (Issue #6), falling back to flows list');
@@ -1491,7 +1491,7 @@ export default function FlowDetails() {
           errorMsg.includes('InternalError') ||
           errorMsg.includes('500') ||
           errorMsg.includes('Internal Server Error') ||
-          (errorMsg.includes('VAST TAMS API error') && errorMsg.includes('500'));
+          (errorMsg.includes('TAMS API error') && errorMsg.includes('500'));
         
         if (isObjectIdError) {
           console.warn('Direct flow lookup failed (Issue #6), falling back to flows list');
@@ -1749,7 +1749,7 @@ export default function FlowDetails() {
                 <strong>Note:</strong> Flows themselves do not contain playable video content - only their segments are playable.
               </Text>
               <Text size="sm">
-                <strong>Demo Note:</strong> This page shows live data from the TAMS backend powered by VAST, demonstrating real-time
+                <strong>Demo Note:</strong> This page shows live data from the TAMS backend, demonstrating real-time
                 media flow details and segment management capabilities.
               </Text>
             </Stack>
@@ -3082,7 +3082,7 @@ export default function FlowDetails() {
                           deleted_by: null
                         }}
                         {...(selectedSegment.description || flow.label ? { title: selectedSegment.description || flow.label || '' } : {})}
-                        description={`VAST TAMS segment playback for ${flow.label || 'segment'}`}
+                        description={`TAMS segment playback for ${flow.label || 'segment'}`}
                         onClose={handleVideoPlayerClose}
                         showControls={true}
                         autoPlay={true}

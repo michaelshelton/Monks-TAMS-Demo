@@ -296,23 +296,74 @@ export async function performSearch(query: SearchQuery, page: number = 1, limit:
 
     if (query.searchStrategy.segments) {
       try {
-        // For segments, we need to search flows first, then get their segments
-        const flowsResponse = await apiClient.getFlows(searchOptions);
-        
-        for (const flow of flowsResponse.data.slice(0, 5)) { // Limit to first 5 flows to avoid too many API calls
-          try {
-            const segmentsResponse = await apiClient.getFlowSegments(flow.id, searchOptions);
-            const segmentResults = segmentsResponse.data.map(segment => 
-              convertSegmentToSearchResult(segment, flow)
-            );
-            results.push(...segmentResults);
-            totalResults += segmentsResponse.data.length;
-          } catch (error) {
-            console.warn(`Failed to get segments for flow ${flow.id}:`, error);
+        // Use the actual /search endpoint which searches segments by marker descriptions
+        if (query.query && query.query.trim().length > 0) {
+          const searchResponse = await apiClient.searchSegments(query.query, {
+            limit: limit,
+            page: page
+          });
+          
+          console.log('🔍 Search Service: Search API response:', searchResponse);
+          
+          // The backend returns { items: [{ _id, word_count, words, result: [segments], thumbnail }], page, limit }
+          // Each item contains segments that matched the query words
+          const segmentResults: SearchResult[] = [];
+          const seenSegmentIds = new Set<string>();
+          
+          if (searchResponse.items && Array.isArray(searchResponse.items)) {
+            for (const item of searchResponse.items) {
+              if (item.result && Array.isArray(item.result)) {
+                for (const segment of item.result) {
+                  // Avoid duplicates (same segment might appear in multiple items)
+                  const segmentId = segment.id || segment._id || segment.object_id;
+                  if (segmentId && !seenSegmentIds.has(segmentId)) {
+                    seenSegmentIds.add(segmentId);
+                    
+                    // Convert backend segment format to SearchResult
+                    // The segment has flow_id, object_id, and other fields
+                    const searchResult = convertSegmentToSearchResult(segment);
+                    
+                    // Use thumbnail from item if available
+                    if (item.thumbnail) {
+                      searchResult.thumbnail = item.thumbnail;
+                      searchResult.previewUrl = item.thumbnail;
+                    }
+                    
+                    segmentResults.push(searchResult);
+                  }
+                }
+              }
+            }
           }
+          
+          results.push(...segmentResults);
+          totalResults = segmentResults.length;
+          
+          console.log('🔍 Search Service: Converted segment results:', segmentResults);
+        } else {
+          // If no query, fall back to getting segments from flows (but this isn't really "search")
+          console.warn('No search query provided, cannot use /search endpoint');
         }
       } catch (error) {
         console.warn('Failed to search segments:', error);
+        // If search endpoint fails, try fallback approach
+        try {
+          const flowsResponse = await apiClient.getFlows(searchOptions);
+          for (const flow of flowsResponse.data.slice(0, 5)) {
+            try {
+              const segmentsResponse = await apiClient.getFlowSegments(flow.id, searchOptions);
+              const segmentResults = segmentsResponse.data.map(segment => 
+                convertSegmentToSearchResult(segment, flow)
+              );
+              results.push(...segmentResults);
+              totalResults += segmentsResponse.data.length;
+            } catch (err) {
+              console.warn(`Failed to get segments for flow ${flow.id}:`, err);
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('Fallback segment search also failed:', fallbackError);
+        }
       }
     }
 

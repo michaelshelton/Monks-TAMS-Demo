@@ -2,13 +2,16 @@
 
 This document lists backend API issues that need to be fixed in `@monks_tams_api/`. Issues are prioritized by impact.
 
+**Recent Updates:**
+- ✅ **Issue #1 (Flow ID Missing)** - Fixed in PR #7 (December 2025)
+
 ---
 
 ## 🔴 **CRITICAL PRIORITY** - Blocks Core Functionality
 
 ### Issue #1: Flow ID Missing in Source Response
 
-**Status**: ❌ **BROKEN**
+**Status**: ✅ **FIXED** (PR #7 - December 2025)
 
 **Issue**: When calling `GET /sources/:id`, the returned `flows` array contains flow objects that are missing the `id` field.
 
@@ -41,13 +44,13 @@ This document lists backend API issues that need to be fixed in `@monks_tams_api
 ```
 
 **Root Cause**: 
-The service maps `f.id` from Flow objects returned by `flowsRepo.findBySourceId()`, but the Flow objects from MongoDB have `_id` instead of `id`. The mapping should handle both `_id` and `id` fields.
+The service mapped `f.id` from Flow objects returned by `flowsRepo.findBySourceId()`, but the Flow objects from MongoDB have `_id` instead of `id`. The mapping needed to handle `_id` fields.
 
-**Suggested Fix**: 
-Update the flow mapping in `getSourceWithFlows()` to handle `_id`:
+**Fix Applied** (PR #7):
+Updated the flow mapping in `getSourceWithFlows()` to use `f._id`:
 ```typescript
 flows: flows.map((f: Flow) => ({
-  id: f.id || (f as any)._id || String((f as any)._id),  // Handle both id and _id
+  id: f._id,  // Fixed: Now correctly uses _id from MongoDB
   label: f.label,
   format: f.format,
   tags: f.tags,
@@ -56,8 +59,12 @@ flows: flows.map((f: Flow) => ({
 })),
 ```
 
-**Files to Modify**:
-- `monks_tams_api/src/services/sources.service.ts` - `getSourceWithFlows()` method (line 93-100)
+**Files Modified**:
+- `monks_tams_api/src/services/sources.service.ts` - `getSourceWithFlows()` method (line 94-95)
+
+**Frontend Impact**:
+- Frontend `SourceDetails.tsx` has been updated with comments noting the fix is in place
+- Defensive workaround code remains for edge cases but should rarely be needed
 
 ---
 
@@ -397,7 +404,7 @@ Implement the `/objects` endpoint according to BBC TAMS v6.0 specification:
 
 ## Recommended Fix Order
 
-1. **Issue #1** (Flow ID Missing) - **CRITICAL** - Affects source details display and flow navigation
+1. ~~**Issue #1** (Flow ID Missing) - **FIXED** ✅~~ - Fixed in PR #7 (December 2025)
 2. **Issue #2** (Flow Details Endpoint) - **CRITICAL** - Blocks Flow Details page AND flow updates
 3. **Issue #3** (Flow Update Validation) - **HIGH PRIORITY** - Prevents partial updates (but Issue #2 blocks all updates anyway)
 4. **Issue #4** (Query Parameter Validation) - **MEDIUM PRIORITY** - Improves performance and scalability
@@ -410,8 +417,9 @@ Implement the `/objects` endpoint according to BBC TAMS v6.0 specification:
 
 To verify fixes work:
 ```bash
-# Test source with flows (should include flow IDs) - Issue #1
+# Test source with flows (should include flow IDs) - Issue #1 ✅ FIXED
 curl http://localhost:3000/sources/658fea74-9e55-4ca3-bc84-73bd523c286e
+# Expected: flows array should include "id" field for each flow
 
 # Test flow details (should work for both ObjectId and UUID IDs) - Issue #2
 curl http://localhost:3000/flows/webcam-main

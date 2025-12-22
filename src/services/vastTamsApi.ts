@@ -226,7 +226,7 @@ export class VastTamsApiClient {
             } as BBCApiResponse<T>;
           }
         }
-        throw new Error(`VAST TAMS API error: ${response.status} ${response.statusText}`);
+        throw new Error(`TAMS API error: ${response.status} ${response.statusText}`);
       }
 
       // Handle empty responses

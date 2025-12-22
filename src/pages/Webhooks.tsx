@@ -26,7 +26,6 @@ import {
 import { 
   IconWebhook, 
   IconInfoCircle,
-  IconPlus,
   IconRefresh,
   IconCheck,
   IconX,
@@ -35,8 +34,7 @@ import {
   IconAlertCircle
 } from '@tabler/icons-react';
 
-import { apiClient, BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
-import BBCPagination from '../components/BBCPagination';
+// Note: Webhooks are not yet implemented in the backend API, so this page uses dummy data for demonstration
 
 interface WebhookData {
   id?: string;
@@ -60,15 +58,68 @@ export const Webhooks: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventTypes, setEventTypes] = useState<string[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookData | null>(null);
   
-  // BBC TAMS API state
-  const [bbcPagination, setBbcPagination] = useState<BBCPaginationMeta>({});
-  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  // Dummy webhook data for demonstration
+  const DUMMY_WEBHOOKS: WebhookData[] = [
+    {
+      id: 'webhook-001',
+      name: 'Production Monitoring',
+      url: 'https://monitoring.example.com/webhooks/tams',
+      events: ['flow.created', 'flow.updated', 'error.occurred'],
+      api_key_name: 'X-API-Key',
+      description: 'Monitors production flows and errors for alerting',
+      active: true,
+      created: '2024-01-15T10:30:00Z',
+      created_by: 'admin@example.com'
+    },
+    {
+      id: 'webhook-002',
+      name: 'Source Lifecycle Tracker',
+      url: 'https://analytics.example.com/api/webhooks/sources',
+      events: ['source.created', 'source.updated', 'source.deleted'],
+      api_key_name: 'Authorization',
+      description: 'Tracks source lifecycle events for analytics dashboard',
+      active: true,
+      created: '2024-01-14T14:20:00Z',
+      created_by: 'analytics@example.com'
+    },
+    {
+      id: 'webhook-003',
+      name: 'System Health Notifications',
+      url: 'https://slack.example.com/hooks/tams-health',
+      events: ['system.warning', 'system.maintenance', 'error.occurred'],
+      description: 'Sends system health notifications to Slack channel',
+      active: true,
+      created: '2024-01-13T09:15:00Z',
+      created_by: 'ops@example.com'
+    },
+    {
+      id: 'webhook-004',
+      name: 'Flow Archive Service',
+      url: 'https://archive.example.com/webhooks/flows',
+      events: ['flow.deleted', 'object.deleted'],
+      api_key_name: 'X-Auth-Token',
+      description: 'Archives flows and objects when they are deleted',
+      active: false,
+      created: '2024-01-12T16:45:00Z',
+      created_by: 'archive@example.com'
+    },
+    {
+      id: 'webhook-005',
+      name: 'Content Delivery Network',
+      url: 'https://cdn.example.com/webhooks/tams-updates',
+      events: ['flow.created', 'flow.updated', 'object.created'],
+      description: 'Syncs new and updated content to CDN for distribution',
+      active: true,
+      created: '2024-01-11T11:00:00Z',
+      created_by: 'cdn@example.com'
+    }
+  ];
 
   const [formData, setFormData] = useState({
+    name: '',
     url: '',
     events: [] as string[],
     api_key_name: '',
@@ -76,10 +127,10 @@ export const Webhooks: React.FC = () => {
     active: true
   });
 
-  // Fetch webhooks on component mount
+  // Fetch webhooks on component mount - using dummy data
   useEffect(() => {
-    fetchWebhooksVastTams();
-    // Set default event types since the backend doesn't provide them
+    fetchWebhooks();
+    // Set default event types
     setEventTypes([
       'flow.created',
       'flow.updated', 
@@ -95,86 +146,35 @@ export const Webhooks: React.FC = () => {
     ]);
   }, []);
 
-  // Fetch webhooks using VAST TAMS API
-  const fetchWebhooksVastTams = async (cursor?: string) => {
+  // Fetch webhooks using dummy data (simulating API delay)
+  const fetchWebhooks = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const options: BBCApiOptions = {
-        limit: 10
-      };
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      if (cursor) {
-        options.page = cursor;
-      }
-
-      console.log('Fetching webhooks from VAST TAMS API with options:', options);
-      const response = await apiClient.getWebhooks(options);
-      console.log('VAST TAMS API response:', response);
-      
-      setWebhooks(response.data);
-      setBbcPagination(response.pagination);
-      setCurrentCursor(cursor || null);
-      setError(null);
-    } catch (err: any) {
-      console.error('TAMS API error:', err);
-      
-      // Set appropriate error message based on error type
-      if (err?.message?.includes('500') || err?.message?.includes('Internal Server Error')) {
-        setError('TAMS backend temporarily unavailable - please try again later');
-      } else if (err?.message?.includes('Network') || err?.message?.includes('fetch') || err?.message?.includes('CORS')) {
-        setError('Network connection issue - please check your connection and try again');
-      } else if (err?.message?.includes('404')) {
-        setError('TAMS API endpoint not found - please check backend configuration');
+      // Load from localStorage if available, otherwise use dummy data
+      const savedWebhooks = localStorage.getItem('tams_webhooks');
+      if (savedWebhooks) {
+        setWebhooks(JSON.parse(savedWebhooks));
       } else {
-        // Use error message directly if it already contains "TAMS API error", otherwise prefix it
-        const errorMsg = err?.message || 'Unknown error';
-        setError(errorMsg.includes('TAMS API error') ? errorMsg : `TAMS API error: ${errorMsg}`);
+        setWebhooks(DUMMY_WEBHOOKS);
+        localStorage.setItem('tams_webhooks', JSON.stringify(DUMMY_WEBHOOKS));
       }
       
-      // Clear webhooks on error
-      setWebhooks([]);
-      setBbcPagination({});
-      setCurrentCursor(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle VAST TAMS pagination
-  const handleVastTamsPageChange = (cursor: string | null) => {
-    if (cursor) {
-      fetchWebhooksVastTams(cursor);
-    }
-  };
-
-
-
-  const handleCreateWebhook = async () => {
-    try {
-      setLoading(true);
-      const webhookData: any = {
-        url: formData.url,
-        events: formData.events
-      };
-      
-      if (formData.api_key_name && formData.api_key_name.trim()) {
-        webhookData.api_key_name = formData.api_key_name.trim();
-      }
-      
-      const response = await apiClient.createWebhook(webhookData);
-      
-      setWebhooks(prev => [...prev, response]);
-      setShowCreateModal(false);
-      setFormData({ url: '', events: [], api_key_name: '', description: '', active: true });
+      setError(null);
     } catch (err: any) {
-      setError('Failed to create webhook');
-      console.error(err);
+      console.error('Error loading webhooks:', err);
+      setError('Failed to load webhooks');
+      setWebhooks(DUMMY_WEBHOOKS);
     } finally {
       setLoading(false);
     }
   };
+
+
 
   const handleUpdateWebhook = async () => {
     if (!selectedWebhook?.id) {
@@ -184,20 +184,34 @@ export const Webhooks: React.FC = () => {
     
     try {
       setLoading(true);
-      const webhookData: any = {
-        url: formData.url,
-        events: formData.events
-      };
       
-      if (formData.api_key_name && formData.api_key_name.trim()) {
-        webhookData.api_key_name = formData.api_key_name.trim();
+      // Validate form
+      if (!formData.url || formData.events.length === 0) {
+        setError('URL and at least one event are required');
+        return;
       }
       
-      const response = await apiClient.updateWebhook(selectedWebhook.id, webhookData);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      setWebhooks(prev => prev.map(w => w.id === selectedWebhook.id ? response : w));
+      // Update webhook
+      const updatedWebhook: WebhookData = {
+        ...selectedWebhook,
+        name: formData.name || formData.description || selectedWebhook.name || 'Unnamed Webhook',
+        url: formData.url,
+        events: formData.events,
+        ...(formData.api_key_name && { api_key_name: formData.api_key_name }),
+        ...(formData.description && { description: formData.description }),
+        active: formData.active
+      };
+      
+      const updatedWebhooks = webhooks.map(w => w.id === selectedWebhook.id ? updatedWebhook : w);
+      setWebhooks(updatedWebhooks);
+      localStorage.setItem('tams_webhooks', JSON.stringify(updatedWebhooks));
+      
       setShowEditModal(false);
       setSelectedWebhook(null);
+      setError(null);
     } catch (err: any) {
       setError(`Failed to update webhook: ${err.message || err}`);
     } finally {
@@ -206,10 +220,27 @@ export const Webhooks: React.FC = () => {
   };
 
   const handleDeleteWebhook = async (webhookId: string) => {
+    if (!confirm('Are you sure you want to delete this webhook?')) {
+      return;
+    }
+    
     try {
       setLoading(true);
-      await apiClient.deleteWebhook(webhookId);
-      setWebhooks(prev => prev.filter(w => w.id !== webhookId));
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Filter out the webhook by matching either id or url
+      // Note: This is temporary - webhooks will reappear on page refresh
+      const updatedWebhooks = webhooks.filter(w => {
+        // Keep webhooks that don't match by id or url
+        return w.id !== webhookId && w.url !== webhookId;
+      });
+      
+      // Only update state, don't persist to localStorage
+      // This allows webhooks to reappear on page refresh
+      setWebhooks(updatedWebhooks);
+      setError(null);
     } catch (err: any) {
       setError('Failed to delete webhook');
       console.error(err);
@@ -233,6 +264,7 @@ export const Webhooks: React.FC = () => {
   const handleWebhookEdit = (webhook: WebhookData) => {
     setSelectedWebhook(webhook);
     setFormData({
+      name: webhook.name || '',
       url: webhook.url,
       events: webhook.events,
       api_key_name: webhook.api_key_name || '',
@@ -284,18 +316,12 @@ export const Webhooks: React.FC = () => {
               variant="light"
               leftSection={<IconRefresh size={16} />}
               onClick={() => {
-                fetchWebhooksVastTams();
+                fetchWebhooks();
                 setError(null);
               }}
               loading={loading}
             >
               Refresh
-            </Button>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => setShowCreateModal(true)}
-            >
-              Add Webhook
             </Button>
           </Group>
         </Group>
@@ -314,7 +340,7 @@ export const Webhooks: React.FC = () => {
           </Alert>
         )}
 
-        {/* VAST TAMS Info */}
+        {/* Webhook Info */}
         {!error && (
           <Alert 
             icon={<IconInfoCircle size={16} />} 
@@ -332,8 +358,7 @@ export const Webhooks: React.FC = () => {
               Webhooks enable integration with external monitoring, logging, and automation systems.
             </Text>
             <Text size="sm">
-              <strong>Demo Note:</strong> This page shows live data from the TAMS backend powered by VAST, demonstrating real-time 
-              webhook management and event notification capabilities.
+              <strong>Demo Note:</strong> This page uses demonstration data to showcase webhook functionality. 
             </Text>
           </Alert>
         )}
@@ -367,10 +392,7 @@ export const Webhooks: React.FC = () => {
                 <Table.Tr>
                   <Table.Td colSpan={5} ta="center">
                     <Text c="dimmed">
-                      {webhooks.length === 0 
-                        ? "No webhooks available from TAMS backend" 
-                        : "No webhooks found"
-                      }
+                      No webhooks configured. Click "Add Webhook" to create one.
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -441,80 +463,25 @@ export const Webhooks: React.FC = () => {
             </Table.Tbody>
           </Table>
           
-          {/* VAST TAMS Pagination */}
-          {bbcPagination && Object.keys(bbcPagination).length > 0 ? (
+          {/* Webhook count info */}
+          {webhooks.length > 0 && !loading && (
             <Group justify="center" mt="lg">
-              <BBCPagination
-                paginationMeta={bbcPagination}
-                onPageChange={handleVastTamsPageChange}
-                onLimitChange={(limit) => {
-                  // Handle limit change for VAST TAMS API
-                  fetchWebhooksVastTams();
-                }}
-                showBBCMetadata={true}
-                showLimitSelector={true}
-              />
+              <Text size="sm" c="dimmed">
+                Showing {webhooks.length} webhook{webhooks.length !== 1 ? 's' : ''}
+              </Text>
             </Group>
-          ) : (
-            /* No pagination when no data */
-            webhooks.length === 0 && !loading && (
-              <Group justify="center" mt="lg">
-                <Text c="dimmed">No webhooks available</Text>
-              </Group>
-            )
           )}
         </Card>
-
-        {/* Create Webhook Modal */}
-        <Modal opened={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create Webhook" size="lg">
-          <Stack gap="md">
-            <TextInput
-              label="Webhook URL"
-              placeholder="https://your-endpoint.com/webhook"
-              value={formData.url}
-              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-              required
-            />
-            
-            <MultiSelect
-              label="Events"
-              placeholder="Select events to subscribe to"
-              data={eventTypes}
-              value={formData.events}
-              onChange={(value) => setFormData(prev => ({ ...prev, events: value }))}
-              required
-            />
-            
-            <TextInput
-              label="API Key Name (Optional)"
-              placeholder="my-api-key"
-              value={formData.api_key_name}
-              onChange={(e) => setFormData(prev => ({ ...prev, api_key_name: e.target.value }))}
-            />
-            
-            <Textarea
-              label="Description (Optional)"
-              placeholder="Describe the purpose of this webhook"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            />
-            
-            <Switch
-              label="Active"
-              checked={formData.active}
-              onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
-            />
-            
-            <Group justify="flex-end" gap="xs">
-              <Button variant="light" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-              <Button onClick={handleCreateWebhook} loading={loading}>Create Webhook</Button>
-            </Group>
-          </Stack>
-        </Modal>
 
         {/* Edit Webhook Modal */}
         <Modal opened={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Webhook" size="lg">
           <Stack gap="md">
+            <TextInput
+              label="Webhook Name"
+              placeholder="Production Monitoring"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            />
             <TextInput
               label="Webhook URL"
               placeholder="https://your-endpoint.com/webhook"

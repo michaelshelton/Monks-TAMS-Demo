@@ -741,6 +741,35 @@ class UnifiedApiClient {
     return this.request('/service/storage-backends');
   }
 
+  // Search - searches segments by marker descriptions
+  // Note: Backend schema only accepts 'query' parameter (additionalProperties: false)
+  // The backend uses default limit=10 and page=1
+  async searchSegments(query: string, options: { limit?: number; page?: number } = {}): Promise<any> {
+    await this.ensureApiClientInitialized();
+    
+    // Backend schema validation only allows 'query' parameter
+    // Limit and page are not accepted by the schema, so we only send query
+    const queryParams = new URLSearchParams();
+    queryParams.append('query', query);
+    
+    const url = `${this.baseUrl}/search?${queryParams.toString()}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
   // BBC TAMS Sources API
   async getSources(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     // Ensure API client is initialized before making the request

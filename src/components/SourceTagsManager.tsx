@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Text,
@@ -51,34 +51,59 @@ export function SourceTagsManager({ sourceId, initialTags = {}, disabled = false
   const [newTag, setNewTag] = useState({ name: '', value: '' });
 
   // Initialize tags from props and load from API if needed
+  // Use a ref to track if we've initialized to prevent infinite loops
+  const initializedRef = useRef<string | null>(null);
+  const previousInitialTagsRef = useRef<string>('');
+  
   useEffect(() => {
-    if (sourceId) {
-      // If we have initial tags, use them and notify parent
+    if (!sourceId) return;
+    
+    const currentInitialTagsStr = JSON.stringify(initialTags);
+    
+    // Initialize when sourceId changes
+    if (initializedRef.current !== sourceId) {
+      initializedRef.current = sourceId;
+      previousInitialTagsRef.current = currentInitialTagsStr;
+      
+      // If we have initial tags, use them (but don't call onTagsChange to avoid loop)
       if (Object.keys(initialTags).length > 0) {
         // Convert array values to strings if needed
         const normalizedTags: Record<string, string> = {};
         Object.entries(initialTags).forEach(([key, value]) => {
-          normalizedTags[key] = Array.isArray(value) ? value[0] : value;
+          normalizedTags[key] = Array.isArray(value) ? value[0] : String(value);
         });
         setTags(normalizedTags);
-        if (onTagsChange) {
-          onTagsChange(normalizedTags);
-        }
-        console.log('Using initial tags from source data:', normalizedTags);
       } else {
         // No initial tags, try to load from API
         loadTags();
       }
+    } else if (currentInitialTagsStr !== previousInitialTagsRef.current) {
+      // SourceId hasn't changed, but initialTags content might have
+      previousInitialTagsRef.current = currentInitialTagsStr;
+      
+      // Only update if tags actually changed (deep comparison)
+      if (Object.keys(initialTags).length > 0) {
+        const normalizedTags: Record<string, string> = {};
+        Object.entries(initialTags).forEach(([key, value]) => {
+          normalizedTags[key] = Array.isArray(value) ? value[0] : String(value);
+        });
+        
+        const currentTagsStr = JSON.stringify(tags);
+        const newTagsStr = JSON.stringify(normalizedTags);
+        if (currentTagsStr !== newTagsStr) {
+          setTags(normalizedTags);
+          // Don't call onTagsChange here - it would cause a loop
+        }
+      }
     }
-  }, [sourceId, initialTags]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId]); // Only depend on sourceId - use refs to track initialTags changes
 
   const loadTags = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Loading tags for source:', sourceId);
       const sourceTags = await apiClient.getSourceTags(sourceId);
-      console.log('Received source tags:', sourceTags);
       
       // Handle different response formats - convert arrays to strings
       const normalizedTags: Record<string, string> = {};
@@ -89,15 +114,13 @@ export function SourceTagsManager({ sourceId, initialTags = {}, disabled = false
       }
       
       setTags(normalizedTags);
-      if (onTagsChange) {
-        onTagsChange(normalizedTags);
-      }
+      // Don't call onTagsChange here - it causes infinite loops
+      // onTagsChange is only called when user explicitly changes tags via UI
     } catch (err: any) {
       console.error('Error loading source tags:', err);
       
       // Check if it's a backend not available error
       if (err.message && err.message.includes('404')) {
-        console.log('Source tags endpoint not available, using initial tags or empty state');
         // Don't set error if we have initial tags, just use them
         if (Object.keys(initialTags).length > 0) {
           const normalizedTags: Record<string, string> = {};
@@ -105,9 +128,7 @@ export function SourceTagsManager({ sourceId, initialTags = {}, disabled = false
             normalizedTags[key] = Array.isArray(value) ? value[0] : String(value);
           });
           setTags(normalizedTags);
-          if (onTagsChange) {
-            onTagsChange(normalizedTags);
-          }
+          // Don't call onTagsChange here - it causes infinite loops
         } else {
           setError('Source tags endpoint not available. Tags cannot be loaded from the backend.');
         }

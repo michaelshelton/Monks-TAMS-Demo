@@ -6,7 +6,6 @@ import Flows from './pages/Flows';
 import FlowDetails from './pages/FlowDetails';
 import Sources from './pages/Sources';
 import SourceDetails from './pages/SourceDetails';
-import Analytics from './pages/Analytics';
 import Service from './pages/Service';
 import Search from './pages/Search';
 import SearchResults from './pages/SearchResults';
@@ -49,28 +48,28 @@ const theme = createTheme({
   },
 });
 
-// Main navigation items (always visible)
+// Main navigation items (left side)
 const mainNavLinks = [
   { label: 'Home', to: '/' },
   { label: 'Sources', to: '/sources' },
   { label: 'Flows', to: '/flows' },
 ];
 
-// Secondary navigation items (after separator)
+// Search navigation item (middle, separated)
+const searchNavLink = { label: 'Search', to: '/search' };
+
+// Secondary navigation items (right side)
 const secondaryNavLinks = [
-  { label: 'Objects', to: '/objects' },
   { label: 'QC Statistics', to: '/qc-statistics' },
   { label: 'Observability', to: '/observability' },
 ];
 
 // Additional navigation items (in dropdown)
 const additionalNavLinks = [
+  { label: 'Objects', to: '/objects' },
   { label: 'Service', to: '/service' },
-  { label: 'Overview', to: '/' },
   { label: 'TAMS Workflow', to: '/vast-tams-workflow' },
-  { label: 'Search', to: '/search' },
   { label: 'Webhooks', to: '/webhooks' },
-  { label: 'Analytics', to: '/analytics' },
   { label: 'Deletion Requests', to: '/deletion-requests' },
 ];
 
@@ -83,7 +82,7 @@ function AppLayout() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           {/* Center: Main Navigation + Dropdown */}
           <div style={{ display: 'flex', gap: 20, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            {/* Main Navigation Links */}
+            {/* Main Navigation Links (Left) */}
             <Group gap="sm">
               {mainNavLinks.map((link) => (
                 <Anchor
@@ -115,7 +114,34 @@ function AppLayout() {
             {/* Pipe Separator */}
             <Text size="sm" c="gray" style={{ margin: '0 4px' }}>|</Text>
             
-            {/* Secondary Navigation Links */}
+            {/* Search Navigation Link (Middle) */}
+            <Anchor
+              component={Link}
+              to={searchNavLink.to}
+              fw={500}
+              size="sm"
+              c={location.pathname === searchNavLink.to ? 'blue' : 'gray'}
+              className={`nav-link ${location.pathname === searchNavLink.to ? 'active' : ''}`}
+              style={{ 
+                padding: '4px 8px',
+                borderRadius: '4px',
+                transition: 'all 0.2s ease',
+                color: location.pathname === searchNavLink.to 
+                  ? 'var(--mantine-color-blue-6)' 
+                  : 'var(--mantine-color-gray-6)',
+                ...(location.pathname === searchNavLink.to && {
+                  backgroundColor: 'var(--mantine-color-blue-0)',
+                  color: 'var(--mantine-color-blue-7)'
+                })
+              }}
+            >
+              {searchNavLink.label}
+            </Anchor>
+            
+            {/* Pipe Separator */}
+            <Text size="sm" c="gray" style={{ margin: '0 4px' }}>|</Text>
+            
+            {/* Secondary Navigation Links (Right) */}
             <Group gap="sm">
               {secondaryNavLinks.map((link) => (
                 <Anchor
@@ -207,7 +233,6 @@ function AppLayout() {
           <Route path="/search-results" element={<SearchResults />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/video-compilation" element={<VideoCompilation />} />
-          <Route path="/analytics" element={<Analytics />} />
           <Route path="/observability" element={<Observability />} />
           <Route path="/service" element={<Service />} />
           <Route path="/webhooks" element={<Webhooks />} />

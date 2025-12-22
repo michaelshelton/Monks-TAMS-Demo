@@ -69,12 +69,12 @@ export default function VideoPlayer({
     // Priority: VAST TAMS segment > legacy videoUrl
     if (vastTamsSegment) {
       if (!validateVastTamsSegment(vastTamsSegment)) {
-        setError('Invalid VAST TAMS segment data');
+        setError('Invalid TAMS segment data');
         return null;
       }
       
       if (!hasValidVideoUrls(vastTamsSegment)) {
-        setError('No valid video URLs found in VAST TAMS segment');
+        setError('No valid video URLs found in TAMS segment');
         return null;
       }
       
@@ -247,7 +247,7 @@ export default function VideoPlayer({
               <Text fw={500} size="lg">{title}</Text>
               {vastTamsSegment && (
                 <Badge size="sm" color="blue" variant="light">
-                  VAST TAMS
+                  TAMS
                 </Badge>
               )}
             </Group>

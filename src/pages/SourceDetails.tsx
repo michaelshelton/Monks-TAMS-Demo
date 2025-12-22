@@ -130,15 +130,14 @@ export default function SourceDetails() {
           console.log(`Flow ${index}:`, { id: flow.id, label: flow.label, format: flow.format, fullFlow: flow });
         });
         
-        // If any flows are missing IDs, try to fetch them from the flows endpoint
-        // Workaround for Issue #2: Flow IDs missing in source response
-        // Note: Issue #1 is now fixed, so this workaround should work correctly
+        // Defensive check: If any flows are missing IDs, try to fetch them from the flows endpoint
+        // Backend fix (PR #7): Flow IDs are now correctly returned as f._id in getSourceWithFlows
+        // This workaround is kept as defensive code for edge cases, but should rarely be needed
         const flowsMissingIds = sourceData.flows.filter((f: any) => !f.id && !(f as any)._id);
         if (flowsMissingIds.length > 0) {
-          console.log('Some flows are missing IDs (Issue #2), attempting to fetch flow IDs from /flows endpoint...');
+          console.warn('Some flows are missing IDs (unexpected - backend should provide them), attempting fallback...');
           try {
-            // Issue #1 is fixed, so this should work now
-            // Try to get flows by source_id to find the IDs
+            // Fallback: Try to get flows by source_id to find the IDs
             const flowsResponse = await apiClient.getFlows({ 
               source_id: sourceId,
             } as any);
@@ -173,9 +172,9 @@ export default function SourceDetails() {
               setFlowsWithIds(flowIdMap);
             }
           } catch (err) {
-            console.warn('Could not fetch flows to get IDs:', err);
+            console.warn('Could not fetch flows to get IDs (fallback failed):', err);
             // Continue without IDs - buttons will be disabled
-            // Note: Issue #1 is fixed, so if this fails it's likely a different issue
+            // This should be rare since backend now provides flow IDs correctly
           }
         }
       }
@@ -916,7 +915,7 @@ export default function SourceDetails() {
             <Card withBorder>
               <Title order={4} mb="md">Source Configuration</Title>
               <Text size="sm" c="dimmed" mb="lg">
-                Update source metadata using VAST TAMS API endpoints
+                Update source metadata using TAMS API endpoints
               </Text>
               
               <Stack gap="md">

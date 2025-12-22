@@ -71,7 +71,7 @@ export default function SegmentVideoDemo({ segment, flowLabel }: SegmentVideoDem
             <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
               <Text size="sm">
                 This segment has {segment.get_urls?.length} presigned URL(s) available for video playback.
-                Click the button below to open the VAST TAMS video player.
+                Click the button below to open the TAMS video player.
               </Text>
             </Alert>
           ) : (
@@ -132,7 +132,7 @@ export default function SegmentVideoDemo({ segment, flowLabel }: SegmentVideoDem
             deleted_by: null
           }}
           title={segment.description || segment.object_id}
-          description={`VAST TAMS segment playback for ${flowLabel}`}
+          description={`TAMS segment playback for ${flowLabel}`}
           onClose={() => setShowPlayer(false)}
           showControls={true}
           autoPlay={true}
