@@ -212,6 +212,30 @@ The built files will be in the `dist/` directory.
 1. Build the project: `npm run build`
 2. Drag the `dist/` folder to Netlify
 
+### Kubernetes / Helm Deployment (TAMS Frontend)
+
+This repository also includes a **stub Helm chart** for deploying the frontend as part of a Kubernetes stack:
+
+- Chart location: `charts/tams-frontend/`
+- Purpose: run the built React app behind nginx, and proxy `/api` calls to the Monks TAMS API.
+
+Key points:
+
+- The chart expects a built Docker image for the frontend (configured via `values.yaml`):
+  - `image.repository`: your container registry/repo
+  - `image.tag`: the image tag (usually set by CI)
+- The nginx container exposes port **80** and serves the static app from `/usr/share/nginx/html`.
+- The backend API endpoint is configured via the **`BACKEND_URL`** environment variable:
+  - Default: `http://tams-api:3000`
+  - This should point at the `tams-api` Service from the `monks_tams_api` Helm charts.
+- The Deployment includes HTTP `/health` liveness/readiness probes that hit the nginx health endpoint.
+
+This chart is intentionally minimal and is meant to be wired into a larger Helm deployment together with:
+
+- `monks_tams_api/charts/tams-api/` (TAMS API)
+- `monks_tams_api/charts/mongodb/` (MongoDB)
+- `monks_tams_api/charts/minio/` (MinIO / S3-compatible storage)
+
 ## 🤝 Contributing
 
 1. Fork the repository
