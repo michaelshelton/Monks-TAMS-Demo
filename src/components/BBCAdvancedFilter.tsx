@@ -219,37 +219,76 @@ const BBCAdvancedFilter: React.FC<BBCAdvancedFilterProps> = ({
       {/* Filter Header */}
       <Group justify="space-between" align="center" mb="md">
         <Group gap="xs">
-          <IconFilter size={20} />
-          <Text fw={500}>TAMS Advanced Filters</Text>
+          <IconFilter size={20} color="#b3b3b3" />
+          <Text fw={500} c="white">TAMS Advanced Filters</Text>
           <Badge variant="light" color="blue" size="sm">v6.0</Badge>
         </Group>
         
         <Group gap="xs">
           <Button
-            variant="light"
+            variant="subtle"
             size="xs"
             onClick={() => setIsCollapsed(!isCollapsed)}
             leftSection={isCollapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             {isCollapsed ? 'Show' : 'Hide'}
           </Button>
           
           <Button
-            variant="light"
+            variant="subtle"
             size="xs"
             onClick={handleReset}
             leftSection={<IconX size={14} />}
             disabled={disabled}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+                '&:disabled': {
+                  opacity: 0.5,
+                },
+              },
+            }}
           >
             Reset
           </Button>
           
           <Button
-            variant={variant}
+            variant="subtle"
             size={size}
             onClick={handleApply}
             leftSection={<IconFilter size={16} />}
             disabled={disabled}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+                '&:disabled': {
+                  opacity: 0.5,
+                },
+              },
+            }}
           >
             Apply Filters
           </Button>

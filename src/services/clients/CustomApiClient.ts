@@ -181,6 +181,14 @@ export class CustomApiClient implements IApiClient {
     return this.request(`/api/segments`, { method: 'DELETE' });
   }
 
+   async cleanupFlow(id: string, hours: number = 24): Promise<any> {
+    throw new Error('cleanupFlow is not supported by custom backend');
+  }
+
+  async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
+    throw new Error('updateFlowSegment is not supported by custom backend');
+  }
+
   async getObjects(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     return this.customGet('/api/objects', options);
   }

@@ -1,0 +1,30 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/your-org/tams-frontend  # TODO: update to real image repo
+  tag: "latest"                               # TODO: set via CI/CD
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  # URL of the Monks TAMS API service inside the cluster.
+  # This is what nginx will proxy /api and /api/proxy to.
+  # In the existing backend charts, the API service is exposed on port 3000.
+  BACKEND_URL: "http://tams-api:3000"
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+

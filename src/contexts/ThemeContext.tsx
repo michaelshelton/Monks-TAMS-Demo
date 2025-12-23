@@ -11,20 +11,21 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Always use light theme (but allow type to support dark/auto for compatibility)
-  const [colorScheme, setColorScheme] = useState<ColorScheme>('light');
-  const isDark = false;
+  // Use dark theme for the new design
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('dark');
+  const isDark = true;
 
   const toggleTheme = useCallback(() => {
-    // Theme toggle is disabled - always stays on light
-    // This function exists for API compatibility but doesn't change the theme
-  }, []);
+    // Theme toggle functionality - can be enabled later if needed
+    const newScheme = colorScheme === 'dark' ? 'light' : 'dark';
+    setColorScheme(newScheme);
+  }, [colorScheme]);
 
   // Set data attribute on document for Mantine's color scheme
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'light');
-    document.documentElement.setAttribute('data-mantine-color-scheme', 'light');
-  }, []);
+    document.documentElement.setAttribute('data-theme', colorScheme);
+    document.documentElement.setAttribute('data-mantine-color-scheme', colorScheme);
+  }, [colorScheme]);
 
   return (
     <ThemeContext.Provider value={{ colorScheme, isDark, toggleTheme }}>

@@ -1,8 +1,8 @@
-# Monks - TAMS Frontend Application on VAST
+# Monks - TAMS Frontend Application
 
-A comprehensive React-based frontend for the Time Addressable Media Storage (TAMS) demo application, featuring advanced media management, analytics, observability, and video streaming capabilities. Built with Mantine UI components and Vite.
+A comprehensive React-based frontend for the Time Addressable Media Storage (TAMS) demo application, featuring advanced media management, observability, QC statistics, and video streaming capabilities. Built with Mantine UI components and Vite.
 
-Backend: https://github.com/jesseVast/vasttams
+Primary backend: [`monks_tams_api`](https://github.com/FormulaMonks/tams-api)
 
 ## 🚀 Quick Start
 
@@ -42,19 +42,19 @@ Backend: https://github.com/jesseVast/vasttams
 frontend/
 ├── public/                 # Static assets and videos
 ├── src/
-│   ├── pages/             # Page components (17 pages)
-│   │   ├── Landing.tsx           # Home page
-│   │   ├── Sources.tsx           # Media sources management
+│   ├── pages/             # Page components
+│   │   ├── Landing.tsx           # Home / dashboard
+│   │   ├── Sources.tsx           # Media sources table
 │   │   ├── SourceDetails.tsx     # Source details view
 │   │   ├── Flows.tsx             # Media flows table
-│   │   ├── FlowDetails.tsx       # Flow details view
-│   │   ├── FlowCollections.tsx   # Flow collections management
+│   │   ├── FlowDetails.tsx       # Flow details view (segments, analytics, QC)
 │   │   ├── Search.tsx            # Advanced search interface
 │   │   ├── SearchResults.tsx     # Search results display
 │   │   ├── Upload.tsx            # Media upload interface
 │   │   ├── VideoCompilation.tsx  # Video compilation engine
-│   │   ├── Analytics.tsx         # Analytics dashboard
 │   │   ├── Observability.tsx     # System observability
+│   │   ├── Objects.tsx           # Object storage browser
+│   │   ├── QCStatistics.tsx      # QC statistics dashboard
 │   │   ├── Service.tsx           # Service management
 │   │   ├── Webhooks.tsx          # Webhook management
 │   │   ├── DeletionRequests.tsx  # Deletion request management
@@ -99,37 +99,36 @@ frontend/
 ## ✨ Key Features
 
 ### 🎥 **Media Management**
-- **Sources Management** - Create, configure, and monitor media sources
-- **Flow Management** - Organize and track media flows with advanced filtering
-- **Flow Collections** - Group related flows for better organization
-- **Video Upload** - Upload and manage media files
-- **Video Compilation** - Merge and process multiple video segments
+- **Sources** – Create, configure, and monitor media sources from `monks_tams_api`
+- **Flows** – Organize and track media flows with advanced filtering
+- **Segments in FlowDetails** – Inspect, filter, and play flow segments inline
+- **Video Upload** – Upload and register new media segments
+- **Video Compilation** – Merge and process multiple segments into compilations
 
 ### 🔍 **Advanced Search & Discovery**
-- **Multi-Entity Search** - Search across sources, flows, and segments
-- **Advanced Filtering** - Complex filter combinations with temporal ranges
-- **Search Results** - Rich result display with previews and metadata
+- **Multi-Entity Search** – Search across sources, flows, and segments
+- **Advanced Filtering** – Rich filter combinations with temporal and tag filters
+- **Search Results** – Rich result display with previews and metadata
 
-### 📊 **Analytics & Monitoring**
-- **Analytics Dashboard** - Comprehensive data visualization
-- **System Observability** - Real-time system health monitoring
-- **Flow Analytics** - Detailed flow performance metrics
-- **Health Monitoring** - Source and flow health indicators
+### 📊 **Observability & QC**
+- **Observability** – System and backend health view (via `monks_tams_api` health/metrics)
+- **QC Statistics** – QC-focused statistics dashboard
+- **Flow Analytics** – Per-flow stats and segment analytics in `FlowDetails`
 
 ### 🎬 **Video Streaming & Playback**
-- **HLS Video Player** - HTTP Live Streaming support
-- **Video Player with Analytics** - Playback metrics and CMCD support
-- **Segment Video Demo** - Interactive segment exploration
+- **HLS Video Player** – HTTP Live Streaming support
+- **TAMS Segment Player** – Segment playback with CMCD metrics
+- **Inline Segment Player** – Quick inspection of individual segments
 
 ### 🔧 **System Administration**
-- **Webhook Management** - Configure and monitor webhooks
-- **Deletion Requests** - Manage content deletion workflows
-- **Service Management** - System service configuration
-- **Backend Context** - Multi-backend API support
+- **Webhook Management** – Configure and monitor webhooks
+- **Deletion Requests** – Manage content deletion workflows
+- **Service Management** – View core backend service metadata
+- **Backend Context** – Swappable backend support (with `monks_tams_api` as the primary)
 
 ### 🎨 **User Experience**
-- **Responsive Design** - Mobile-first responsive layouts
-- **Advanced UI Components** - Rich interactive components
+- **Dark Mode Dashboard** – Custom dark theme aligned with TAMS design
+- **Responsive Layout** – Sidebar + content layout tuned for desktop and large screens
 
 ## 🛠️ Technology Stack
 
@@ -153,22 +152,17 @@ frontend/
 
 ## 🧭 Navigation Structure
 
-The application features a clean, organized navigation system:
+The application uses a left-hand sidebar navigation:
 
-### **Main Navigation** (Always Visible)
-- **Search** - Advanced search interface
-- **Sources** - Media sources management
-- **Flows** - Media flows table
-- **Flow Collections** - Flow collections management
-
-### **Additional Navigation** (Dropdown Menu)
-- **Home** - Landing page
-- **TAMS Workflow** - Workflow guide and documentation
-- **Service** - Service management
-- **Webhooks** - Webhook configuration
-- **Analytics** - Analytics dashboard
-- **Observability** - System monitoring
-- **Deletion Requests** - Content deletion management
+- **Logo** – Returns to the `Landing` dashboard
+- **Sources** – Media sources table
+- **Flows** – Media flows table
+- **Search** – Advanced search interface
+- **Observability** – System observability view
+- **Statistics** – QC statistics (`/qc-statistics`)
+- **Service** – Service / backend metadata
+- **Webhooks** – Webhook configuration and monitoring
+- **Deletion Requests** – Flow deletion request management
 
 ## 🎨 Design System
 
@@ -182,16 +176,20 @@ The application uses a custom design system with:
 
 ### Environment Variables
 
-Create a `.env` file in the frontend directory:
+Create a `.env` file in the `frontend` directory (or configure via your hosting provider):
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_BACKEND_VAST_TAMS_URL=http://localhost:3000
 VITE_APP_TITLE=TAMS Demo
 ```
 
+In development, the app uses a Vite proxy on `/api` to reach `monks_tams_api` and avoid CORS issues.  
+In production (e.g. Vercel), requests go through the serverless proxy in `api/proxy`.
+
 ### Backend Integration
 
-This frontend is designed to work with the VAST TAMS backend API. Ensure the backend is running on the configured port before testing API features.
+This frontend is designed to work primarily with the `monks_tams_api` backend.  
+Ensure `monks_tams_api` is running and reachable at the configured `VITE_BACKEND_VAST_TAMS_URL` before testing API features.
 
 ## 🚀 Deployment
 
@@ -225,7 +223,7 @@ The built files will be in the `dist/` directory.
 
 ## 📝 License
 
-This project leverages the VAST TAMS demo application.
+This project leverages the TAMS demo application.
 
 ## 🆘 Troubleshooting
 
@@ -252,4 +250,3 @@ npm install
 For issues related to:
 - **Frontend**: Check this README and the codebase
 - **Backend**: See the backend repository documentation
-- **VAST Platform**: Contact VAST Data support

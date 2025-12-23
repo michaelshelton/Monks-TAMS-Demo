@@ -59,6 +59,21 @@
   color: var(--mantine-color-text-0) !important;
 }
 
+/* Global dark mode overrides - highest specificity */
+html[data-mantine-color-scheme="dark"] .mantine-Card-root,
+html[data-theme="dark"] .mantine-Card-root,
+html[data-mantine-color-scheme="dark"] .mantine-Paper-root,
+html[data-theme="dark"] .mantine-Paper-root {
+  background-color: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+html[data-mantine-color-scheme="dark"] .mantine-NavLink-root,
+html[data-theme="dark"] .mantine-NavLink-root {
+  background-color: transparent !important;
+  color: #b3b3b3 !important;
+}
+
 /* Dark mode AppShell */
 [data-mantine-color-scheme="dark"] .mantine-AppShell-root,
 [data-theme="dark"] .mantine-AppShell-root {
@@ -113,8 +128,8 @@
 
 [data-mantine-color-scheme="dark"] .mantine-AppShell-navbar,
 [data-theme="dark"] .mantine-AppShell-navbar {
-  background-color: var(--mantine-color-bg-1);
-  border-right: 1px solid var(--mantine-color-border-0);
+  background-color: #0f0f0f !important;
+  border-right: 1px solid #333333 !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-AppShell-main,
@@ -122,18 +137,77 @@
   background-color: var(--mantine-color-bg-0);
 }
 
-/* Dark mode Cards - Various gray levels for different card types */
+/* Dark mode Cards - Transparent with borders only */
 [data-mantine-color-scheme="dark"] .mantine-Card-root,
 [data-theme="dark"] .mantine-Card-root {
-  background-color: var(--mantine-color-bg-2);
-  border: 1px solid var(--mantine-color-border-1);
-  color: var(--mantine-color-text-0);
+  background-color: transparent !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Card-root:hover,
 [data-theme="dark"] .mantine-Card-root:hover {
-  background-color: var(--mantine-color-bg-3);
-  border-color: var(--mantine-color-border-0);
+  background-color: #262626 !important;
+  border-color: #404040 !important;
+}
+
+/* Override Paper component - transparent by default */
+[data-mantine-color-scheme="dark"] .mantine-Paper-root,
+[data-theme="dark"] .mantine-Paper-root {
+  background-color: transparent !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
+}
+
+/* Override NavLink component */
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root,
+[data-theme="dark"] .mantine-NavLink-root {
+  background-color: transparent !important;
+  color: #b3b3b3 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root[data-active="true"],
+[data-theme="dark"] .mantine-NavLink-root[data-active="true"] {
+  background-color: #262626 !important;
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root:hover,
+[data-theme="dark"] .mantine-NavLink-root:hover {
+  background-color: #262626 !important;
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-label,
+[data-theme="dark"] .mantine-NavLink-label {
+  color: inherit !important;
+}
+
+/* Force dark backgrounds on all Card and Paper children */
+[data-mantine-color-scheme="dark"] .mantine-Card-root .mantine-Text-root,
+[data-theme="dark"] .mantine-Card-root .mantine-Text-root {
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Card-root .mantine-Title-root,
+[data-theme="dark"] .mantine-Card-root .mantine-Title-root {
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Paper-root .mantine-Text-root,
+[data-theme="dark"] .mantine-Paper-root .mantine-Text-root {
+  color: #ffffff !important;
+}
+
+/* Ensure Container and Box components respect dark mode */
+[data-mantine-color-scheme="dark"] .mantine-Container-root,
+[data-theme="dark"] .mantine-Container-root {
+  background-color: transparent !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Box-root,
+[data-theme="dark"] .mantine-Box-root {
+  background-color: transparent !important;
 }
 
 /* Dark mode Alerts - Comprehensive styling for all alert types */
@@ -240,35 +314,95 @@
   color: var(--mantine-color-accent-1) !important;
 }
 
-/* Dark mode Tables */
+/* Dark mode Tables - Transparent backgrounds */
 [data-mantine-color-scheme="dark"] .mantine-Table-root,
 [data-theme="dark"] .mantine-Table-root {
-  background-color: var(--mantine-color-bg-1);
-  border: 1px solid var(--mantine-color-border-1);
+  background-color: transparent !important;
+  border: none !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Table-thead,
 [data-theme="dark"] .mantine-Table-thead {
-  background-color: var(--mantine-color-bg-2);
+  background-color: transparent !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Table-th,
 [data-theme="dark"] .mantine-Table-th {
-  background-color: var(--mantine-color-bg-2);
-  color: var(--mantine-color-text-0);
-  border-bottom: 1px solid var(--mantine-color-border-1);
+  background-color: transparent !important;
+  color: #b3b3b3 !important;
+  border-bottom: 1px solid #333333 !important;
+  border-top: none !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Table-td,
 [data-theme="dark"] .mantine-Table-td {
-  background-color: var(--mantine-color-bg-1);
-  color: var(--mantine-color-text-1);
-  border-bottom: 1px solid var(--mantine-color-border-2);
+  background-color: transparent !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #333333 !important;
+  border-top: none !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Table-tbody tr:hover,
 [data-theme="dark"] .mantine-Table-tbody tr:hover {
-  background-color: var(--mantine-color-bg-2);
+  background-color: #1a1a1a !important;
+}
+
+/* Dark mode Select dropdowns */
+[data-mantine-color-scheme="dark"] .mantine-Select-dropdown,
+[data-theme="dark"] .mantine-Select-dropdown,
+[data-mantine-color-scheme="dark"] .dark-select-dropdown,
+[data-theme="dark"] .dark-select-dropdown {
+  background-color: #1a1a1a !important;
+  border: 1px solid #333333 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-item,
+[data-theme="dark"] .mantine-Select-item {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-item:hover,
+[data-theme="dark"] .mantine-Select-item:hover {
+  background-color: #262626 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-item[data-selected="true"],
+[data-theme="dark"] .mantine-Select-item[data-selected="true"] {
+  background-color: #262626 !important;
+  color: #ffffff !important;
+}
+
+/* Dark mode MultiSelect dropdowns */
+[data-mantine-color-scheme="dark"] .mantine-MultiSelect-dropdown,
+[data-theme="dark"] .mantine-MultiSelect-dropdown {
+  background-color: #1a1a1a !important;
+  border: 1px solid #333333 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-MultiSelect-item,
+[data-theme="dark"] .mantine-MultiSelect-item {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-MultiSelect-item:hover,
+[data-theme="dark"] .mantine-MultiSelect-item:hover {
+  background-color: #262626 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-MultiSelect-item[data-selected="true"],
+[data-theme="dark"] .mantine-MultiSelect-item[data-selected="true"] {
+  background-color: #262626 !important;
+  color: #ffffff !important;
+}
+
+/* Style Select and MultiSelect right section (chevron icons) */
+[data-mantine-color-scheme="dark"] .mantine-Select-rightSection,
+[data-theme="dark"] .mantine-Select-rightSection,
+[data-mantine-color-scheme="dark"] .mantine-MultiSelect-rightSection,
+[data-theme="dark"] .mantine-MultiSelect-rightSection {
+  color: #b3b3b3 !important;
 }
 
 /* Dark mode Buttons */
@@ -293,23 +427,28 @@
   color: var(--mantine-color-text-1);
 }
 
-/* Dark mode Inputs */
+/* Dark mode Inputs - Transparent backgrounds */
 [data-mantine-color-scheme="dark"] .mantine-Input-root,
 [data-theme="dark"] .mantine-Input-root {
-  background-color: var(--mantine-color-bg-2);
-  border: 1px solid var(--mantine-color-border-1);
+  background-color: transparent !important;
+  border: none !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Input-input,
 [data-theme="dark"] .mantine-Input-input {
-  background-color: var(--mantine-color-bg-2);
-  color: var(--mantine-color-text-0);
-  border: 1px solid var(--mantine-color-border-1);
+  background-color: transparent !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Input-input:focus,
 [data-theme="dark"] .mantine-Input-input:focus {
-  border-color: var(--mantine-color-accent-1);
+  border-color: #404040 !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input::placeholder,
+[data-theme="dark"] .mantine-Input-input::placeholder {
+  color: #666666 !important;
 }
 
 /* Dark mode Select */
@@ -569,4 +708,17 @@
   color: var(--mantine-color-text-0) !important;
   background-color: var(--mantine-color-bg-3) !important;
   border: 1px solid var(--mantine-color-border-0) !important;
+}
+
+/* Override button backgrounds for action buttons (Explore, View More, etc.) */
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="subtle"],
+[data-theme="dark"] .mantine-Button-root[data-variant="subtle"] {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="subtle"]:hover,
+[data-theme="dark"] .mantine-Button-root[data-variant="subtle"]:hover {
+  background-color: transparent !important;
+  border: none !important;
 }

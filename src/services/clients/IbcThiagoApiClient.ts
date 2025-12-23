@@ -172,6 +172,14 @@ export class IbcThiagoApiClient implements IApiClient {
     throw new Error('Segment deletion not supported by IBC Thiago backend');
   }
 
+  async cleanupFlow(id: string, hours: number = 24): Promise<any> {
+    throw new Error('cleanupFlow is not supported by IBC Thiago backend');
+  }
+
+  async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
+    throw new Error('updateFlowSegment is not supported by IBC Thiago backend');
+  }
+
   async getObjects(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     throw new Error('Objects API not supported by IBC Thiago backend');
   }

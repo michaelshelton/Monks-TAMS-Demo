@@ -258,7 +258,25 @@ export class VastTamsApiClient implements IApiClient {
   }
 
   async cleanupFlow(id: string, hours: number = 24): Promise<any> {
-    return this.service.cleanupFlow(id, hours);
+    const url = `${this.config.baseUrl}/flows/${id}/cleanup?hours=${hours}`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText}`);
+    }
+
+    // Backend may return 204 No Content for successful cleanup
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
   }
 
   // Core TAMS Operations - Segments
@@ -294,7 +312,21 @@ export class VastTamsApiClient implements IApiClient {
   }
 
   async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
-    return this.service.updateFlowSegment(flowId, segmentId, updates);
+    const url = `${this.config.baseUrl}/flows/${flowId}/segments/${segmentId}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TAMS API error: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   // Core TAMS Operations - Objects

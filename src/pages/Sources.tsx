@@ -44,7 +44,8 @@ import {
   IconMapPin,
   IconActivity,
   IconInfoCircle,
-  IconArrowLeft
+  IconArrowLeft,
+  IconCheck
 } from '@tabler/icons-react';
 import AdvancedFilter, { FilterOption, FilterState, FilterPreset } from '../components/AdvancedFilter';
 import { useFilterPersistence } from '../hooks/useFilterPersistence';
@@ -116,6 +117,7 @@ export default function Sources() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -416,15 +418,16 @@ export default function Sources() {
   const paginatedSources = filteredSources.slice(startIndex, endIndex);
 
   return (
-    <Container size="xl" px="xl" py="xl">
-      {/* Title and Header */}
-      <Group justify="space-between" mb="lg">
-        <Box>
-          <Title order={2} className="dark-text-primary">Media Sources</Title>
-          <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
-            Original media inputs and content containers in the TAMS workflow
-          </Text>
-        </Box>
+    <Box style={{ backgroundColor: '#0f0f0f', minHeight: '100vh', padding: '24px' }}>
+      <Container size="xl" px={0}>
+        {/* Title and Header */}
+        <Group justify="space-between" mb="lg">
+          <Box>
+            <Title order={2} c="white">Media Sources</Title>
+            <Text c="#b3b3b3" size="sm" mt="xs">
+              Original media inputs and content containers in the TAMS workflow
+            </Text>
+          </Box>
         <Group>
           <Button
             variant="light"
@@ -524,34 +527,69 @@ export default function Sources() {
       />
 
       {/* Sources Table */}
-      <Card withBorder className="search-interface">
-        <Table striped>
+      <Box mt="xl">
+        <Table
+          style={{
+            backgroundColor: 'transparent'
+          }}
+          styles={{
+            thead: {
+              backgroundColor: 'transparent',
+            },
+            th: {
+              backgroundColor: 'transparent',
+              color: '#b3b3b3',
+              borderBottom: '1px solid #333333',
+              padding: '12px 16px',
+              fontWeight: 500,
+              fontSize: '14px',
+            },
+            tbody: {
+              backgroundColor: 'transparent',
+            },
+            tr: {
+              backgroundColor: 'transparent',
+              borderBottom: '1px solid #333333',
+              '&:hover': {
+                backgroundColor: '#1a1a1a',
+              },
+            },
+            td: {
+              backgroundColor: 'transparent',
+              color: '#ffffff',
+              borderBottom: '1px solid #333333',
+              padding: '12px 16px',
+            },
+          }}
+        >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Source Information</Table.Th>
+              <Table.Th style={{ width: '40px' }}></Table.Th>
+              <Table.Th>Media Content</Table.Th>
               <Table.Th>Format</Table.Th>
-              <Table.Th>Created Date</Table.Th>
+              <Table.Th>Created</Table.Th>
               <Table.Th>Category & Type</Table.Th>
-              <Table.Th>Duration</Table.Th>
+              <Table.Th>Collection</Table.Th>
+              <Table.Th>Last Updated</Table.Th>
               <Table.Th>Status</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {loading ? (
               <Table.Tr>
-                <Table.Td colSpan={6} ta="center">
+                <Table.Td colSpan={8} ta="center">
                   <Loader />
                 </Table.Td>
               </Table.Tr>
             ) : error ? (
               <Table.Tr>
-                <Table.Td colSpan={6} ta="center" c="red">
+                <Table.Td colSpan={8} ta="center" c="red">
                   {error}
                 </Table.Td>
               </Table.Tr>
             ) : paginatedSources.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={6} ta="center">
+                <Table.Td colSpan={8} ta="center">
                   <Text c="dimmed">
                     {sources.length === 0 
                       ? "No sources available from TAMS backend" 
@@ -561,112 +599,136 @@ export default function Sources() {
                 </Table.Td>
               </Table.Tr>
             ) : (
-              paginatedSources.map((source) => (
-                <Table.Tr 
-                  key={source.id}
-                  style={{ 
-                    opacity: source.deleted ? 0.6 : 1,
-                    backgroundColor: source.deleted ? '#f8f9fa' : 'transparent'
-                  }}
-                >
-                  <Table.Td>
-                    <Group gap="sm">
-                      {getFormatIcon(source.format)}
+              paginatedSources.map((source) => {
+                const isSelected = selectedSourceId === source.id;
+                return (
+                  <Table.Tr 
+                    key={source.id}
+                    style={{ 
+                      opacity: source.deleted ? 0.6 : 1,
+                      backgroundColor: isSelected ? '#1a1a1a' : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setSelectedSourceId(isSelected ? null : source.id)}
+                  >
+                    <Table.Td>
+                      {isSelected && (
+                        <IconCheck size={18} color="#22c55e" />
+                      )}
+                    </Table.Td>
+                    <Table.Td>
                       <Box>
-                        <Group gap="xs" align="center">
-                          <Text 
-                            fw={500} 
-                            size="sm" 
-                            style={{ cursor: 'pointer', color: 'var(--mantine-color-blue-6)' }}
-                            onClick={() => navigate(`/source-details/${source.id}`)}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.textDecoration = 'underline';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.textDecoration = 'none';
-                            }}
-                          >
-                            {source.label || 'Unnamed Source'}
-                          </Text>
-                          {source.deleted && (
-                            <Badge size="xs" color="red">DELETED</Badge>
-                          )}
-                        </Group>
-                        <Text size="xs" c="dimmed">
+                        <Text 
+                          fw={500} 
+                          size="sm" 
+                          c="white"
+                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/source-details/${source.id}`);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.textDecoration = 'underline';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.textDecoration = 'none';
+                          }}
+                        >
+                          {source.label || 'Unnamed Source'}
+                        </Text>
+                        <Text size="xs" c="#b3b3b3" mt={4}>
                           {source.description || 'No description'}
                         </Text>
-                        {/* Source Tags */}
-                        {source.tags && (
-                          <Group gap="xs" mt="xs">
-                            {source.tags.category && (
-                              <Badge size="xs" variant="light" color="blue">
-                                {source.tags.category}
-                              </Badge>
-                            )}
-                            {source.tags.content_type && (
-                              <Badge size="xs" variant="light" color="green">
-                                {source.tags.content_type}
-                              </Badge>
-                            )}
-                          </Group>
-                        )}
                       </Box>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" color="blue">
-                      {getFormatLabel(source.format)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" align="center">
-                      <IconCalendar size={14} />
-                      <Text size="sm">
-                        {source.created ? new Date(source.created).toLocaleDateString() : 'Unknown'}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="#b3b3b3">
+                        {getFormatLabel(source.format)}
                       </Text>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Stack gap="xs">
+                    </Table.Td>
+                    <Table.Td>
                       <Group gap="xs" align="center">
-                        <IconMapPin size={14} />
-                        <Text size="sm" fw={500}>
-                          {source.tags?.['category'] || 'Unknown Category'}
+                        <IconCalendar size={14} />
+                        <Text size="sm" c="#b3b3b3">
+                          {source.created 
+                            ? new Date(source.created).toLocaleDateString() 
+                            : 'Unknown'}
                         </Text>
                       </Group>
-                      <Badge size="xs" variant="light" color="green">
-                        {source.tags?.['content_type'] || source.tags?.['event_type'] || 'Unknown Type'}
-                      </Badge>
-                    </Stack>
-                  </Table.Td>
-                  <Table.Td>
-                    <Stack gap="xs">
-                      <Group gap="xs" align="center">
-                        <IconActivity size={14} />
-                        <Text size="sm" fw={500}>
-                          {source.tags?.['duration'] || 'Unknown'}
-                        </Text>
-                      </Group>
-                      {source.tags?.['year'] && (
-                        <Text size="xs" c="dimmed">
-                          Year: {source.tags.year}
+                      {source.created_by && (
+                        <Text size="xs" c="#666666" mt={4}>
+                          by {source.created_by}
                         </Text>
                       )}
-                    </Stack>
-                  </Table.Td>
-                  <Table.Td>
-                    {source.deleted ? (
-                      <Badge color="red" variant="light" size="sm">
-                        Deleted
-                      </Badge>
-                    ) : (
-                      <Badge color="green" variant="light" size="sm">
-                        Active
-                      </Badge>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        {source.tags?.category && (
+                          <Text size="sm" c="#b3b3b3">
+                            {source.tags.category}
+                          </Text>
+                        )}
+                        {(source.tags?.content_type || source.tags?.event_type) && (
+                          <Text size="xs" c="#666666">
+                            {source.tags.content_type || source.tags.event_type}
+                          </Text>
+                        )}
+                        {!source.tags?.category && !source.tags?.content_type && !source.tags?.event_type && (
+                          <Text size="sm" c="#666666">
+                            —
+                          </Text>
+                        )}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {source.source_collection && source.source_collection.length > 0 ? (() => {
+                        const firstCollection = source.source_collection?.[0];
+                        return (
+                          <Text size="sm" c="#b3b3b3">
+                            {firstCollection?.label || firstCollection?.id || '—'}
+                          </Text>
+                        );
+                      })() : source.collected_by && source.collected_by.length > 0 ? (
+                        <Text size="sm" c="#b3b3b3">
+                          Collected ({source.collected_by.length})
+                        </Text>
+                      ) : (
+                        <Text size="sm" c="#666666">
+                          —
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" align="center">
+                        <IconCalendar size={14} />
+                        <Text size="sm" c="#b3b3b3">
+                          {source.updated 
+                            ? new Date(source.updated).toLocaleDateString() 
+                            : source.created
+                            ? new Date(source.created).toLocaleDateString()
+                            : 'Unknown'}
+                        </Text>
+                      </Group>
+                      {source.updated_by && (
+                        <Text size="xs" c="#666666" mt={4}>
+                          by {source.updated_by}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {source.deleted ? (
+                        <Badge color="red" variant="light" size="sm">
+                          Deleted
+                        </Badge>
+                      ) : (
+                        <Badge color="green" variant="light" size="sm">
+                          Active
+                        </Badge>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })
             )}
           </Table.Tbody>
         </Table>
@@ -686,25 +748,23 @@ export default function Sources() {
         {/* Results count */}
         {!loading && filteredSources.length > 0 && (
           <Group justify="center" mt="md">
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="#b3b3b3">
               Showing {startIndex + 1}-{Math.min(endIndex, filteredSources.length)} of {filteredSources.length} sources
             </Text>
           </Group>
         )}
-      </Card>
+      </Box>
 
 
 
-      {/* Create Source Modal */}
-      <CreateSourceModal 
-        opened={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSubmit={handleCreateSource}
-      />
-
-
-
-    </Container>
+        {/* Create Source Modal */}
+        <CreateSourceModal 
+          opened={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateSource}
+        />
+      </Container>
+    </Box>
   );
 }
 

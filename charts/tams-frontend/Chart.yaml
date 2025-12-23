@@ -1,0 +1,11 @@
+apiVersion: v2
+name: tams-frontend
+description: >
+  Stub Helm chart for the TAMS frontend (React + nginx).
+  This chart is intentionally minimal and is expected to be extended
+  and/or integrated into a larger umbrella chart later.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+

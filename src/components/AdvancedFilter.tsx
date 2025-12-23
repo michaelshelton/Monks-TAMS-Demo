@@ -105,8 +105,24 @@ export default function AdvancedFilter({
             placeholder={filter.placeholder || `Search ${filter.label.toLowerCase()}...`}
             value={currentValue || ''}
             onChange={(e) => handleFilterChange(filter.key, e.currentTarget.value)}
-            leftSection={<IconSearch size={16} />}
+            leftSection={<IconSearch size={18} />}
             style={{ flex: 1 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+              section: {
+                color: '#b3b3b3',
+              },
+            }}
           />
         );
 
@@ -119,6 +135,22 @@ export default function AdvancedFilter({
             onChange={(value) => handleFilterChange(filter.key, value)}
             clearable
             style={{ minWidth: 150 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+            }}
+            classNames={{
+              dropdown: 'dark-select-dropdown',
+            }}
           />
         );
 
@@ -132,6 +164,22 @@ export default function AdvancedFilter({
             clearable
             searchable
             style={{ minWidth: 200 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+            }}
+            classNames={{
+              dropdown: 'dark-select-dropdown',
+            }}
           />
         );
 
@@ -142,6 +190,19 @@ export default function AdvancedFilter({
             value={currentValue || ''}
             onChange={(e) => handleFilterChange(filter.key, e.currentTarget.value)}
             style={{ minWidth: 200 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+            }}
           />
         );
 
@@ -164,6 +225,22 @@ export default function AdvancedFilter({
             onChange={(value) => handleFilterChange(filter.key, value)}
             clearable
             style={{ minWidth: 200 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+            }}
+            classNames={{
+              dropdown: 'dark-select-dropdown',
+            }}
           />
         );
 
@@ -176,6 +253,26 @@ export default function AdvancedFilter({
             {...(filter.min !== undefined && { min: filter.min })}
             {...(filter.max !== undefined && { max: filter.max })}
             style={{ minWidth: 120 }}
+            styles={{
+              input: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#ffffff',
+                '&::placeholder': {
+                  color: '#666666',
+                },
+                '&:focus': {
+                  borderColor: '#404040',
+                },
+              },
+              control: {
+                color: '#b3b3b3',
+                borderColor: '#333333',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                },
+              },
+            }}
           />
         );
 
@@ -238,7 +335,13 @@ export default function AdvancedFilter({
   };
 
   return (
-    <Card withBorder>
+    <Card 
+      withBorder
+      style={{
+        backgroundColor: 'transparent',
+        border: '1px solid #333333',
+      }}
+    >
       <Stack gap="md">
         {/* Main Filter Row */}
         <Group gap="md" align="flex-end">
@@ -253,10 +356,24 @@ export default function AdvancedFilter({
           
           <Group gap="xs">
             <Button
-              variant="light"
+              variant="subtle"
               leftSection={<IconFilter size={16} />}
               onClick={clearAllFilters}
               disabled={!hasActiveFilters}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               Clear All
             </Button>
@@ -264,8 +381,19 @@ export default function AdvancedFilter({
             {filters.length > 3 && (
               <Button
                 variant="subtle"
-                leftSection={isExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                rightSection={isExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
                 onClick={() => setIsExpanded(!isExpanded)}
+                styles={{
+                  root: {
+                    backgroundColor: 'transparent',
+                    border: '1px solid #333333',
+                    color: '#b3b3b3',
+                    '&:hover': {
+                      backgroundColor: '#1a1a1a',
+                      borderColor: '#404040',
+                    },
+                  },
+                }}
               >
                 {isExpanded ? 'Show Less' : 'Show More'}
               </Button>
@@ -344,10 +472,23 @@ export default function AdvancedFilter({
               value={presetName}
               onChange={(e) => setPresetName(e.currentTarget.value)}
               style={{ flex: 1 }}
+              styles={{
+                input: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#ffffff',
+                  '&::placeholder': {
+                    color: '#666666',
+                  },
+                  '&:focus': {
+                    borderColor: '#404040',
+                  },
+                },
+              }}
             />
             <Button
               size="sm"
-              variant="light"
+              variant="subtle"
               onClick={() => {
                 if (presetName.trim()) {
                   onPresetSave({
@@ -359,6 +500,20 @@ export default function AdvancedFilter({
                 }
               }}
               disabled={!presetName.trim()}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               Save Preset
             </Button>

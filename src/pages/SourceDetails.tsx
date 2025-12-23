@@ -439,34 +439,78 @@ export default function SourceDetails() {
         
         <Group gap="xs">
           <Button
-            variant="light"
+            variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
             onClick={() => {
               navigate('/sources');
+            }}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
             }}
           >
             Back to Sources
           </Button>
           <Button
-            variant="light"
+            variant="subtle"
             leftSection={<IconRefresh size={16} />}
             onClick={loadSource}
             loading={loading}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             Refresh
           </Button>
           <Button
-            variant="light"
+            variant="subtle"
             leftSection={<IconEdit size={16} />}
             onClick={() => {/* TODO: Implement edit */}}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             Edit
           </Button>
           <Button
-            variant="outline"
+            variant="subtle"
             color="red"
             leftSection={<IconTrash size={16} />}
             onClick={() => setShowDeleteModal(true)}
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             Delete
           </Button>
@@ -500,6 +544,17 @@ export default function SourceDetails() {
                 size="xs"
                 onClick={() => setShowInfoBox(!showInfoBox)}
                 rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+                styles={{
+                  root: {
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#b3b3b3',
+                    padding: 0,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  },
+                }}
               >
                 {showInfoBox ? 'Hide' : 'Show'} Info
               </Button>
@@ -714,7 +769,7 @@ export default function SourceDetails() {
                           )}
                         </Box>
                         <Button 
-                          variant="light" 
+                          variant="subtle" 
                           size="sm"
                           onClick={async () => {
                             let flowId = flow?.id || (flow as any)?._id;
@@ -745,6 +800,20 @@ export default function SourceDetails() {
                             }
                           }}
                           disabled={!flow?.id && !(flow as any)?._id}
+                          styles={{
+                            root: {
+                              backgroundColor: 'transparent',
+                              border: '1px solid #333333',
+                              color: '#b3b3b3',
+                              '&:hover': {
+                                backgroundColor: '#1a1a1a',
+                                borderColor: '#404040',
+                              },
+                              '&:disabled': {
+                                opacity: 0.5,
+                              },
+                            },
+                          }}
                         >
                           View Flow
                         </Button>
@@ -835,7 +904,7 @@ export default function SourceDetails() {
                               )}
                             </Box>
                             <Button 
-                              variant="light" 
+                              variant="subtle" 
                               size="sm"
                               onClick={async () => {
                                 let flowId = flow?.id || (flow as any)?._id;
@@ -866,6 +935,20 @@ export default function SourceDetails() {
                                 }
                               }}
                               disabled={!flow?.id && !(flow as any)?._id}
+                              styles={{
+                                root: {
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid #333333',
+                                  color: '#b3b3b3',
+                                  '&:hover': {
+                                    backgroundColor: '#1a1a1a',
+                                    borderColor: '#404040',
+                                  },
+                                  '&:disabled': {
+                                    opacity: 0.5,
+                                  },
+                                },
+                              }}
                             >
                               View Details
                             </Button>
@@ -885,9 +968,20 @@ export default function SourceDetails() {
                     Unable to load analytics data from TAMS backend
                   </Text>
                   <Button 
-                    variant="light" 
+                    variant="subtle" 
                     onClick={loadAnalytics}
                     loading={analyticsLoading}
+                    styles={{
+                      root: {
+                        backgroundColor: 'transparent',
+                        border: '1px solid #333333',
+                        color: '#b3b3b3',
+                        '&:hover': {
+                          backgroundColor: '#1a1a1a',
+                          borderColor: '#404040',
+                        },
+                      },
+                    }}
                   >
                     Retry
                   </Button>
@@ -932,7 +1026,7 @@ export default function SourceDetails() {
                       </Text>
                     </Box>
                     <Button
-                      variant="light"
+                      variant="subtle"
                       size="sm"
                       leftSection={<IconEdit size={14} />}
                       onClick={() => {
@@ -940,6 +1034,20 @@ export default function SourceDetails() {
                         setShowLabelModal(true);
                       }}
                       disabled={disabled}
+                      styles={{
+                        root: {
+                          backgroundColor: 'transparent',
+                          border: '1px solid #333333',
+                          color: '#b3b3b3',
+                          '&:hover': {
+                            backgroundColor: '#1a1a1a',
+                            borderColor: '#404040',
+                          },
+                          '&:disabled': {
+                            opacity: 0.5,
+                          },
+                        },
+                      }}
                     >
                       Edit Label
                     </Button>
@@ -964,7 +1072,7 @@ export default function SourceDetails() {
                     </Box>
                     <Group gap="xs">
                       <Button
-                        variant="light"
+                        variant="subtle"
                         size="sm"
                         leftSection={<IconEdit size={14} />}
                         onClick={() => {
@@ -973,18 +1081,46 @@ export default function SourceDetails() {
                           setConfigError(null);
                         }}
                         disabled={disabled || configLoading}
+                        styles={{
+                          root: {
+                            backgroundColor: 'transparent',
+                            border: '1px solid #333333',
+                            color: '#b3b3b3',
+                            '&:hover': {
+                              backgroundColor: '#1a1a1a',
+                              borderColor: '#404040',
+                            },
+                            '&:disabled': {
+                              opacity: 0.5,
+                            },
+                          },
+                        }}
                       >
                         {source?.description ? 'Edit' : 'Add'}
                       </Button>
                       {source?.description && (
                         <Button
-                          variant="light"
+                          variant="subtle"
                           size="sm"
                           color="red"
                           leftSection={<IconTrash size={14} />}
                           onClick={handleDeleteDescription}
                           loading={configLoading}
                           disabled={disabled}
+                          styles={{
+                            root: {
+                              backgroundColor: 'transparent',
+                              border: '1px solid #333333',
+                              color: '#b3b3b3',
+                              '&:hover': {
+                                backgroundColor: '#1a1a1a',
+                                borderColor: '#404040',
+                              },
+                              '&:disabled': {
+                                opacity: 0.5,
+                              },
+                            },
+                          }}
                         >
                           Delete
                         </Button>
@@ -1083,20 +1219,49 @@ export default function SourceDetails() {
           
           <Group gap="xs" justify="flex-end">
             <Button 
-              variant="light" 
+              variant="subtle" 
               onClick={() => {
                 setShowLabelModal(false);
                 setEditingLabel('');
                 setConfigError(null);
               }}
               disabled={configLoading}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               Cancel
             </Button>
             <Button
+              variant="subtle"
               onClick={handleUpdateLabel}
               loading={configLoading}
               disabled={!editingLabel.trim()}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               Update Label
             </Button>
@@ -1139,32 +1304,75 @@ export default function SourceDetails() {
           
           <Group gap="xs" justify="flex-end">
             <Button 
-              variant="light" 
+              variant="subtle" 
               onClick={() => {
                 setShowDescriptionModal(false);
                 setEditingDescription('');
                 setConfigError(null);
               }}
               disabled={configLoading}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               Cancel
             </Button>
             {source?.description && (
               <Button
-                variant="light"
+                variant="subtle"
                 color="red"
                 leftSection={<IconTrash size={14} />}
                 onClick={async () => {
                   await handleDeleteDescription();
                 }}
                 loading={configLoading}
+                styles={{
+                  root: {
+                    backgroundColor: 'transparent',
+                    border: '1px solid #333333',
+                    color: '#b3b3b3',
+                    '&:hover': {
+                      backgroundColor: '#1a1a1a',
+                      borderColor: '#404040',
+                    },
+                    '&:disabled': {
+                      opacity: 0.5,
+                    },
+                  },
+                }}
               >
                 Delete
               </Button>
             )}
             <Button
+              variant="subtle"
               onClick={handleUpdateDescription}
               loading={configLoading}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                  '&:disabled': {
+                    opacity: 0.5,
+                  },
+                },
+              }}
             >
               {source?.description ? 'Update Description' : 'Add Description'}
             </Button>

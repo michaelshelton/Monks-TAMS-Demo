@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -49,7 +49,6 @@ import {
   IconLink,
   IconArrowLeft
 } from '@tabler/icons-react';
-import BBCAdvancedFilter, { BBCFilterPatterns } from '../components/BBCAdvancedFilter';
 import { apiClient } from '../services/api';
 import { BBCApiOptions, BBCApiResponse, BBCPaginationMeta } from '../services/api';
 
@@ -87,26 +86,6 @@ interface Flow {
 }
 
 // TAMS Flows - fetched from real backend API
-
-// BBC TAMS content formats and codecs
-const BBC_CONTENT_FORMATS = [
-  'urn:x-nmos:format:video',
-  'urn:x-nmos:format:audio', 
-  'urn:x-nmos:format:data',
-  'urn:x-nmos:format:multi',
-  'urn:x-tam:format:image'
-];
-
-const COMMON_CODECS = [
-  'video/h264',
-  'video/h265',
-  'video/mp4',
-  'audio/aac',
-  'audio/mp3',
-  'audio/wav',
-  'application/json',
-  'text/plain'
-];
 
 const getFormatIcon = (format: string) => {
   switch (format) {
@@ -238,18 +217,6 @@ export default function Flows() {
   // Advanced filtering
   const { filters, updateFilters, clearFilters, hasActiveFilters, setFilter } = useFilterPersistence('flows');
   const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
-  
-  // BBC TAMS compliant filtering
-  const [bbcFilters, setBbcFilters] = useState<BBCFilterPatterns>({
-    label: '',
-    format: '',
-    codec: '',
-    tags: {},
-    tagExists: {},
-    timerange: '',
-    page: '',
-    limit: 50
-  });
 
   // Fetch flows using VAST TAMS API
   const fetchFlowsVastTams = async (cursor?: string) => {
@@ -577,65 +544,70 @@ export default function Flows() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedFlows = filteredFlows.slice(startIndex, endIndex);
 
-  // BBC TAMS filter handlers
-  const handleBbcFiltersChange = useCallback((newFilters: any) => {
-    setBbcFilters(newFilters);
-    // Reset to first page when filters change
-    setCurrentCursor(null);
-  }, []);
-
-  const handleBbcFiltersReset = useCallback(() => {
-    setBbcFilters({
-      label: '',
-      format: '',
-      codec: '',
-      tags: {},
-      tagExists: {},
-      timerange: '',
-      page: '',
-      limit: 50
-    });
-    setCurrentCursor(null);
-  }, []);
-
-  const handleBbcFiltersApply = useCallback(() => {
-    // Apply BBC filters - this would typically make an API call
-    console.log('Applying BBC filters:', bbcFilters);
-    // For now, just log the filters - in production this would update the API call
-  }, [bbcFilters]);
-
   return (
-    <Container size="xl" px="xl" py="xl">
-      {/* Title and Header */}
-      <Group justify="space-between" mb="lg">
-        <Box>
-          <Title order={2} className="dark-text-primary">Media Flows</Title>
-          <Text c="dimmed" size="sm" mt="xs" className="dark-text-secondary">
-            Processed media streams with technical specifications and encoding details
-          </Text>
-        </Box>
+    <Box style={{ backgroundColor: '#0f0f0f', minHeight: '100vh', padding: '24px' }}>
+      <Container size="xl" px={0}>
+        {/* Title and Header */}
+        <Group justify="space-between" mb="lg">
+          <Box>
+            <Title order={2} c="white">Media Flows</Title>
+            <Text c="#b3b3b3" size="sm" mt="xs">
+              Processed media streams with technical specifications and encoding details
+            </Text>
+          </Box>
         <Group>
           <Button
-            variant="light"
+            variant="subtle"
             leftSection={<IconInfoCircle size={16} />}
             onClick={() => navigate('/flow-details/demo')}
-            className="dark-button"
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             View Demo Flow
           </Button>
           <Button
-            variant="light"
+            variant="subtle"
             leftSection={<IconRefresh size={16} />}
             onClick={handleRefresh}
             loading={loading}
-            className="dark-button"
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             Refresh
           </Button>
           <Button
+            variant="subtle"
             leftSection={<IconPlus size={16} />}
             onClick={() => setShowCreateModal(true)}
-            className="dark-button"
+            styles={{
+              root: {
+                backgroundColor: 'transparent',
+                border: '1px solid #333333',
+                color: '#b3b3b3',
+                '&:hover': {
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#404040',
+                },
+              },
+            }}
           >
             Add Flow
           </Button>
@@ -686,6 +658,17 @@ export default function Flows() {
                 size="xs"
                 onClick={() => setShowInfoBox(!showInfoBox)}
                 rightSection={showInfoBox ? <IconArrowLeft size={12} /> : <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />}
+                styles={{
+                  root: {
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#b3b3b3',
+                    padding: 0,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  },
+                }}
               >
                 {showInfoBox ? 'Hide' : 'Show'} Info
               </Button>
@@ -720,6 +703,17 @@ export default function Flows() {
               color="red"
               size="sm"
               onClick={clearFilters}
+              styles={{
+                root: {
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  color: '#b3b3b3',
+                  '&:hover': {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#404040',
+                  },
+                },
+              }}
             >
               Clear All Filters
             </Button>
@@ -727,11 +721,19 @@ export default function Flows() {
         </Group>
       </Group>
 
-      {/* Quick Filters - API-Supported Filters Only */}
-      <Card withBorder mb="md" p="sm">
+      {/* Quick Filters */}
+      <Card 
+        withBorder 
+        mb="md" 
+        p="sm"
+        style={{
+          backgroundColor: 'transparent',
+          border: '1px solid #333333',
+        }}
+      >
         <Group gap="md" align="center">
           <Group gap="xs">
-            <Text size="sm" fw={500} c="dimmed">Quick Filters (API-Supported):</Text>
+            <Text size="sm" fw={500} c="#b3b3b3">Quick Filters:</Text>
             {hasActiveFilters && (
               <Badge size="xs" variant="light" color="blue">
                 {Object.keys(filters).length} active
@@ -739,10 +741,10 @@ export default function Flows() {
             )}
           </Group>
           
-          {/* Format Filters - Direct API support */}
+          {/* Format Filters */}
           <Divider orientation="vertical" />
           <Group gap="xs">
-            <Text size="xs" c="dimmed">Format:</Text>
+            <Text size="xs" c="#b3b3b3">Format:</Text>
             <Chip
               checked={filters.format === 'urn:x-nmos:format:video'}
               onChange={(checked) => setFilter('format', checked ? 'urn:x-nmos:format:video' : '')}
@@ -763,10 +765,10 @@ export default function Flows() {
             </Chip>
           </Group>
           
-          {/* Tag-based Filters - API supports via tag.<name> */}
+          {/* Tag-based Filters */}
           <Divider orientation="vertical" />
           <Group gap="xs">
-            <Text size="xs" c="dimmed">Tags:</Text>
+            <Text size="xs" c="#b3b3b3">Tags:</Text>
             <Chip
               checked={filters.category === 'sports'}
               onChange={(checked) => setFilter('category', checked ? 'sports' : '')}
@@ -804,10 +806,6 @@ export default function Flows() {
               Year 2024
             </Chip>
           </Group>
-          
-          <Text size="xs" c="dimmed" ml="auto">
-            All filters use API-supported parameters
-          </Text>
         </Group>
       </Card>
 
@@ -817,37 +815,45 @@ export default function Flows() {
         value={filters}
         onChange={updateFilters}
         presets={savedPresets}
-        onPresetSave={(preset) => setSavedPresets([...savedPresets, preset])}
         onPresetDelete={(presetId) => setSavedPresets(savedPresets.filter(p => p.id !== presetId))}
       />
 
-      {/* TAMS Compliant Filters */}
-      <Box mb="lg">
-        <Text size="sm" c="dimmed" mb="xs">
-          TAMS Advanced Filters - For technical content filtering (format, codec, tags)
-        </Text>
-        <BBCAdvancedFilter
-          filters={bbcFilters}
-          onFiltersChange={handleBbcFiltersChange}
-          onReset={handleBbcFiltersReset}
-          onApply={handleBbcFiltersApply}
-          availableFormats={BBC_CONTENT_FORMATS}
-          availableCodecs={COMMON_CODECS}
-          availableTags={['quality', 'source', 'metadata', 'processing']}
-          showTimerange={true}
-          showFormatSpecific={false}
-          showTagFilters={true}
-          showPagination={false}
-          collapsed={true}
-          disabled={loading}
-          size="sm"
-          variant="light"
-        />
-      </Box>
-
       {/* Flows Table */}
-      <Card withBorder className="search-interface">
-        <Table striped>
+      <Box mt="xl">
+        <Table
+          style={{
+            backgroundColor: 'transparent'
+          }}
+          styles={{
+            thead: {
+              backgroundColor: 'transparent',
+            },
+            th: {
+              backgroundColor: 'transparent',
+              color: '#b3b3b3',
+              borderBottom: '1px solid #333333',
+              padding: '12px 16px',
+              fontWeight: 500,
+              fontSize: '14px',
+            },
+            tbody: {
+              backgroundColor: 'transparent',
+            },
+            tr: {
+              backgroundColor: 'transparent',
+              borderBottom: '1px solid #333333',
+              '&:hover': {
+                backgroundColor: '#1a1a1a',
+              },
+            },
+            td: {
+              backgroundColor: 'transparent',
+              color: '#ffffff',
+              borderBottom: '1px solid #333333',
+              padding: '12px 16px',
+            },
+          }}
+        >
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Media Content</Table.Th>
@@ -855,26 +861,26 @@ export default function Flows() {
               <Table.Th>Content Information</Table.Th>
               <Table.Th>Category & Type</Table.Th>
               <Table.Th>Content Stats</Table.Th>
-              <Table.Th>Status*</Table.Th>
+              <Table.Th>Status</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {loading ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center">
+                <Table.Td colSpan={6} ta="center">
                   <Loader />
                 </Table.Td>
               </Table.Tr>
             ) : error ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center" c="red">
+                <Table.Td colSpan={6} ta="center" c="red">
                   {error}
                 </Table.Td>
               </Table.Tr>
             ) : filteredFlows.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={7} ta="center">
-                  <Text c="dimmed">
+                <Table.Td colSpan={6} ta="center">
+                  <Text c="#b3b3b3">
                     {flows.length === 0 
                       ? (isDemoMode 
                           ? "No demo flows available" 
@@ -886,73 +892,80 @@ export default function Flows() {
               </Table.Tr>
             ) : (
               paginatedFlows.map((flow) => (
-                <Table.Tr key={flow.id}>
+                <Table.Tr 
+                  key={flow.id}
+                  style={{ 
+                    opacity: flow.deleted ? 0.6 : 1,
+                    cursor: 'pointer',
+                  }}
+                >
                   <Table.Td>
-                    <Group gap="sm">
-                      {getFormatIcon(flow.format)}
-                      <Box>
-                        <Group gap="xs" align="center">
-                          <Text 
-                            fw={500} 
-                            size="sm" 
-                            style={{ cursor: 'pointer', color: 'var(--mantine-color-blue-6)' }}
-                            onClick={() => navigate(`/flow-details/${flow.id}`)}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.textDecoration = 'underline';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.textDecoration = 'none';
-                            }}
-                          >
-                            {flow.label || 'Unnamed Flow'}
-                          </Text>
-                          {flow.deleted && (
-                            <Badge size="xs" color="red">DELETED</Badge>
-                          )}
-                        </Group>
-                        <Text size="xs" c="dimmed">
-                          {flow.description || 'No description'}
+                    <Box>
+                      <Group gap="xs" align="center">
+                        <Text 
+                          fw={500} 
+                          size="sm" 
+                          c="white"
+                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/flow-details/${flow.id}`);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.textDecoration = 'underline';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.textDecoration = 'none';
+                          }}
+                        >
+                          {flow.label || 'Unnamed Flow'}
                         </Text>
-                        {/* Source Link */}
-                        {flow.source_id && (
-                          <Group gap="xs" mt="xs">
-                            <IconLink size={12} />
-                            <Text size="xs" c="blue">
-                              Source: {flow.source_id}
-                            </Text>
-                          </Group>
+                        {flow.deleted && (
+                          <Badge size="xs" color="red">DELETED</Badge>
                         )}
-                      </Box>
-                    </Group>
+                      </Group>
+                      <Text size="xs" c="#b3b3b3" mt={4}>
+                        {flow.description || 'No description'}
+                      </Text>
+                      {/* Source Link */}
+                      {flow.source_id && (
+                        <Group gap="xs" mt="xs">
+                          <IconLink size={12} />
+                          <Text size="xs" c="#666666">
+                            Source: {flow.source_id}
+                          </Text>
+                        </Group>
+                      )}
+                    </Box>
                   </Table.Td>
                   <Table.Td>
-                    <Stack gap="xs">
-                      <Badge variant="light" color="blue">
+                    <Stack gap={4}>
+                      <Badge variant="light" color="blue" size="sm">
                         {getFormatLabel(flow.format)}
                       </Badge>
-                      <Text size="xs" c="dimmed">
+                      <Text size="sm" c="#b3b3b3">
                         {flow.codec}
                       </Text>
                     </Stack>
                   </Table.Td>
                   <Table.Td>
-                    <Stack gap="xs">
+                    <Stack gap={4}>
                       <Group gap="xs" align="center">
                         <IconCalendar size={14} />
-                        <Text size="sm">
+                        <Text size="sm" c="#b3b3b3">
                           {flow.created ? new Date(flow.created).toLocaleDateString() : 'Unknown'}
                         </Text>
                       </Group>
                       <Group gap="xs" align="center">
                         <IconActivity size={14} />
-                        <Text size="sm" fw={500}>
+                        <Text size="sm" c="#b3b3b3">
                           {flow.duration || 'Unknown'}
                         </Text>
                       </Group>
                     </Stack>
                   </Table.Td>
                   <Table.Td>
-                    <Stack gap="xs">
+                    <Stack gap={4}>
                       {/* Category & Content Type */}
                       <Group gap="xs">
                         {flow.tags?.category && (
@@ -967,33 +980,31 @@ export default function Flows() {
                         )}
                       </Group>
                       {/* Year & Speaker */}
-                      <Stack gap="xs">
-                        {flow.tags?.year && (
-                          <Text size="xs" fw={500}>
-                            Year: {flow.tags.year}
-                          </Text>
-                        )}
-                        {flow.tags?.speaker && (
-                          <Text size="xs" c="dimmed">
-                            Speaker: {flow.tags.speaker}
-                          </Text>
-                        )}
-                      </Stack>
+                      {flow.tags?.year && (
+                        <Text size="xs" c="#b3b3b3">
+                          Year: {flow.tags.year}
+                        </Text>
+                      )}
+                      {flow.tags?.speaker && (
+                        <Text size="xs" c="#666666">
+                          Speaker: {flow.tags.speaker}
+                        </Text>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>
                     {/* views and duration are not in the API - only show if present (demo data) */}
-                    <Stack gap="xs">
+                    <Stack gap={4}>
                       {flow.views !== undefined && (
                         <Group gap="xs" align="center">
                           <IconActivity size={14} />
-                          <Text size="sm">
+                          <Text size="sm" c="#b3b3b3">
                             {flow.views} views
                           </Text>
                         </Group>
                       )}
                       {flow.duration && (
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" c="#666666">
                           {flow.duration}
                         </Text>
                       )}
@@ -1004,7 +1015,7 @@ export default function Flows() {
                         </Badge>
                       )}
                       {!flow.views && !flow.duration && !flow.tags?.quality && (
-                        <Text size="xs" c="dimmed">—</Text>
+                        <Text size="xs" c="#666666">—</Text>
                       )}
                     </Stack>
                   </Table.Td>
@@ -1019,7 +1030,7 @@ export default function Flows() {
                         {flow.status}
                       </Badge>
                     ) : (
-                      <Text size="sm" c="dimmed">—</Text>
+                      <Text size="sm" c="#666666">—</Text>
                     )}
                   </Table.Td>
                 </Table.Tr>
@@ -1043,22 +1054,22 @@ export default function Flows() {
         {/* Results count */}
         {!loading && filteredFlows.length > 0 && (
           <Group justify="center" mt="md">
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="#b3b3b3">
               Showing {startIndex + 1}-{Math.min(endIndex, filteredFlows.length)} of {filteredFlows.length} flows
             </Text>
           </Group>
         )}
-      </Card>
+      </Box>
 
-      {/* Create Flow Modal */}
-      <CreateFlowModal 
-        opened={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSubmit={handleCreateFlow}
-        sources={sources}
-      />
-
-    </Container>
+        {/* Create Flow Modal */}
+        <CreateFlowModal 
+          opened={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateFlow}
+          sources={sources}
+        />
+      </Container>
+    </Box>
   );
 }
 

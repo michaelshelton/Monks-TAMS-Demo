@@ -78,7 +78,8 @@ import {
   IconTags,
   IconShieldCheck,
   IconClipboardCheck,
-  IconTrash
+  IconTrash,
+  IconCheck
 } from '@tabler/icons-react';
 import { apiClient } from '../services/api';
 import AdvancedFilter, { FilterOption, FilterPreset } from '../components/AdvancedFilter';
@@ -1644,7 +1645,8 @@ export default function FlowDetails() {
   }
 
   return (
-    <Container size="xl" px="xl" py="xl">
+    <Box style={{ backgroundColor: '#0f0f0f', minHeight: '100vh', padding: '24px' }}>
+      <Container size="xl" px={0}>
       {/* Header */}
       <Box mb="xl">
         <Group justify="space-between" align="flex-start">
@@ -1667,11 +1669,11 @@ export default function FlowDetails() {
             <Text size="lg" c="dimmed" mb="md" className="dark-text-secondary">{flow.description}</Text>
             <Group gap="xs" wrap="wrap">
               {getFormatIcon(flow.format)}
-              <Text size="sm">{getFormatLabel(flow.format)}</Text>
-              <Text size="sm" c="dimmed">•</Text>
-              <Text size="sm" c="dimmed">Source ID: {flow.source_id}</Text>
-              <Text size="sm" c="dimmed">•</Text>
-              <Text size="sm" c="dimmed">Codec: {flow.codec}</Text>
+              <Text size="sm" c="#ffffff">{getFormatLabel(flow.format)}</Text>
+              <Text size="sm" c="#666666">•</Text>
+              <Text size="sm" c="#b3b3b3">Source ID: {flow.source_id}</Text>
+              <Text size="sm" c="#666666">•</Text>
+              <Text size="sm" c="#b3b3b3">Codec: {flow.codec}</Text>
             </Group>
           </Box>
           <Group gap="sm">
@@ -1986,7 +1988,40 @@ export default function FlowDetails() {
               </Timeline>
             ) : (
               <ScrollArea h={600}>
-                <Table striped highlightOnHover>
+                <Table
+                  style={{
+                    backgroundColor: 'transparent'
+                  }}
+                  styles={{
+                    thead: {
+                      backgroundColor: 'transparent',
+                    },
+                    th: {
+                      backgroundColor: 'transparent',
+                      color: '#b3b3b3',
+                      borderBottom: '1px solid #333333',
+                      padding: '12px 16px',
+                      fontWeight: 500,
+                      fontSize: '14px',
+                    },
+                    tbody: {
+                      backgroundColor: 'transparent',
+                    },
+                    tr: {
+                      backgroundColor: 'transparent',
+                      borderBottom: '1px solid #333333',
+                      '&:hover': {
+                        backgroundColor: '#1a1a1a',
+                      },
+                    },
+                    td: {
+                      backgroundColor: 'transparent',
+                      color: '#ffffff',
+                      borderBottom: '1px solid #333333',
+                      padding: '12px 16px',
+                    },
+                  }}
+                >
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Segment</Table.Th>
@@ -2008,10 +2043,17 @@ export default function FlowDetails() {
                               <Text 
                                 size="sm" 
                                 fw={500} 
-                                style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                                c="white"
+                                style={{ cursor: 'pointer' }}
                                 onClick={() => handlePlaySegment(segment)}
-                                onMouseEnter={(e) => e.currentTarget.style.color = '#228be6'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.textDecoration = 'underline';
+                                  e.currentTarget.style.color = '#228be6';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.textDecoration = 'none';
+                                  e.currentTarget.style.color = '#ffffff';
+                                }}
                               >
                                 {segment.description}
                               </Text>
@@ -2024,11 +2066,11 @@ export default function FlowDetails() {
                           </Group>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="xs">{formatTimestamp(segment.timerange.start)}</Text>
-                          <Text size="xs" c="dimmed">to {formatTimestamp(segment.timerange.end)}</Text>
+                          <Text size="xs" c="#b3b3b3">{formatTimestamp(segment.timerange.start)}</Text>
+                          <Text size="xs" c="#666666">to {formatTimestamp(segment.timerange.end)}</Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="xs">{formatIsoDuration(segment.last_duration || 'PT0S')}</Text>
+                          <Text size="xs" c="#b3b3b3">{formatIsoDuration(segment.last_duration || 'PT0S')}</Text>
                         </Table.Td>
                         <Table.Td>
                           <Badge color={getStatusColor(segment.status)} variant="light" size="sm">
@@ -2036,7 +2078,7 @@ export default function FlowDetails() {
                           </Badge>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="xs">{segment.size ? formatFileSize(segment.size) : 'N/A'}</Text>
+                          <Text size="xs" c="#b3b3b3">{segment.size ? formatFileSize(segment.size) : 'N/A'}</Text>
                         </Table.Td>
                         <Table.Td>
                           <Group gap="xs" wrap="wrap">
@@ -2051,19 +2093,53 @@ export default function FlowDetails() {
                         <Table.Td>
                           <Group gap="xs">
                             <Tooltip label="View Details">
-                              <ActionIcon size="sm" variant="light" onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}>
+                              <ActionIcon 
+                                size="sm" 
+                                variant="subtle"
+                                onClick={() => { setSelectedSegment(segment); setShowDetailsModal(true); }}
+                                styles={{
+                                  root: {
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid #333333',
+                                    color: '#b3b3b3',
+                                    '&:hover': {
+                                      backgroundColor: '#1a1a1a',
+                                      borderColor: '#404040',
+                                    },
+                                  },
+                                }}
+                              >
                                 <IconEye size={12} />
                               </ActionIcon>
                             </Tooltip>
                             <Tooltip label="Play Segment">
-                              <ActionIcon size="sm" variant="light" onClick={() => handlePlaySegment(segment)} disabled={!canPlaySegment(segment)}>
+                              <ActionIcon 
+                                size="sm" 
+                                variant="subtle"
+                                onClick={() => handlePlaySegment(segment)} 
+                                disabled={!canPlaySegment(segment)}
+                                styles={{
+                                  root: {
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid #333333',
+                                    color: '#b3b3b3',
+                                    '&:hover': {
+                                      backgroundColor: '#1a1a1a',
+                                      borderColor: '#404040',
+                                    },
+                                    '&:disabled': {
+                                      opacity: 0.5,
+                                    },
+                                  },
+                                }}
+                              >
                                 <IconPlayerPlay size={12} />
                               </ActionIcon>
                             </Tooltip>
                             <Tooltip label="Download">
                               <ActionIcon 
                                 size="sm" 
-                                variant="light"
+                                variant="subtle"
                                 onClick={() => {
                                   if (segment.get_urls && segment.get_urls.length > 0) {
                                     const downloadUrl = segment.get_urls.find(url => url.label?.includes('GET'))?.url;
@@ -2075,6 +2151,17 @@ export default function FlowDetails() {
                                   } else {
                                     setError('No download URLs available for this segment');
                                   }
+                                }}
+                                styles={{
+                                  root: {
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid #333333',
+                                    color: '#b3b3b3',
+                                    '&:hover': {
+                                      backgroundColor: '#1a1a1a',
+                                      borderColor: '#404040',
+                                    },
+                                  },
                                 }}
                               >
                                 <IconDownload size={12} />
@@ -2576,7 +2663,40 @@ export default function FlowDetails() {
                     </Group>
                   </Group>
                   
-                  <Table striped highlightOnHover>
+                  <Table
+                    style={{
+                      backgroundColor: 'transparent'
+                    }}
+                    styles={{
+                      thead: {
+                        backgroundColor: 'transparent',
+                      },
+                      th: {
+                        backgroundColor: 'transparent',
+                        color: '#b3b3b3',
+                        borderBottom: '1px solid #333333',
+                        padding: '12px 16px',
+                        fontWeight: 500,
+                        fontSize: '14px',
+                      },
+                      tbody: {
+                        backgroundColor: 'transparent',
+                      },
+                      tr: {
+                        backgroundColor: 'transparent',
+                        borderBottom: '1px solid #333333',
+                        '&:hover': {
+                          backgroundColor: '#1a1a1a',
+                        },
+                      },
+                      td: {
+                        backgroundColor: 'transparent',
+                        color: '#ffffff',
+                        borderBottom: '1px solid #333333',
+                        padding: '12px 16px',
+                      },
+                    }}
+                  >
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Marker ID</Table.Th>
@@ -2592,12 +2712,12 @@ export default function FlowDetails() {
                       {qcMarkers.map((marker: any, index: number) => (
                         <Table.Tr key={marker.id || marker._id || `marker-${index}`}>
                           <Table.Td>
-                            <Text size="sm" ff="monospace" c="dimmed">
+                            <Text size="sm" ff="monospace" c="#666666">
                               {marker.id || marker._id || 'N/A'}
                             </Text>
                           </Table.Td>
                           <Table.Td>
-                            <Text fw={500}>{marker.label || 'Unnamed Marker'}</Text>
+                            <Text fw={500} c="white">{marker.label || 'Unnamed Marker'}</Text>
                           </Table.Td>
                           <Table.Td>
                             <Badge variant="light" color="blue">
@@ -2619,13 +2739,13 @@ export default function FlowDetails() {
                                 {marker.tags?.quality_verdict || marker.tags?.['quality_verdict']}
                               </Badge>
                             ) : (
-                              <Text size="sm" c="dimmed">N/A</Text>
+                              <Text size="sm" c="#666666">N/A</Text>
                             )}
                           </Table.Td>
                           <Table.Td>
                             {marker.tags?.quality_score || marker.tags?.['quality_score'] ? (
                               <Group gap="xs">
-                                <Text fw={500}>
+                                <Text fw={500} c="white">
                                   {parseFloat(marker.tags?.quality_score || marker.tags?.['quality_score'] || '0').toFixed(1)}
                                 </Text>
                                 <Badge 
@@ -2651,25 +2771,36 @@ export default function FlowDetails() {
                                 </Badge>
                               </Group>
                             ) : (
-                              <Text size="sm" c="dimmed">N/A</Text>
+                              <Text size="sm" c="#666666">N/A</Text>
                             )}
                           </Table.Td>
                           <Table.Td>
                             {marker.created || marker.created_at ? (
-                              <Text size="sm">
+                              <Text size="sm" c="#b3b3b3">
                                 {new Date(marker.created || marker.created_at).toLocaleString()}
                               </Text>
                             ) : (
-                              <Text size="sm" c="dimmed">N/A</Text>
+                              <Text size="sm" c="#666666">N/A</Text>
                             )}
                           </Table.Td>
                           <Table.Td>
                             <Button
-                              variant="light"
+                              variant="subtle"
                               size="xs"
                               onClick={() => {
                                 setSelectedSegment(marker as any);
                                 setShowDetailsModal(true);
+                              }}
+                              styles={{
+                                root: {
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid #333333',
+                                  color: '#b3b3b3',
+                                  '&:hover': {
+                                    backgroundColor: '#1a1a1a',
+                                    borderColor: '#404040',
+                                  },
+                                },
                               }}
                             >
                               View Details
@@ -3526,7 +3657,7 @@ export default function FlowDetails() {
           )}
         </Stack>
       </Modal>
-
-    </Container>
+      </Container>
+    </Box>
   );
 } 

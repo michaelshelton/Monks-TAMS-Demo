@@ -187,6 +187,14 @@ export class BbcTamsApiClient implements IApiClient {
     return this.request(endpoint, { method: 'DELETE' });
   }
 
+  async cleanupFlow(id: string, hours: number = 24): Promise<any> {
+    throw new Error('cleanupFlow is not supported by BBC TAMS backend');
+  }
+
+  async updateFlowSegment(flowId: string, segmentId: string, updates: any): Promise<any> {
+    throw new Error('updateFlowSegment is not supported by BBC TAMS backend');
+  }
+
   async getObjects(options: BBCApiOptions = {}): Promise<BBCApiResponse<any>> {
     return this.bbcTamsGet('/objects', options);
   }
